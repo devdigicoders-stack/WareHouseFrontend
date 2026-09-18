@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  min-height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* On Desktop (1024px+), lock viewport to 100vh with zero scrollbar */
+@media (min-width: 1024px) {
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+}
+
+/* Hide scrollbar for elements with .no-scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* Standard sleek scrollbars across all scrollable containers */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.55);
+}
+
+/* GLOBAL TABLE RULE: Prevent awkward text wrapping and broken lines across all data tables */
+table th,
+table td,
+.table-nowrap th,
+.table-nowrap td {
+  white-space: nowrap !important;
+  vertical-align: middle;
+}
+
+/* Allow text wrap only when explicitly requested */
+.table-wrap,
+td.table-wrap,
+th.table-wrap {
+  white-space: normal !important;
+}
+
+/* Harmonize and soften aggressive font weights across all pages */
+.font-black {
+  font-weight: 700 !important;
+}
+
+.font-extrabold {
+  font-weight: 600 !important;
+}
+
+/* Refined tabular numbers for codes, dates, quantities, and license plates */
+.font-mono {
+  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Balanced heading typography */
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.015em;
+}
+
+/* Subtle focus ring styling for inputs */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+}
