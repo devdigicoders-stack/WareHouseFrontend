@@ -1,34 +1,95 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ChevronDown,
-  ChevronRight,
   Warehouse,
   Package,
-  FolderTree,
   Layers,
   MapPin,
+  Search,
   X,
   Upload,
   Download,
   FileSpreadsheet,
-  Tag,
   Edit2,
-  Lock,
   QrCode,
   CheckCircle2,
   AlertTriangle,
   Clock,
-  Info,
   SlidersHorizontal,
-  RefreshCw,
+  RotateCcw,
+  Check,
+  ChevronDown,
+  Printer,
+  Sparkles,
+  Plus,
 } from 'lucide-react'
+
+// Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
+function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const selectedOption = options.find((opt) => opt.value === value)
+
+  return (
+    <div className={`relative ${className}`} ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-left font-medium text-slate-800 flex items-center justify-between transition focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+      >
+        <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
+        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ml-2 ${isOpen ? 'rotate-180 text-indigo-600' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className={`absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 ${zIndexClass} max-h-56 overflow-y-auto`}>
+          {options.map((opt) => {
+            const isSelected = opt.value === value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value)
+                  setIsOpen(false)
+                }}
+                className={`w-full px-3.5 py-2 text-xs text-left flex items-center justify-between transition ${
+                  isSelected
+                    ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="truncate">
+                  <div className="truncate">{opt.label}</div>
+                  {opt.sublabel && <div className="text-[10px] text-slate-400 font-normal">{opt.sublabel}</div>}
+                </div>
+                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function LocationMaster() {
   // Toast state
   const [toastMessage, setToastMessage] = useState(null)
   const triggerToast = (msg) => {
     setToastMessage(msg)
+    setTimeout(() => setToastMessage(null), 3200)
   }
 
   // Selected Shade for visual grid view
@@ -36,150 +97,113 @@ export default function LocationMaster() {
 
   // Filter & Search
   const [searchQuery, setSearchQuery] = useState('')
-  const [filterModalOpen, setFilterModalOpen] = useState(false)
-  const [statusFilter, setStatusFilter] = useState('All')
-  const [shadeFilter, setShadeFilter] = useState('All')
-
-  // Pagination
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [shadeFilter, setShadeFilter] = useState('ALL')
   const [currentPage, setCurrentPage] = useState(1)
-  const [perPage, setPerPage] = useState(10)
+  const perPage = 8
 
-  // Selected Cell for Bin Inspector Modal / Drawer
+  // Selected Cell for Bin Inspector
   const [selectedCell, setSelectedCell] = useState(null)
-
-  // Tree View Expand / Collapse state (Shades 1 to 6)
-  const [expandedNodes, setExpandedNodes] = useState({
-    root: true,
-    sh01: false,
-    sh02: false,
-    sh03: true,
-    sh04: false,
-    sh05: false,
-    sh06: false,
-  })
-
-  const [selectedTreeNode, setSelectedTreeNode] = useState(null)
-
-  const toggleNode = (nodeKey) => {
-    setExpandedNodes((prev) => ({
-      ...prev,
-      [nodeKey]: !prev[nodeKey],
-    }))
-  }
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false)
-  const [showBulkModal, setShowBulkModal] = useState(false)
   const [showPrintModal, setShowPrintModal] = useState(false)
-  const [qrModalBin, setQrModalBin] = useState(null)
+  const [showBulkModal, setShowBulkModal] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
-  const [actionMenuId, setActionMenuId] = useState(null)
+  const [qrModalBin, setQrModalBin] = useState(null)
 
   // Form State for Add / Edit
   const [formData, setFormData] = useState({
     code: '',
     shadeId: 'SH03',
-    row: '01',
-    col: '01',
+    row: 'R01',
+    col: 'C01',
     productName: '',
     batchNo: '',
     baseUnit: 'Pieces',
     packUnit: 'Gatta / Carton',
     unitsPerPack: 6,
-    capacity: '1000',
+    capacity: '1200',
     currentStock: '0',
     status: 'Empty',
   })
 
   // 6 Dedicated Shades Definition
-  const SHADES = [
+  const SHADES = useMemo(() => [
     {
       id: 'SH01',
       name: 'Shade 1: Grains & Bulk Pulses',
       category: 'Grains & Pulses',
-      description: 'Storage for Wheat, Rice, Dal & Pulses',
+      description: 'Storage for Wheat, Basmati Rice & Pulses in 50kg bags',
       baseUnit: 'Kg',
       packUnit: 'Bags (50kg)',
-      rows: 8,
-      cols: 10,
+      unitsPerPack: 50,
       totalBins: 80,
       utilization: 76,
-      bgAccent: 'border-amber-500/40 text-amber-900',
-      badge: 'bg-amber-100 text-amber-800',
     },
     {
       id: 'SH02',
       name: 'Shade 2: Edible Oils & Liquids',
       category: 'Edible Oils',
-      description: 'Refined Oil, Mustard Oil, Ghee in Tins & Cans',
+      description: 'Refined Oil, Mustard Oil, and Ghee in 15L tins & cans',
       baseUnit: 'Ltr',
-      packUnit: 'Tins (15L) / Cans',
-      rows: 8,
-      cols: 10,
+      packUnit: 'Tins (15L)',
+      unitsPerPack: 15,
       totalBins: 80,
       utilization: 62,
-      bgAccent: 'border-yellow-500/40 text-yellow-900',
-      badge: 'bg-yellow-100 text-yellow-800',
     },
     {
       id: 'SH03',
       name: 'Shade 3: Packaged Food & FMCG',
       category: 'Packaged FMCG',
-      description: 'Biscuits, Noodles, Spices, Confectionery',
+      description: 'Biscuits, Noodles, Packaged Groceries, and Confectionery',
       baseUnit: 'Pieces',
-      packUnit: 'Gatta / Cartons',
-      rows: 8,
-      cols: 10,
+      packUnit: 'Gatta / Carton',
+      unitsPerPack: 6,
       totalBins: 80,
       utilization: 84,
-      bgAccent: 'border-emerald-500/40 text-emerald-900',
-      badge: 'bg-emerald-100 text-emerald-800',
     },
     {
       id: 'SH04',
       name: 'Shade 4: Packaging Cartons & Bags',
       category: 'Packaging Materials',
-      description: 'Corrugated Boxes, Tarpaulins, Empty Gatta, Polythene',
+      description: '5-Ply Corrugated Cartons, Tarpaulins, and Bundles',
       baseUnit: 'Nos',
-      packUnit: 'Bundles (100 Pcs)',
-      rows: 8,
-      cols: 10,
+      packUnit: 'Bundles (50 Pcs)',
+      unitsPerPack: 50,
       totalBins: 80,
       utilization: 45,
-      bgAccent: 'border-blue-500/40 text-blue-900',
-      badge: 'bg-blue-100 text-blue-800',
     },
     {
       id: 'SH05',
       name: 'Shade 5: Chemicals & Hygiene',
       category: 'Chemicals & Hygiene',
-      description: 'Sanitizers, Disinfectants, Detergents, Soap',
-      baseUnit: 'Nos / Ltr',
-      packUnit: 'Boxes / Drums',
-      rows: 8,
-      cols: 10,
+      description: 'Disinfectants, Sanitizers, Detergents, and Cleaning liquid',
+      baseUnit: 'Ltr',
+      packUnit: 'Cans (5L)',
+      unitsPerPack: 5,
       totalBins: 80,
       utilization: 58,
-      bgAccent: 'border-purple-500/40 text-purple-900',
-      badge: 'bg-purple-100 text-purple-800',
     },
     {
       id: 'SH06',
-      name: 'Shade 6: Spares, Hardware & General',
+      name: 'Shade 6: Spares & General Hardware',
       category: 'Spares & General',
-      description: 'Maintenance Spares, Tools, Hardware & General Store',
+      description: 'Conveyor belts, Hydraulic pallet jack spares, and Hardware',
       baseUnit: 'Units',
       packUnit: 'Crates',
-      rows: 8,
-      cols: 10,
+      unitsPerPack: 1,
       totalBins: 80,
       utilization: 38,
-      bgAccent: 'border-slate-500/40 text-slate-900',
-      badge: 'bg-slate-100 text-slate-800',
     },
-  ]
+  ], [])
 
-  // Master Locations Table Data (Commercial items, Base Units, 6 Shades)
+  // Active Shade Info
+  const currentActiveShade = useMemo(() => {
+    return SHADES.find((s) => s.id === activeShadeId) || SHADES[2]
+  }, [activeShadeId, SHADES])
+
+  // Master Locations Table Data
   const [locations, setLocations] = useState([
     {
       id: 1,
@@ -199,7 +223,6 @@ export default function LocationMaster() {
       labStatus: 'Passed',
       expiryDate: '15 Mar 2027',
       status: 'Occupied',
-      statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     },
     {
       id: 2,
@@ -219,7 +242,6 @@ export default function LocationMaster() {
       labStatus: 'Passed',
       expiryDate: '28 Jun 2027',
       status: 'Full',
-      statusClass: 'bg-rose-100 text-rose-800 border-rose-200',
     },
     {
       id: 3,
@@ -239,7 +261,6 @@ export default function LocationMaster() {
       labStatus: 'Under Testing',
       expiryDate: '10 Jan 2027',
       status: 'Occupied',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
     },
     {
       id: 4,
@@ -259,7 +280,6 @@ export default function LocationMaster() {
       labStatus: '-',
       expiryDate: '-',
       status: 'Empty',
-      statusClass: 'bg-blue-100 text-blue-800 border-blue-200',
     },
     {
       id: 5,
@@ -279,7 +299,6 @@ export default function LocationMaster() {
       labStatus: 'Passed',
       expiryDate: '10 Nov 2027',
       status: 'Occupied',
-      statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     },
     {
       id: 6,
@@ -299,7 +318,6 @@ export default function LocationMaster() {
       labStatus: 'Passed',
       expiryDate: '20 Dec 2027',
       status: 'Occupied',
-      statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     },
     {
       id: 7,
@@ -319,7 +337,6 @@ export default function LocationMaster() {
       labStatus: 'Passed',
       expiryDate: '18 Aug 2027',
       status: 'Occupied',
-      statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     },
     {
       id: 8,
@@ -339,7 +356,6 @@ export default function LocationMaster() {
       labStatus: 'Passed',
       expiryDate: 'N/A',
       status: 'Occupied',
-      statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     },
     {
       id: 9,
@@ -359,16 +375,15 @@ export default function LocationMaster() {
       labStatus: 'Passed',
       expiryDate: '05 May 2028',
       status: 'Occupied',
-      statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     },
     {
       id: 10,
       code: 'SH06-R01-C01',
       shadeId: 'SH06',
-      shadeName: 'Shade 6: Spares, Hardware & General',
+      shadeName: 'Shade 6: Spares & General Hardware',
       row: 'R01',
       col: 'C01',
-      productName: 'Heavy-Duty Hydraulic Pallet Jack Spares',
+      productName: 'Hydraulic Pallet Jack Spares',
       batchNo: 'BT-2026-SPR-01',
       baseUnit: 'Units',
       packUnit: 'Crates',
@@ -379,16 +394,14 @@ export default function LocationMaster() {
       labStatus: 'Passed',
       expiryDate: 'N/A',
       status: 'Occupied',
-      statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     },
   ])
 
   // Filtered Locations
   const filteredLocations = useMemo(() => {
     return locations.filter((loc) => {
-      if (shadeFilter !== 'All' && loc.shadeId !== shadeFilter) return false
-      if (statusFilter !== 'All' && loc.status !== statusFilter) return false
-      if (selectedTreeNode && !loc.code.startsWith(selectedTreeNode)) return false
+      if (shadeFilter !== 'ALL' && loc.shadeId !== shadeFilter) return false
+      if (statusFilter !== 'ALL' && loc.status !== statusFilter) return false
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
         return (
@@ -401,12 +414,21 @@ export default function LocationMaster() {
       }
       return true
     })
-  }, [locations, shadeFilter, statusFilter, selectedTreeNode, searchQuery])
+  }, [locations, shadeFilter, statusFilter, searchQuery])
 
-  // Active Shade Info
-  const currentActiveShade = useMemo(() => {
-    return SHADES.find((s) => s.id === activeShadeId) || SHADES[2]
-  }, [activeShadeId])
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredLocations.length / perPage))
+  const paginatedLocations = filteredLocations.slice((currentPage - 1) * perPage, currentPage * perPage)
+
+  // Dynamic KPI Stats calculated live from state
+  const stats = useMemo(() => {
+    const totalBins = 480 // 6 shades * 80 bins
+    const occupied = locations.filter((l) => l.status === 'Occupied' || l.status === 'Full').length
+    const empty = totalBins - occupied
+    const full = locations.filter((l) => l.status === 'Full').length
+    const overallUtil = Math.round((occupied / totalBins) * 100)
+    return { totalShades: 6, totalBins, occupied, empty, full, overallUtil }
+  }, [locations])
 
   // Generate Matrix Cells for Active Shade (8 Rows x 10 Columns)
   const matrixCells = useMemo(() => {
@@ -420,12 +442,11 @@ export default function LocationMaster() {
         const cStr = c < 10 ? `C0${c}` : `C${c}`
         const code = `${activeShadeId}-${rStr}-${cStr}`
 
-        // Find existing match or synthesize realistic status
         const matched = locations.find((l) => l.code === code)
         if (matched) {
           cells.push(matched)
         } else {
-          // Semi-deterministic realistic distribution based on row/col
+          // Synthetic deterministic representation
           const isOccupied = (r * 3 + c * 7) % 10 > 3
           const isFull = isOccupied && (r + c) % 5 === 0
           const isTesting = isOccupied && (r + c) % 7 === 0
@@ -440,7 +461,7 @@ export default function LocationMaster() {
             shadeName: currentActiveShade.name,
             row: rStr,
             col: cStr,
-            productName: isOccupied ? `${currentActiveShade.category} Batch Item` : 'Available Bin',
+            productName: isOccupied ? `${currentActiveShade.category} Stock Item` : 'Available Bin',
             batchNo: isOccupied ? `BT-2026-${activeShadeId}-${rStr}` : '-',
             baseUnit: currentActiveShade.baseUnit,
             packUnit: currentActiveShade.packUnit,
@@ -451,11 +472,6 @@ export default function LocationMaster() {
             labStatus: isTesting ? 'Under Testing' : isOccupied ? 'Passed' : '-',
             expiryDate: isOccupied ? '30 Nov 2027' : '-',
             status: isFull ? 'Full' : isOccupied ? 'Occupied' : 'Empty',
-            statusClass: isFull
-              ? 'bg-rose-100 text-rose-800 border-rose-200'
-              : isOccupied
-              ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-              : 'bg-blue-100 text-blue-800 border-blue-200',
           })
         }
       }
@@ -463,11 +479,21 @@ export default function LocationMaster() {
     return cells
   }, [activeShadeId, locations, currentActiveShade])
 
+  // Active Shade Specific Live Counts
+  const activeShadeStats = useMemo(() => {
+    const occupied = matrixCells.filter((c) => c.status === 'Occupied' || c.status === 'Full').length
+    const full = matrixCells.filter((c) => c.status === 'Full').length
+    const testing = matrixCells.filter((c) => c.labStatus === 'Under Testing').length
+    const empty = matrixCells.filter((c) => c.status === 'Empty').length
+    const totalStock = matrixCells.reduce((sum, c) => sum + (Number(c.currentStock) || 0), 0)
+    return { occupied, full, testing, empty, totalStock }
+  }, [matrixCells])
+
   // Handle Save New or Edit Location
   const handleSaveLocation = (e) => {
     e.preventDefault()
     if (!formData.code) {
-      triggerToast('Please provide location code.')
+      triggerToast('Please provide valid location code.')
       return
     }
 
@@ -500,12 +526,6 @@ export default function LocationMaster() {
         ),
         labStatus: 'Passed',
         expiryDate: '15 Dec 2027',
-        statusClass:
-          formData.status === 'Occupied'
-            ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-            : formData.status === 'Full'
-            ? 'bg-rose-100 text-rose-800 border-rose-200'
-            : 'bg-blue-100 text-blue-800 border-blue-200',
       }
       setLocations((prev) => [newItem, ...prev])
       triggerToast(`New bin location ${formData.code} created.`)
@@ -535,7 +555,7 @@ export default function LocationMaster() {
     setShowAddModal(true)
   }
 
-  // Open Print QR Modal for a specific bin
+  // Open Print QR Modal
   const handleOpenPrintQr = (bin) => {
     setQrModalBin(bin)
     setShowPrintModal(true)
@@ -544,6 +564,7 @@ export default function LocationMaster() {
   // Export CSV
   const handleExportCSV = () => {
     const headers = [
+      '#',
       'Bin Code',
       'Shade',
       'Row',
@@ -551,15 +572,16 @@ export default function LocationMaster() {
       'Product Name',
       'Batch No',
       'Base Unit',
-      'Packaging Unit',
+      'Pack Unit',
       'Units Per Pack',
-      'Base Capacity',
-      'Base Occupied Stock',
-      'Packs / Gatta Count',
+      'Capacity',
+      'Current Stock',
+      'Packs Count',
       'Lab Status',
       'Status',
     ]
-    const rows = locations.map((loc) => [
+    const rows = filteredLocations.map((loc, idx) => [
+      idx + 1,
       `"${loc.code}"`,
       `"${loc.shadeName}"`,
       loc.row,
@@ -575,73 +597,75 @@ export default function LocationMaster() {
       loc.labStatus,
       loc.status,
     ])
-    const csvContent =
-      'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n')
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n')
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement('a')
     link.setAttribute('href', encodedUri)
-    link.setAttribute('download', 'Warehouse_6Shades_Location_Master.csv')
+    link.setAttribute('download', 'Warehouse_Location_Master.csv')
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    triggerToast('6-Shades Location Master exported to CSV.')
+    triggerToast('Location Master exported to CSV.')
   }
 
+  // Dropdown Options
+  const shadeOptions = [
+    { value: 'ALL', label: 'All 6 Dedicated Shades' },
+    ...SHADES.map((s) => ({
+      value: s.id,
+      label: s.name,
+      sublabel: `${s.category} • ${s.packUnit}`,
+    })),
+  ]
+
+  const statusOptions = [
+    { value: 'ALL', label: 'All Bin Statuses' },
+    { value: 'Occupied', label: 'Occupied (Stock Present)' },
+    { value: 'Full', label: 'Full (100% Capacity)' },
+    { value: 'Empty', label: 'Empty (Available)' },
+  ]
+
   return (
-    <div className="space-y-4 pb-12">
+    <div className="space-y-5 pb-12">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-[#162214] border border-amber-400 text-amber-300 px-4 py-2.5 rounded-lg shadow-2xl flex items-center gap-2 text-xs font-medium animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold animate-bounce border border-slate-700">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Top Himalayan Convoy Banner (Preserved) */}
-      <div className="relative rounded-xl overflow-hidden shadow-md border border-slate-200/80 bg-slate-900 h-28 sm:h-32">
-        <img
-          src="/border.png"
-          alt="Warehouse Convoy & Facility"
-          className="w-full h-full object-cover object-center opacity-90"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/25 to-black/65"></div>
-        <div className="absolute top-3 right-4 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/20">
-          <div className="h-2 w-5 flex flex-col justify-between rounded-xs overflow-hidden">
-            <div className="h-0.5 bg-[#FF9933]"></div>
-            <div className="h-0.5 bg-white"></div>
-            <div className="h-0.5 bg-[#138808]"></div>
-          </div>
-          <span className="text-[10px] font-bold text-white tracking-widest uppercase">
-            NATION FIRST ALWAYS
-          </span>
-        </div>
-      </div>
-
       {/* Page Header Bar */}
-      <div className="bg-white rounded-xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-xl bg-[#1E3A1E] text-white flex items-center justify-center shadow-xs shrink-0">
-            <Warehouse className="w-6 h-6 text-white" />
+          <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs shrink-0">
+            <Warehouse className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-              <span>Location Master (6 Warehouse Shades Grid)</span>
-            </h1>
-            <p className="text-xs text-slate-500 font-medium">
-              Manage the 6 dedicated commercial shades, row &amp; column grid coordinates, and base product inventory units.
+            <h1 className="text-xl font-bold text-slate-800 tracking-tight">Location Master (6 Warehouse Shades)</h1>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              Interactive 2D visual bin matrix, 6 dedicated storage shades, and base product inventory mapping.
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="text-xs text-slate-400 flex items-center gap-1.5 font-medium mr-2">
-            <Link to="/dashboard" className="hover:text-slate-700">Home</Link>
-            <span>›</span>
-            <span className="text-slate-500">Warehouse Management</span>
-            <span>›</span>
-            <span className="text-slate-800 font-semibold">Location Master</span>
-          </div>
-
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span>Export CSV</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowBulkModal(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
+            <span>Import Bins</span>
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -655,94 +679,79 @@ export default function LocationMaster() {
                 batchNo: '',
                 baseUnit: currentActiveShade.baseUnit,
                 packUnit: currentActiveShade.packUnit,
-                unitsPerPack: 6,
+                unitsPerPack: currentActiveShade.unitsPerPack,
                 capacity: '1000',
                 currentStock: '0',
                 status: 'Empty',
               })
               setShowAddModal(true)
             }}
-            className="bg-[#1F331E] hover:bg-[#2A4428] text-white text-xs font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 shadow-xs transition cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition"
           >
-            <span className="text-sm font-bold leading-none">+</span>
+            <Plus className="w-4 h-4" />
             <span>Add Grid Bin</span>
           </button>
         </div>
       </div>
 
-      {/* 5 KPI Stat Summary Cards tailored to 6-Shade Architecture */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        {/* Card 1: Total Shades */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+      {/* 4 Dynamic KPI Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
             <Warehouse className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[11px] font-semibold text-slate-500">Dedicated Shades</p>
-            <div className="flex items-center gap-2">
-              <h3 className="text-2xl font-black text-slate-800 leading-tight">6</h3>
-              <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                Active
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-400 font-medium">Shades 1 to 6</p>
+            <p className="text-xs font-semibold text-slate-500">Dedicated Shades</p>
+            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+              {stats.totalShades} Active
+            </h3>
+            <p className="text-[11px] text-indigo-600 font-medium">Shades 1 to 6</p>
           </div>
         </div>
 
-        {/* Card 2: Total Storage Bins */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[11px] font-semibold text-slate-500">Total Grid Bins</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">480</h3>
-            <p className="text-[10px] text-slate-400 font-medium">8 Rows × 10 Cols / Shade</p>
+            <p className="text-xs font-semibold text-slate-500">Total Grid Bins</p>
+            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+              {stats.totalBins}
+            </h3>
+            <p className="text-[11px] text-emerald-600 font-medium">80 bins / shade (8×10)</p>
           </div>
         </div>
 
-        {/* Card 3: Occupied Bins */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shrink-0">
             <Package className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[11px] font-semibold text-slate-500">Occupied Bins</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">324</h3>
-            <p className="text-[10px] text-slate-400 font-medium">67.5% utilization</p>
+            <p className="text-xs font-semibold text-slate-500">Occupied Bins</p>
+            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+              {stats.occupied}
+            </h3>
+            <p className="text-[11px] text-amber-600 font-medium">{stats.overallUtil}% warehouse fill</p>
           </div>
         </div>
 
-        {/* Card 4: Available Bins */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[11px] font-semibold text-slate-500">Available Bins</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">156</h3>
-            <p className="text-[10px] text-slate-400 font-medium">Ready for Put-Away</p>
-          </div>
-        </div>
-
-        {/* Card 5: Base Product Units */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-[#1E3A1E] text-white flex items-center justify-center shrink-0 shadow-xs">
-            <QrCode className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500">Base Unit Rule</p>
-            <h3 className="text-sm font-black text-slate-800 leading-tight">1 Gatta = 6 Pcs</h3>
-            <p className="text-[10px] text-emerald-600 font-bold">Minimum Unit Inventory</p>
+            <p className="text-xs font-semibold text-slate-500">Available Bins</p>
+            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+              {stats.empty}
+            </h3>
+            <p className="text-[11px] text-blue-600 font-medium">Ready for put-away</p>
           </div>
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* SHADE SELECTION TABS: 6 Shades pill selector                              */}
-      {/* ========================================================================= */}
-      <div className="bg-white rounded-xl p-3 shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+      {/* 6 Shades Switcher Tabs */}
+      <div className="bg-white rounded-2xl p-3 shadow-xs border border-slate-200/80">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           {SHADES.map((s) => {
             const isActive = activeShadeId === s.id
             return (
@@ -752,238 +761,255 @@ export default function LocationMaster() {
                 onClick={() => {
                   setActiveShadeId(s.id)
                   setSelectedCell(null)
-                  triggerToast(`Switched to ${s.name}`)
+                  triggerToast(`Switched view to ${s.name}`)
                 }}
-                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2.5 whitespace-nowrap cursor-pointer shrink-0 ${
                   isActive
-                    ? 'bg-[#1E3A1E] text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-600/20'
+                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/80'
                 }`}
               >
-                <span>{s.id}:</span>
+                <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-white' : 'bg-indigo-500'}`} />
+                <span className="font-mono">{s.id}:</span>
                 <span>{s.category}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                    isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-700'
                   }`}
                 >
-                  {s.utilization}%
+                  {s.utilization}% Full
                 </span>
               </button>
             )
           })}
         </div>
-
-        <div className="flex items-center gap-2 text-xs">
-          <button
-            type="button"
-            onClick={handleExportCSV}
-            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span>Export CSV</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowBulkModal(true)}
-            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
-            <span>Import Bins</span>
-          </button>
-        </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* 2D VISUAL GRID MATRIX (Rows 1-8 x Columns 1-10) + Bin Details Panel       */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* Left 8 cols: Interactive 2D Grid Matrix */}
-        <div className="lg:col-span-8 bg-white rounded-xl p-4 shadow-xs border border-slate-200 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
-            <div>
-              <h2 className="text-sm font-black text-slate-800 flex items-center gap-2">
-                <span>{currentActiveShade.name} — Visual Grid</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                  80 Bins (8 Rows × 10 Columns)
-                </span>
+      {/* 100% Full-Width Interactive 2D Visual Grid Matrix */}
+      <div className="w-full bg-white rounded-2xl p-5 sm:p-6 shadow-xs border border-slate-200/80 space-y-4">
+        {/* Top Header of Shade Section */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 pb-4 border-b border-slate-100">
+          <div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                {currentActiveShade.name}
               </h2>
-              <p className="text-[11px] text-slate-500">
-                Click any cell to inspect bin capacity, stored batch, packaging ratio &amp; print QR label.
-              </p>
-            </div>
-
-            {/* Matrix Legend */}
-            <div className="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-600">
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500"></span>
-                <span>Occupied</span>
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                80 Bins (8 Rows × 10 Cols)
               </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-xs bg-rose-500"></span>
-                <span>Full (100%)</span>
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Zone {currentActiveShade.zone} • {currentActiveShade.category}
               </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-xs bg-amber-400"></span>
-                <span>Testing</span>
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-xs bg-slate-100 border border-slate-300"></span>
-                <span>Available</span>
+              <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                Ratio: 1 {currentActiveShade.packUnit} = {currentActiveShade.unitsPerPack} {currentActiveShade.baseUnit}
               </span>
             </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Click any bin cell in the 2D layout below to inspect commodity batch, packaging ratio, or print QR locator stickers.
+            </p>
           </div>
 
-          {/* Grid View Container */}
-          <div className="overflow-x-auto no-scrollbar">
-            <div className="min-w-[580px] space-y-1.5">
-              {/* Column Headers (C01 to C10) */}
-              <div className="grid grid-cols-11 gap-1 text-center text-[10px] font-mono font-bold text-slate-400 pb-1">
-                <div className="text-right pr-2">Row\Col</div>
-                {Array.from({ length: 10 }, (_, i) => (
-                  <div key={i} className="py-0.5 bg-slate-50 rounded text-slate-600">
-                    {i + 1 < 10 ? `C0${i + 1}` : `C${i + 1}`}
-                  </div>
-                ))}
-              </div>
-
-              {/* Rows 1 to 8 */}
-              {Array.from({ length: 8 }, (_, rIdx) => {
-                const rowNum = rIdx + 1
-                const rowLabel = `R0${rowNum}`
-                const rowCells = matrixCells.filter((c) => c.row === rowLabel)
-
-                return (
-                  <div key={rowLabel} className="grid grid-cols-11 gap-1 items-center">
-                    {/* Row Header */}
-                    <div className="text-right pr-2 text-[10px] font-mono font-bold text-slate-700">
-                      {rowLabel}
-                    </div>
-
-                    {/* 10 Columns */}
-                    {rowCells.map((cell) => {
-                      const isSelected = selectedCell?.code === cell.code
-                      const isOccupied = cell.status === 'Occupied'
-                      const isFull = cell.status === 'Full'
-                      const isTesting = cell.labStatus === 'Under Testing'
-
-                      let cellBg =
-                        'bg-slate-50 hover:bg-blue-50 border-slate-200 text-slate-700'
-                      if (isFull) {
-                        cellBg =
-                          'bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-900 font-bold'
-                      } else if (isTesting) {
-                        cellBg =
-                          'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900'
-                      } else if (isOccupied) {
-                        cellBg =
-                          'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-900'
-                      }
-
-                      return (
-                        <button
-                          key={cell.code}
-                          type="button"
-                          onClick={() => setSelectedCell(cell)}
-                          title={`${cell.code} - ${cell.productName} (${cell.currentStock} ${cell.baseUnit})`}
-                          className={`h-11 rounded-lg border flex flex-col items-center justify-center p-1 transition cursor-pointer relative ${cellBg} ${
-                            isSelected ? 'ring-2 ring-[#1E3A1E] ring-offset-1 z-10 shadow-sm' : ''
-                          }`}
-                        >
-                          <span className="text-[9px] font-mono leading-none">{cell.col}</span>
-                          <span className="text-[10px] font-black leading-tight mt-0.5">
-                            {cell.currentStock > 0 ? `${cell.currentStock}` : '—'}
-                          </span>
-                          {/* Mini status indicator dot */}
-                          {cell.currentStock > 0 && (
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full absolute top-1 right-1 ${
-                                isFull ? 'bg-rose-500' : isTesting ? 'bg-amber-500' : 'bg-emerald-500'
-                              }`}
-                            ></span>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )
-              })}
-            </div>
+          {/* Matrix Legend with Live Dynamic Counts */}
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+              <span>Occupied ({activeShadeStats.occupied})</span>
+            </span>
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-800 border border-rose-200">
+              <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" />
+              <span>Full 100% ({activeShadeStats.full})</span>
+            </span>
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200">
+              <span className="w-2.5 h-2.5 rounded-sm bg-amber-400" />
+              <span>QC Testing ({activeShadeStats.testing})</span>
+            </span>
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 text-slate-700 border border-slate-200">
+              <span className="w-2.5 h-2.5 rounded-sm bg-slate-200 border border-slate-300" />
+              <span>Empty ({activeShadeStats.empty})</span>
+            </span>
           </div>
         </div>
 
-        {/* Right 4 cols: Selected Bin Inspector & Quick Details */}
-        <div className="lg:col-span-4 bg-white rounded-xl p-4 shadow-xs border border-slate-200 space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <h2 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <QrCode className="w-4 h-4 text-emerald-700" />
-              <span>Bin Inspector &amp; QR Locator</span>
-            </h2>
-            {selectedCell && (
-              <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                {selectedCell.code}
-              </span>
-            )}
-          </div>
+        {/* 2D Grid Canvas - Full Width */}
+        <div className="w-full overflow-x-auto no-scrollbar">
+          <div className="min-w-[820px] space-y-2">
+            {/* Columns Header (C01 to C10) */}
+            <div className="grid grid-cols-11 gap-2 text-center text-xs font-mono font-bold text-slate-500 pb-1">
+              <div className="text-right pr-3 text-slate-400 font-sans text-xs">Row \ Col</div>
+              {Array.from({ length: 10 }, (_, i) => (
+                <div key={i} className="py-1 bg-slate-100/70 rounded-lg text-slate-700 border border-slate-200/60">
+                  {i + 1 < 10 ? `C0${i + 1}` : `C${i + 1}`}
+                </div>
+              ))}
+            </div>
 
-          {selectedCell ? (
-            <div className="space-y-3.5 text-xs">
-              {/* Bin Header Card */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Grid Coordinate
-                    </span>
-                    <h3 className="text-base font-black font-mono text-slate-800">
-                      {selectedCell.code}
-                    </h3>
-                    <p className="text-[11px] text-slate-500">{selectedCell.shadeName}</p>
+            {/* Rows 1 to 8 */}
+            {Array.from({ length: 8 }, (_, rIdx) => {
+              const rowNum = rIdx + 1
+              const rowLabel = `R0${rowNum}`
+              const rowCells = matrixCells.filter((c) => c.row === rowLabel)
+
+              return (
+                <div key={rowLabel} className="grid grid-cols-11 gap-2 items-center">
+                  <div className="text-right pr-3 text-xs font-mono font-bold text-slate-600">
+                    {rowLabel}
                   </div>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${selectedCell.statusClass}`}
-                  >
-                    {selectedCell.status}
-                  </span>
+
+                  {rowCells.map((cell) => {
+                    const isSelected = selectedCell?.code === cell.code
+                    const isOccupied = cell.status === 'Occupied'
+                    const isFull = cell.status === 'Full'
+                    const isTesting = cell.labStatus === 'Under Testing'
+
+                    let cellStyle = 'bg-slate-50 hover:bg-slate-100/80 border-slate-200 text-slate-600'
+                    let dotColor = 'bg-slate-300'
+                    if (isFull) {
+                      cellStyle = 'bg-rose-50/90 hover:bg-rose-100 border-rose-300 text-rose-950 font-bold'
+                      dotColor = 'bg-rose-500 ring-2 ring-rose-200'
+                    } else if (isTesting) {
+                      cellStyle = 'bg-amber-50/90 hover:bg-amber-100 border-amber-300 text-amber-950 font-semibold'
+                      dotColor = 'bg-amber-500 ring-2 ring-amber-200'
+                    } else if (isOccupied) {
+                      cellStyle = 'bg-emerald-50/90 hover:bg-emerald-100 border-emerald-300 text-emerald-950 font-semibold'
+                      dotColor = 'bg-emerald-500 ring-2 ring-emerald-200'
+                    }
+
+                    return (
+                      <button
+                        key={cell.code}
+                        type="button"
+                        onClick={() => setSelectedCell(cell)}
+                        title={`${cell.code} - ${cell.productName} (${cell.currentStock} ${cell.baseUnit})`}
+                        className={`h-16 rounded-xl border flex flex-col justify-between p-2 transition cursor-pointer relative shadow-2xs hover:shadow-sm ${cellStyle} ${
+                          isSelected ? 'ring-2 ring-indigo-600 ring-offset-2 border-indigo-600 z-10 shadow-md bg-indigo-50/60' : ''
+                        }`}
+                      >
+                        <div className="w-full flex items-center justify-between">
+                          <span className="text-[11px] font-mono font-semibold text-slate-600 leading-none">
+                            {cell.col}
+                          </span>
+                          <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                        </div>
+
+                        <div className="my-auto text-center w-full">
+                          <span className="text-xs sm:text-sm font-black font-mono tracking-tight leading-tight block">
+                            {cell.currentStock > 0 ? cell.currentStock.toLocaleString() : '—'}
+                          </span>
+                        </div>
+
+                        <div className="w-full text-center">
+                          <span className="text-[10px] text-slate-500 block truncate leading-none">
+                            {cell.currentStock > 0
+                              ? cell.packsCount > 0
+                                ? `${cell.packsCount} ${cell.packUnit}`
+                                : cell.baseUnit
+                              : 'Empty'}
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Selected Bin Inspector Panel (Full Width) */}
+        {selectedCell ? (
+          <div className="mt-4 pt-4 border-t border-slate-200/80 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-indigo-50/50 p-3.5 rounded-xl border border-indigo-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <QrCode className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-black text-indigo-950">
+                      {selectedCell.code}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        selectedCell.status === 'Occupied'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                          : selectedCell.status === 'Full'
+                          ? 'bg-rose-100 text-rose-800 border-rose-200'
+                          : 'bg-blue-100 text-blue-800 border-blue-200'
+                      }`}
+                    >
+                      {selectedCell.status}
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      {selectedCell.shadeName} (Row {selectedCell.row} • Col {selectedCell.col})
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Product & Batch Specs */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500 text-[11px]">Commodity Stored:</span>
-                  <span className="font-bold text-slate-800 text-right truncate max-w-[180px]">
-                    {selectedCell.productName}
-                  </span>
-                </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleOpenPrintQr(selectedCell)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 text-xs transition cursor-pointer shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print QR Sticker</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit(selectedCell)}
+                  className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 text-xs transition cursor-pointer shadow-xs"
+                >
+                  <Edit2 className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Edit Bin</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCell(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                  title="Close Inspector"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
 
-                <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500 text-[11px]">Batch Number:</span>
-                  <span className="font-mono font-bold text-slate-800">{selectedCell.batchNo}</span>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Stored Commodity
+                </span>
+                <p className="font-bold text-slate-800 truncate text-sm">
+                  {selectedCell.productName}
+                </p>
+                <p className="text-[11px] text-slate-500">Category: {currentActiveShade.category}</p>
+              </div>
 
-                {/* Base Unit vs Packaging Unit Breakdown */}
-                <div className="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-lg space-y-1.5">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-bold text-emerald-900">Base Unit Stock:</span>
-                    <span className="font-mono font-black text-emerald-900 text-sm">
-                      {selectedCell.currentStock.toLocaleString()} {selectedCell.baseUnit}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-emerald-800">
-                    <span>Packaging Ratio:</span>
-                    <span className="font-medium">
-                      1 {selectedCell.packUnit} = {selectedCell.unitsPerPack} {selectedCell.baseUnit}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-emerald-800 font-semibold border-t border-emerald-200/60 pt-1">
-                    <span>Physical Gatta / Cartons:</span>
-                    <span className="font-mono font-bold">{selectedCell.packsCount} Cartons</span>
-                  </div>
-                </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Batch & Expiry
+                </span>
+                <p className="font-mono font-bold text-slate-800 text-sm">{selectedCell.batchNo}</p>
+                <p className="text-[11px] text-slate-500">Expires: {selectedCell.expiryDate}</p>
+              </div>
 
-                <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500 text-[11px]">Lab Testing Status:</span>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Stock Breakdown
+                </span>
+                <p className="font-mono font-black text-indigo-900 text-sm">
+                  {selectedCell.currentStock.toLocaleString()} {selectedCell.baseUnit}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {selectedCell.packsCount} {selectedCell.packUnit} (1 {selectedCell.packUnit} = {selectedCell.unitsPerPack} {selectedCell.baseUnit})
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Lab QC Status
+                </span>
+                <div className="flex items-center gap-2 pt-0.5">
                   <span
                     className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       selectedCell.labStatus === 'Passed'
@@ -995,543 +1021,352 @@ export default function LocationMaster() {
                   >
                     {selectedCell.labStatus}
                   </span>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500 text-[11px]">Expiry Date:</span>
-                  <span className="font-mono text-slate-700">{selectedCell.expiryDate}</span>
+                  <span className="text-[11px] text-slate-500 font-medium">Capacity: {selectedCell.capacity} {selectedCell.baseUnit}</span>
                 </div>
               </div>
-
-              {/* Quick Actions for Selected Bin */}
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => handleOpenPrintQr(selectedCell)}
-                  className="bg-[#1E3A1E] hover:bg-[#2A4428] text-white px-3 py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 text-xs transition cursor-pointer shadow-xs"
-                >
-                  <QrCode className="w-3.5 h-3.5" />
-                  <span>Print Bin QR</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleOpenEdit(selectedCell)}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-3 py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 text-xs transition cursor-pointer"
-                >
-                  <Edit2 className="w-3.5 h-3.5 text-slate-600" />
-                  <span>Edit Bin</span>
-                </button>
-              </div>
             </div>
-          ) : (
-            <div className="py-8 text-center space-y-2 text-slate-400">
-              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
-                <MapPin className="w-6 h-6" />
-              </div>
-              <p className="text-xs font-semibold text-slate-600">No Bin Selected</p>
-              <p className="text-[11px] text-slate-400 max-w-[200px] mx-auto">
-                Click any cell in the 8×10 grid matrix to inspect product, batch, and QR locator tag.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* MASTER LOCATION RECORDS TABLE: Full Width, 6 Shades Filter                */}
-      {/* ========================================================================= */}
-      <div className="w-full bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden flex flex-col">
-        {/* Top Filter Tabs & Search Toolbar */}
-        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* Shades Dropdown & Quick Filter */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShadeFilter('All')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                shadeFilter === 'All'
-                  ? 'bg-[#1E3A1E] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              All 6 Shades
-            </button>
-            {SHADES.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setShadeFilter(s.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  shadeFilter === s.id
-                    ? 'bg-[#1E3A1E] text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {s.id}
-              </button>
-            ))}
           </div>
-
-          {/* Search Input */}
-          <div className="flex items-center gap-2.5">
-            <div className="relative w-72 sm:w-80">
-              <input
-                type="text"
-                placeholder="Search by bin code, product, batch..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:bg-white"
-              />
-              <span className="absolute left-2.5 top-2.5 text-slate-400">🔍</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setFilterModalOpen(!filterModalOpen)}
-              className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-600" />
-              <span>Filter</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Filter Dropdown Tray */}
-        {filterModalOpen && (
-          <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-4 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-600">Occupancy Status:</span>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium"
-              >
-                <option value="All">All Statuses</option>
-                <option value="Occupied">Occupied</option>
-                <option value="Full">Full</option>
-                <option value="Empty">Empty</option>
-              </select>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setStatusFilter('All')
-                setShadeFilter('All')
-                setSearchQuery('')
-                setSelectedTreeNode(null)
-                setFilterModalOpen(false)
-                triggerToast('Filters reset')
-              }}
-              className="text-emerald-700 font-bold hover:underline ml-auto cursor-pointer"
-            >
-              Reset All Filters
-            </button>
+        ) : (
+          <div className="mt-3 py-3 px-4 bg-slate-50/80 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+            <span>Click any bin cell in the 80-bin grid above to open the full Bin Inspector & print QR tag sticker.</span>
           </div>
         )}
+      </div>
 
-        {/* Full Width Table Container */}
-        <div
-          className="overflow-x-auto no-scrollbar scroll-smooth w-full"
-          style={{
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            WebkitOverflowScrolling: 'touch',
-          }}
-        >
-          <table
-            className="w-full text-left text-xs divide-y divide-slate-200 border-collapse table-nowrap"
-            style={{ minWidth: '1150px' }}
-          >
-            <thead className="bg-slate-50/90 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+      {/* 100% Full-Width Master Bins Register Table */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+        {/* Table Toolbar */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+          <div className="flex items-center gap-2.5">
+            <Layers className="w-4 h-4 text-indigo-600" />
+            <h2 className="text-sm font-bold text-slate-800">Master Bin Registry</h2>
+            <span className="text-xs bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full border border-slate-200">
+              {filteredLocations.length} bins
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-center text-xs">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search bin, product, batch..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+              />
+            </div>
+
+            <CustomSelect
+              value={shadeFilter}
+              onChange={setShadeFilter}
+              options={shadeOptions}
+              zIndexClass="z-30"
+            />
+
+            <CustomSelect
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={statusOptions}
+              zIndexClass="z-30"
+            />
+          </div>
+        </div>
+
+        {/* Full-Width Table */}
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left text-xs divide-y divide-slate-200">
+            <thead className="bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
               <tr>
-                <th className="py-3.5 px-4 w-12 text-center whitespace-nowrap">#</th>
-                <th className="py-3.5 px-5 min-w-[150px] whitespace-nowrap">Location Code</th>
-                <th className="py-3.5 px-5 min-w-[180px] whitespace-nowrap">Shade &amp; Grid</th>
-                <th className="py-3.5 px-5 min-w-[220px] whitespace-nowrap">Commodity &amp; Batch</th>
-                <th className="py-3.5 px-4 min-w-[140px] whitespace-nowrap text-right">
-                  Base Unit Stock
-                </th>
-                <th className="py-3.5 px-4 min-w-[150px] whitespace-nowrap text-right">
-                  Packaging (Gatta)
-                </th>
-                <th className="py-3.5 px-4 text-center min-w-[120px] whitespace-nowrap">
-                  Lab Status
-                </th>
-                <th className="py-3.5 px-4 text-center min-w-[110px] whitespace-nowrap">Status</th>
-                <th className="py-3.5 px-4 text-center w-28 whitespace-nowrap">Action</th>
+                <th className="py-3.5 px-4 w-12 text-center">#</th>
+                <th className="py-3.5 px-4 min-w-[130px]">Bin Code</th>
+                <th className="py-3.5 px-4 min-w-[170px]">Shade</th>
+                <th className="py-3.5 px-4 min-w-[200px]">Product Stored</th>
+                <th className="py-3.5 px-4 min-w-[120px]">Batch No.</th>
+                <th className="py-3.5 px-4 text-center min-w-[120px]">Base Stock</th>
+                <th className="py-3.5 px-4 text-center min-w-[110px]">Cartons Count</th>
+                <th className="py-3.5 px-4 text-center min-w-[100px]">Lab QC</th>
+                <th className="py-3.5 px-4 text-center min-w-[95px]">Status</th>
+                <th className="py-3.5 px-4 text-center w-24">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {filteredLocations.map((row, idx) => (
-                <tr key={row.id} className="hover:bg-emerald-50/40 transition">
-                  <td className="py-3 px-4 text-center text-slate-400 font-bold text-[11px] whitespace-nowrap">
-                    {idx + 1}
-                  </td>
-                  <td className="py-3 px-5 font-mono font-bold text-slate-900 whitespace-nowrap">
-                    {row.code}
-                  </td>
-                  <td className="py-3 px-5 text-slate-700 whitespace-nowrap">
-                    <div className="font-semibold text-slate-800">{row.shadeName}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">
-                      Row {row.row} • Col {row.col}
-                    </div>
-                  </td>
-                  <td className="py-3 px-5 text-slate-800 font-medium whitespace-nowrap">
-                    <div className="font-bold text-slate-900">{row.productName}</div>
-                    <div className="text-[10px] text-slate-500 font-mono">
-                      Batch: {row.batchNo} • Exp: {row.expiryDate}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono font-black text-slate-800 whitespace-nowrap">
-                    {row.currentStock.toLocaleString()} {row.baseUnit}
-                    <div className="text-[10px] text-slate-400 font-normal">
-                      Cap: {row.capacity.toLocaleString()}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono text-slate-700 whitespace-nowrap">
-                    <span className="font-bold text-emerald-800">{row.packsCount} Cartons</span>
-                    <div className="text-[10px] text-slate-400 font-medium">
-                      @ {row.unitsPerPack} {row.baseUnit}/pack
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-center whitespace-nowrap">
-                    <span
-                      className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        row.labStatus === 'Passed'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : row.labStatus === 'Under Testing'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {row.labStatus}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center whitespace-nowrap">
-                    <span
-                      className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${row.statusClass}`}
-                    >
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center whitespace-nowrap">
-                    <div className="flex items-center justify-center gap-1.5">
-                      {/* Print Bin QR Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenPrintQr(row)}
-                        className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 p-1.5 rounded-lg text-xs font-bold transition cursor-pointer"
-                        title="Print Bin QR Locator"
-                      >
-                        <QrCode className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Edit Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(row)}
-                        className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 p-1.5 rounded-lg text-xs font-bold transition cursor-pointer"
-                        title="Edit Location"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+              {paginatedLocations.length === 0 ? (
+                <tr>
+                  <td colSpan="10" className="py-10 text-center text-slate-400">
+                    No bin locations found matching your filter criteria.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                paginatedLocations.map((row, idx) => (
+                  <tr key={row.id} className="hover:bg-slate-50/80 transition">
+                    <td className="py-3.5 px-4 text-center text-slate-400 font-bold text-[11px]">
+                      {(currentPage - 1) * perPage + idx + 1}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                      {row.code}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-700 font-medium">
+                      {row.shadeName}
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-slate-800">
+                      {row.productName}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-semibold text-slate-700 text-[11px]">
+                      {row.batchNo}
+                    </td>
+                    <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-900">
+                      {row.currentStock} {row.baseUnit}
+                    </td>
+                    <td className="py-3.5 px-4 text-center font-mono text-slate-700">
+                      {row.packsCount} {row.packUnit}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          row.labStatus === 'Passed'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : row.labStatus === 'Under Testing'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {row.labStatus}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <span
+                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          row.status === 'Occupied'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : row.status === 'Full'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                        }`}
+                      >
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPrintQr(row)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition"
+                          title="Print QR Tag"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(row)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition"
+                          title="Edit Location"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
         {/* Pagination Footer */}
-        <div className="px-5 py-3.5 bg-slate-50/90 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-          <span className="font-medium">
-            Showing <strong>1 to 10</strong> of <strong>480</strong> bins across 6 Shades
-          </span>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              className="px-2.5 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              className="px-3 py-1 rounded font-bold bg-[#1E3A1E] text-white shadow-xs"
-            >
-              1
-            </button>
-            <button
-              type="button"
-              onClick={() => triggerToast('Page 2 loaded')}
-              className="px-3 py-1 rounded font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
-            >
-              2
-            </button>
-            <button
-              type="button"
-              onClick={() => triggerToast('Page 3 loaded')}
-              className="px-3 py-1 rounded font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
-            >
-              3
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrentPage(currentPage + 1)}
-              className="px-2.5 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
-            >
-              ›
-            </button>
+        <div className="p-4 bg-slate-50/80 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 font-medium">
+          <div>
+            Showing <strong>{filteredLocations.length > 0 ? (currentPage - 1) * perPage + 1 : 0}</strong> to{' '}
+            <strong>{Math.min(currentPage * perPage, filteredLocations.length)}</strong> of{' '}
+            <strong>{filteredLocations.length}</strong> bins
           </div>
 
-          <div className="flex items-center gap-2">
-            <span>Show</span>
-            <select
-              value={perPage}
-              onChange={(e) => setPerPage(Number(e.target.value))}
-              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-700 focus:outline-none"
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold"
             >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-            </select>
-            <span>per page</span>
+              ‹ Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setCurrentPage(p)}
+                className={`px-3 py-1 rounded-lg font-bold transition ${
+                  currentPage === p
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold"
+            >
+              Next ›
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* MODAL 1: Add / Edit Location Modal                                        */}
-      {/* ========================================================================= */}
+      {/* MODAL 1: Add / Edit Bin Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <Warehouse className="w-5 h-5 text-emerald-700" />
-                <h3 className="font-black text-slate-900 text-sm">
-                  {editingItem ? 'Edit Grid Bin' : 'Add New Storage Bin'}
-                </h3>
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                  <MapPin className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-800">
+                    {editingItem ? 'Edit Bin Location' : 'Register New Grid Bin'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Configure coordinates &amp; base unit capacity</p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 p-1"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveLocation} className="space-y-4 pt-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleSaveLocation} className="pt-4 space-y-3.5 text-xs">
+              <div className="grid grid-cols-3 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Select Shade <span className="text-red-500">*</span>
-                  </label>
-                  <select
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Shade</label>
+                  <CustomSelect
                     value={formData.shadeId}
-                    onChange={(e) => {
-                      const sh = e.target.value
+                    onChange={(val) => {
+                      const s = SHADES.find((x) => x.id === val)
                       setFormData({
                         ...formData,
-                        shadeId: sh,
-                        code: `${sh}-${formData.row}-${formData.col}`,
+                        shadeId: val,
+                        code: `${val}-${formData.row}-${formData.col}`,
+                        baseUnit: s?.baseUnit || formData.baseUnit,
+                        packUnit: s?.packUnit || formData.packUnit,
+                        unitsPerPack: s?.unitsPerPack || formData.unitsPerPack,
                       })
                     }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold focus:outline-none"
-                  >
-                    {SHADES.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={SHADES.map((s) => ({ value: s.id, label: s.id, sublabel: s.category }))}
+                    zIndexClass="z-40"
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Bin Code <span className="text-red-500">*</span>
-                  </label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Row</label>
                   <input
                     type="text"
-                    required
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    placeholder="e.g. SH03-R02-C04"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:bg-white"
+                    value={formData.row}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        row: e.target.value,
+                        code: `${formData.shadeId}-${e.target.value}-${formData.col}`,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Col</label>
+                  <input
+                    type="text"
+                    value={formData.col}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        col: e.target.value,
+                        code: `${formData.shadeId}-${formData.row}-${e.target.value}`,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Row</label>
-                  <select
-                    value={formData.row}
-                    onChange={(e) => {
-                      const r = e.target.value
-                      setFormData({
-                        ...formData,
-                        row: r,
-                        code: `${formData.shadeId}-${r}-${formData.col}`,
-                      })
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-semibold"
-                  >
-                    {Array.from({ length: 8 }, (_, i) => (
-                      <option key={i} value={`R0${i + 1}`}>
-                        Row 0{i + 1}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Column</label>
-                  <select
-                    value={formData.col}
-                    onChange={(e) => {
-                      const c = e.target.value
-                      setFormData({
-                        ...formData,
-                        col: c,
-                        code: `${formData.shadeId}-${formData.row}-${c}`,
-                      })
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-semibold"
-                  >
-                    {Array.from({ length: 10 }, (_, i) => (
-                      <option key={i} value={i + 1 < 10 ? `C0${i + 1}` : `C${i + 1}`}>
-                        Col {i + 1 < 10 ? `0${i + 1}` : i + 1}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Generated Bin Code</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={formData.code}
+                  className="w-full bg-slate-100 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-indigo-700"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Commodity Stored
-                  </label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Commodity / Product</label>
                   <input
                     type="text"
                     value={formData.productName}
                     onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
-                    placeholder="e.g. Parle-G Biscuits"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold focus:outline-none"
+                    placeholder="e.g. Parle-G Glucose Biscuits"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Batch No</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Batch Number</label>
                   <input
                     type="text"
                     value={formData.batchNo}
                     onChange={(e) => setFormData({ ...formData, batchNo: e.target.value })}
                     placeholder="e.g. BT-2026-FMCG-01"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
               </div>
 
-              {/* Base Unit vs Pack Ratio */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                    Base Unit
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.baseUnit}
-                    onChange={(e) => setFormData({ ...formData, baseUnit: e.target.value })}
-                    placeholder="Pieces / Kg / Ltr"
-                    className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-xs font-semibold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                    Pack / Gatta Type
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.packUnit}
-                    onChange={(e) => setFormData({ ...formData, packUnit: e.target.value })}
-                    placeholder="Gatta / Carton"
-                    className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-xs font-semibold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                    Ratio (Units / Pack)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.unitsPerPack}
-                    onChange={(e) =>
-                      setFormData({ ...formData, unitsPerPack: Number(e.target.value) || 1 })
-                    }
-                    className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-xs font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Base Capacity
-                  </label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Base Capacity</label>
                   <input
                     type="number"
                     value={formData.capacity}
                     onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Current Stock
-                  </label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Current Stock</label>
                   <input
                     type="number"
                     value={formData.currentStock}
                     onChange={(e) => setFormData({ ...formData, currentStock: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold"
-                  >
-                    <option value="Empty">Empty</option>
-                    <option value="Occupied">Occupied</option>
-                    <option value="Full">Full</option>
-                  </select>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#1E3A1E] hover:bg-[#2A4428] text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition"
                 >
-                  {editingItem ? 'Update Bin' : 'Save Bin'}
+                  Save Bin
                 </button>
               </div>
             </form>
@@ -1539,198 +1374,122 @@ export default function LocationMaster() {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 2: Bulk Import (Excel) Modal                                        */}
-      {/* ========================================================================= */}
-      {showBulkModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                <span>Bulk Import Grid Bins (6 Shades Excel)</span>
-              </h3>
+      {/* MODAL 2: Print Bin QR Modal */}
+      {showPrintModal && qrModalBin && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center space-y-4">
+            <div className="flex items-center justify-between border-b pb-2.5 border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800">Physical Bin QR Locator Tag</h3>
               <button
                 type="button"
-                onClick={() => setShowBulkModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+                onClick={() => setShowPrintModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="py-6 text-center space-y-3">
-              <div className="w-16 h-16 bg-emerald-50 text-emerald-700 rounded-full flex items-center justify-center mx-auto border border-emerald-200">
-                <Upload className="w-8 h-8 text-emerald-700" />
+            {/* Printable Bin Tag Preview */}
+            <div className="border-2 border-slate-900 rounded-xl p-4 bg-white space-y-2.5 text-center">
+              <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                CENTRAL WAREHOUSE • LOCATION TAG
               </div>
-              <div>
-                <p className="text-xs font-bold text-slate-800">Upload 6-Shade Warehouse Grid Sheet</p>
-                <p className="text-[11px] text-slate-400">Supports .xlsx, .xls, .csv format</p>
+              <div className="text-2xl font-black font-mono tracking-widest text-slate-900 py-1 bg-slate-50 rounded border border-dashed border-slate-300">
+                {qrModalBin.code}
               </div>
-              <input type="file" className="hidden" id="bulk-loc-file" />
-              <label
-                htmlFor="bulk-loc-file"
-                className="inline-block bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs font-bold cursor-pointer"
-              >
-                Choose Excel File
-              </label>
+              <div className="w-32 h-32 mx-auto border border-slate-300 p-1.5 rounded-lg flex items-center justify-center">
+                <svg viewBox="0 0 100 100" className="w-full h-full text-slate-900" fill="currentColor">
+                  <rect x="0" y="0" width="30" height="30" />
+                  <rect x="5" y="5" width="20" height="20" fill="white" />
+                  <rect x="9" y="9" width="12" height="12" />
+                  <rect x="70" y="0" width="30" height="30" />
+                  <rect x="75" y="5" width="20" height="20" fill="white" />
+                  <rect x="79" y="9" width="12" height="12" />
+                  <rect x="0" y="70" width="30" height="30" />
+                  <rect x="5" y="75" width="20" height="20" fill="white" />
+                  <rect x="9" y="79" width="12" height="12" />
+                  <rect x="36" y="8" width="6" height="14" />
+                  <rect x="46" y="12" width="14" height="6" />
+                  <rect x="40" y="24" width="8" height="8" />
+                  <rect x="54" y="26" width="8" height="8" />
+                  <rect x="38" y="38" width="24" height="24" />
+                  <rect x="42" y="42" width="16" height="16" fill="white" />
+                  <rect x="46" y="46" width="8" height="8" />
+                  <rect x="74" y="38" width="8" height="14" />
+                  <rect x="38" y="70" width="12" height="8" />
+                  <rect x="54" y="74" width="14" height="6" />
+                  <rect x="72" y="72" width="8" height="18" />
+                </svg>
+              </div>
+              <div className="text-[11px] font-semibold text-slate-800">
+                {qrModalBin.shadeName}
+              </div>
+              <div className="text-[10px] text-slate-500 font-mono">
+                Capacity: {qrModalBin.capacity} {qrModalBin.baseUnit}
+              </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <div className="flex gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => triggerToast('Sample 6-Shade Grid template downloaded.')}
-                className="text-emerald-700 font-bold hover:underline"
+                onClick={() => setShowPrintModal(false)}
+                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
               >
-                Download Sample Template
+                Close
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  triggerToast('Importing bins from template...')
-                  setTimeout(() => {
-                    setShowBulkModal(false)
-                    triggerToast('Bulk import completed: 80 bins configured.')
-                  }, 1000)
-                }}
-                className="bg-[#1E3A1E] text-white px-4 py-2 rounded-lg font-bold cursor-pointer"
+                onClick={() => window.print()}
+                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5"
               >
-                Upload &amp; Import
+                <Printer className="w-4 h-4" />
+                <span>Print Tag</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 3: Print Bin QR Locator Tag Modal                                   */}
-      {/* ========================================================================= */}
-      {showPrintModal && qrModalBin && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center space-y-4">
+      {/* MODAL 3: Bulk Import Modal */}
+      {showBulkModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="font-black text-slate-800 text-sm flex items-center gap-1.5">
-                <QrCode className="w-4 h-4 text-emerald-700" />
-                <span>Warehouse Bin QR Locator</span>
-              </h3>
+              <h3 className="text-sm font-bold text-slate-800">Bulk Bin Import</h3>
               <button
                 type="button"
-                onClick={() => setShowPrintModal(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                onClick={() => setShowBulkModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Printable Bin Tag Container */}
-            <div className="border-2 border-dashed border-slate-800 rounded-xl p-4 bg-slate-50 space-y-3">
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-700 pb-1 border-b border-slate-200">
-                <span>CENTRAL WAREHOUSE LOGISTICS</span>
-                <span className="text-emerald-800">{qrModalBin.shadeId}</span>
+            <div className="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-2xl p-6 text-center bg-slate-50 transition cursor-pointer space-y-2">
+              <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 mx-auto flex items-center justify-center">
+                <FileSpreadsheet className="w-5 h-5" />
               </div>
-
-              {/* Large Bin Coordinates */}
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  BIN COORDINATES
-                </span>
-                <h4 className="text-xl font-black font-mono text-slate-900 tracking-wider">
-                  {qrModalBin.code}
-                </h4>
-                <p className="text-[11px] font-bold text-slate-700">{qrModalBin.shadeName}</p>
-                <p className="text-[10px] text-slate-500 font-mono">
-                  ROW: {qrModalBin.row} | COLUMN: {qrModalBin.col}
-                </p>
-              </div>
-
-              {/* High-res Realistic QR Code Canvas Simulation */}
-              <div className="w-36 h-36 bg-white p-2.5 mx-auto rounded-lg border border-slate-300 shadow-xs flex items-center justify-center">
-                <svg className="w-full h-full text-slate-900" viewBox="0 0 100 100" fill="currentColor">
-                  {/* Outer corner markers */}
-                  <rect x="0" y="0" width="28" height="28" fill="currentColor" />
-                  <rect x="4" y="4" width="20" height="20" fill="white" />
-                  <rect x="8" y="8" width="12" height="12" fill="currentColor" />
-
-                  <rect x="72" y="0" width="28" height="28" fill="currentColor" />
-                  <rect x="76" y="4" width="20" height="20" fill="white" />
-                  <rect x="80" y="8" width="12" height="12" fill="currentColor" />
-
-                  <rect x="0" y="72" width="28" height="28" fill="currentColor" />
-                  <rect x="4" y="76" width="20" height="20" fill="white" />
-                  <rect x="8" y="80" width="12" height="12" fill="currentColor" />
-
-                  {/* Grid data blocks */}
-                  <rect x="36" y="4" width="6" height="6" />
-                  <rect x="48" y="4" width="6" height="6" />
-                  <rect x="36" y="16" width="6" height="6" />
-                  <rect x="54" y="16" width="6" height="6" />
-                  <rect x="42" y="28" width="6" height="6" />
-                  <rect x="4" y="36" width="6" height="6" />
-                  <rect x="16" y="36" width="6" height="6" />
-                  <rect x="28" y="36" width="6" height="6" />
-                  <rect x="40" y="36" width="6" height="6" />
-                  <rect x="52" y="36" width="6" height="6" />
-                  <rect x="64" y="36" width="6" height="6" />
-                  <rect x="76" y="36" width="6" height="6" />
-                  <rect x="88" y="36" width="6" height="6" />
-                  <rect x="4" y="48" width="6" height="6" />
-                  <rect x="22" y="48" width="6" height="6" />
-                  <rect x="34" y="48" width="6" height="6" />
-                  <rect x="46" y="48" width="6" height="6" />
-                  <rect x="58" y="48" width="6" height="6" />
-                  <rect x="70" y="48" width="6" height="6" />
-                  <rect x="82" y="48" width="6" height="6" />
-                  <rect x="94" y="48" width="6" height="6" />
-                  <rect x="36" y="60" width="6" height="6" />
-                  <rect x="48" y="60" width="6" height="6" />
-                  <rect x="60" y="60" width="6" height="6" />
-                  <rect x="36" y="72" width="6" height="6" />
-                  <rect x="48" y="72" width="6" height="6" />
-                  <rect x="60" y="72" width="6" height="6" />
-                  <rect x="72" y="72" width="6" height="6" />
-                  <rect x="84" y="72" width="6" height="6" />
-                  <rect x="96" y="72" width="6" height="6" />
-                  <rect x="42" y="84" width="6" height="6" />
-                  <rect x="54" y="84" width="6" height="6" />
-                  <rect x="66" y="84" width="6" height="6" />
-                  <rect x="78" y="84" width="6" height="6" />
-                  <rect x="90" y="84" width="6" height="6" />
-                </svg>
-              </div>
-
-              {/* Base Unit details */}
-              <div className="text-[10px] text-slate-600 border-t border-slate-200 pt-2 text-left space-y-0.5">
-                <p>
-                  <strong>Commodity:</strong> {qrModalBin.productName}
-                </p>
-                <p>
-                  <strong>Stock:</strong> {qrModalBin.currentStock} {qrModalBin.baseUnit} (
-                  {qrModalBin.packsCount} Cartons)
-                </p>
-                <p>
-                  <strong>Base Unit Rule:</strong> 1 {qrModalBin.packUnit} = {qrModalBin.unitsPerPack}{' '}
-                  {qrModalBin.baseUnit}
-                </p>
-              </div>
+              <p className="text-xs font-bold text-slate-800">Drop your bin layout spreadsheet here (.xlsx / .csv)</p>
+              <p className="text-[11px] text-slate-500">Columns: ShadeId, Row, Col, Capacity, BaseUnit</p>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setShowPrintModal(false)}
-                className="px-3.5 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold cursor-pointer"
+                onClick={() => setShowBulkModal(false)}
+                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Close
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  window.print()
-                  setShowPrintModal(false)
+                  setShowBulkModal(false)
+                  triggerToast('Imported 80 bins successfully into Shade 3.')
                 }}
-                className="px-5 py-1.5 bg-[#1E3A1E] hover:bg-[#2A4428] text-white rounded-lg text-xs font-bold cursor-pointer shadow-xs"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition"
               >
-                Print Label
+                Upload &amp; Sync
               </button>
             </div>
           </div>

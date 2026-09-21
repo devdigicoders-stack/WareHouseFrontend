@@ -6,7 +6,18 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem('wms_auth_user')
-      return saved ? JSON.parse(saved) : null
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.name && /admin/i.test(parsed.name)) {
+          parsed.name = 'Warehouse Manager'
+        }
+        if (parsed?.userId && /admin/i.test(parsed.userId)) {
+          parsed.userId = 'WMS-MGR-001'
+        }
+        localStorage.setItem('wms_auth_user', JSON.stringify(parsed))
+        return parsed
+      }
+      return null
     } catch {
       return null
     }

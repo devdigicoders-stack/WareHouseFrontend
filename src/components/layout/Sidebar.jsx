@@ -335,23 +335,27 @@ export default function Sidebar() {
       <aside
         className={`${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-40 w-64 bg-[#0F160E] border-r border-[#1D271B] flex flex-col transition-transform duration-200 ease-in-out select-none shadow-2xl lg:shadow-none`}
+        } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-40 w-72 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-200 ease-in-out select-none shadow-2xl lg:shadow-none`}
       >
-        {/* Top Header with Official Indian Army Emblem */}
-        <div className="py-4 px-4 flex items-center justify-center border-b border-[#1E291C] bg-gradient-to-b from-[#141E13] to-[#0F160E] shrink-0">
-          <img
-            src="/logo.png"
-            alt="Indian Army Emblem"
-            className="h-20 w-auto max-w-[190px] object-contain drop-shadow-xl hover:scale-105 transition-transform duration-200"
-          />
+        {/* Top Header with Brand */}
+        <div className="py-5 px-5 flex items-center gap-3.5 border-b border-slate-800 bg-slate-950 shrink-0">
+          <div className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-950/50 shrink-0">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-white tracking-wide leading-tight">WAREHOUSE</h2>
+            <p className="text-xs font-semibold text-indigo-400 tracking-wider uppercase mt-0.5">OPERATIONS</p>
+          </div>
         </div>
 
         {/* Scrollable Navigation Items */}
-        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-4 scrollbar-thin scrollbar-thumb-[#253322]">
+        <nav className="flex-1 overflow-y-auto px-3.5 py-4 space-y-5 scrollbar-thin scrollbar-thumb-slate-800">
           {navSections.filter((sec) => sec.items && sec.items.length > 0).map((sec, idx) => (
-            <div key={idx} className="space-y-1">
+            <div key={idx} className="space-y-1.5">
               {sec.title && (
-                <p className="px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400/80 mb-1">
+                <p className="px-3 text-xs font-bold uppercase tracking-wider text-slate-400/90 mb-2">
                   {sec.title}
                 </p>
               )}
@@ -423,20 +427,20 @@ export default function Sidebar() {
                     <Link
                       key={item.id}
                       to={targetPath}
-                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
                         isActive
-                          ? 'bg-[#23311E] text-amber-300 font-semibold shadow-sm border-l-3 border-amber-400'
-                          : 'text-slate-300 hover:text-white hover:bg-[#182316]'
+                          ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <span className={isActive ? 'text-amber-400' : 'text-slate-400'}>
+                      <div className="flex items-center gap-3">
+                        <span className={`shrink-0 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 ${isActive ? 'text-white' : 'text-slate-400'}`}>
                           {item.icon}
                         </span>
-                        <span className="truncate">{item.label}</span>
+                        <span className="truncate text-[13.5px] leading-snug">{item.label}</span>
                       </div>
                       {item.hasArrow && (
-                        <span className="text-[10px] text-slate-400">›</span>
+                        <span className="text-xs text-slate-400 font-bold ml-1">›</span>
                       )}
                     </Link>
                   )
@@ -447,14 +451,16 @@ export default function Sidebar() {
                     key={item.id}
                     type="button"
                     onClick={() => alert(`${item.label} module will be opened in next step!`)}
-                    className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-[#182316] transition-all duration-150 cursor-pointer"
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all duration-150 cursor-pointer"
                   >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-slate-400">{item.icon}</span>
-                      <span className="truncate">{item.label}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="shrink-0 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 text-slate-400">
+                        {item.icon}
+                      </span>
+                      <span className="truncate text-[13.5px] leading-snug">{item.label}</span>
                     </div>
                     {item.hasArrow && (
-                      <span className="text-[10px] text-slate-400">›</span>
+                      <span className="text-xs text-slate-400 font-bold ml-1">›</span>
                     )}
                   </button>
                 )
@@ -464,16 +470,16 @@ export default function Sidebar() {
         </nav>
 
         {/* Fixed Bottom Section: Secure Logout */}
-        <div className="p-3 border-t border-[#1E291C] bg-gradient-to-t from-[#0A0F09] to-[#121A11] shrink-0 space-y-2">
+        <div className="p-4 border-t border-slate-800 bg-slate-950 shrink-0 space-y-2.5">
           {/* Logout Action Button */}
           <button
             type="button"
             onClick={() => setShowLogoutConfirm(true)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-rose-950/30 hover:bg-rose-900/50 border border-rose-800/40 hover:border-rose-700/70 text-rose-300 hover:text-rose-100 text-xs font-semibold transition-all duration-150 shadow-xs cursor-pointer group"
+            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 hover:border-rose-700/70 text-rose-300 hover:text-rose-100 text-sm font-semibold transition-all duration-150 shadow-xs cursor-pointer group"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               <svg
-                className="w-4 h-4 text-rose-400 group-hover:text-rose-300 transition-transform group-hover:-translate-x-0.5"
+                className="w-5 h-5 text-rose-400 group-hover:text-rose-300 transition-transform group-hover:-translate-x-0.5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -487,13 +493,13 @@ export default function Sidebar() {
               </svg>
               <span>Logout Session</span>
             </div>
-            <span className="text-[10px] text-rose-400/80 font-mono tracking-wider flex items-center gap-1">EXIT <Power className="w-2.5 h-2.5 inline" /></span>
+            <span className="text-xs text-rose-400/80 font-mono tracking-wider flex items-center gap-1">EXIT <Power className="w-3 h-3 inline" /></span>
           </button>
 
           {/* System Status */}
-          <div className="pt-0.5 flex items-center justify-center gap-1.5 text-[9px] font-mono text-emerald-500/60 tracking-wider">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 animate-pulse" />
-            <span>CENTRAL WAREHOUSE ONLINE</span>
+          <div className="pt-0.5 flex items-center justify-center gap-2 text-xs font-mono text-emerald-400 tracking-wider">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>SYSTEM ONLINE</span>
           </div>
         </div>
       </aside>
@@ -501,7 +507,7 @@ export default function Sidebar() {
       {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="bg-[#121A11] border border-[#2B3A24] rounded-2xl shadow-2xl max-w-sm w-full p-5 text-white animate-scale-up">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-5 text-white animate-scale-up">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -510,19 +516,19 @@ export default function Sidebar() {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-100">Confirm Session Logout</h3>
-                <p className="text-[11px] text-slate-400">Central Warehouse Management Console</p>
+                <p className="text-[11px] text-slate-400">Warehouse Management Console</p>
               </div>
             </div>
 
-            <p className="text-xs text-slate-300 mb-5 leading-relaxed bg-[#182316] p-3 rounded-lg border border-[#253521]">
-              Are you sure you want to end your current session? You will be safely signed out and returned to the authentication portal.
+            <p className="text-xs text-slate-300 mb-5 leading-relaxed bg-slate-800 p-3 rounded-lg border border-slate-700">
+              Are you sure you want to end your current session? You will be safely signed out and returned to the login screen.
             </p>
 
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-2 px-3 rounded-lg border border-[#2B3A24] bg-[#1A2518] hover:bg-[#233120] text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                className="flex-1 py-2 px-3 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Cancel
               </button>

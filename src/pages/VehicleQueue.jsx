@@ -1,166 +1,271 @@
-import { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import { Megaphone, Zap, Check, AlertTriangle, X } from 'lucide-react'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import {
+  Truck,
+  Clock,
+  Plus,
+  Search,
+  Megaphone,
+  Check,
+  AlertTriangle,
+  X,
+  Download,
+  Zap,
+  CheckCircle2,
+  ChevronDown,
+} from 'lucide-react'
+
+// Options for Add Vehicle Modal Dropdowns
+const VEHICLE_TYPE_OPTIONS = [
+  { value: 'Heavy Commercial Truck', label: 'Heavy Commercial Truck (10 Wheeler)' },
+  { value: 'Standard Truck (6 Wheeler)', label: 'Standard Truck (6 Wheeler)' },
+  { value: 'Covered Container', label: 'Covered Container' },
+  { value: 'Light Cargo Vehicle (LCV)', label: 'Light Cargo Vehicle (LCV)' },
+]
+
+const PURPOSE_OPTIONS = [
+  { value: 'Material Inward', label: 'Material Inward (GRN)' },
+  { value: 'Dispatch', label: 'Dispatch (Outward Delivery)' },
+]
+
+const BAY_OPTIONS = [
+  { value: 'Bay 1 (General Stores - Shade 1)', label: 'Bay 1 (General Stores - Shade 1)' },
+  { value: 'Bay 2 (Food & Grains - Shade 2)', label: 'Bay 2 (Food & Grains - Shade 2)' },
+  { value: 'Bay 3 (Industrial Supplies - Shade 3)', label: 'Bay 3 (Industrial Supplies - Shade 3)' },
+  { value: 'Bay 4 (Chemical & Hazardous - Shade 4)', label: 'Bay 4 (Chemical - Shade 4)' },
+  { value: 'Dock 1 (Dispatch Outward)', label: 'Dock 1 (Dispatch Outward)' },
+  { value: 'Dock 2 (Dispatch Outward)', label: 'Dock 2 (Dispatch Outward)' },
+]
+
+// Pure React Custom Select to completely eliminate OS native dropdown black-frame flicker
+function CustomSelect({ label, value, onChange, options, required, zIndexClass = 'z-20' }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const containerRef = useRef(null)
+
+  useEffect(() => {
+    function handleOutside(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [])
+
+  const selectedOption = options.find((opt) => opt.value === value) || options[0]
+
+  return (
+    <div className={`relative ${zIndexClass}`} ref={containerRef}>
+      {label && (
+        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+          {label} {required && <span className="text-rose-500">*</span>}
+        </label>
+      )}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full bg-white border rounded-xl px-3.5 py-2.5 text-xs text-left flex items-center justify-between transition-all cursor-pointer shadow-2xs ${
+          isOpen
+            ? 'border-indigo-600 ring-2 ring-indigo-500/20 text-slate-900'
+            : 'border-slate-300 text-slate-800 hover:border-slate-400'
+        }`}
+      >
+        <span className="truncate font-medium">{selectedOption?.label || value}</span>
+        <ChevronDown
+          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ml-2 ${
+            isOpen ? 'rotate-180 text-indigo-600' : ''
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl py-1 max-h-56 overflow-y-auto z-50">
+          {options.map((opt) => {
+            const isSelected = opt.value === value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value)
+                  setIsOpen(false)
+                }}
+                className={`w-full px-3.5 py-2 text-xs text-left flex items-center justify-between transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-indigo-50 text-indigo-700 font-bold'
+                    : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <span className="truncate">{opt.label}</span>
+                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function VehicleQueue() {
-  const [activeTab, setActiveTab] = useState('all') // 'all', 'incoming', 'outgoing'
+  const [activeTab, setActiveTab] = useState('all') // 'all', 'in-queue', 'processing', 'delayed', 'incoming', 'outgoing'
   const [searchQuery, setSearchQuery] = useState('')
-  const [autoRefresh, setAutoRefresh] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [openActionMenuId, setOpenActionMenuId] = useState(null)
   const [toastMessage, setToastMessage] = useState(null)
 
-  // Initial Queue Data matching reference screenshot exactly
+  // Real-time Queue Data (Commercial Warehouse Logistics)
   const [vehicles, setVehicles] = useState([
     {
       id: 1,
       tokenNo: 'TKN-001',
       vehicleNo: 'UP32 AB 1256',
-      type: 'truck',
+      type: 'Heavy Commercial Truck',
       driverName: 'Rajesh Yadav',
-      supplier: 'Bharat Supply',
+      driverPhone: '98765 43210',
+      supplier: 'M/s Bharat Supply Corp',
       purpose: 'Material Inward',
+      bay: 'Bay 2 (Shade 2)',
       arrivedAt: '09:12 AM',
       waitingTime: '1h 12m',
-      waitingTimeClass: 'text-amber-700 font-semibold',
       status: 'In Queue',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
     },
     {
       id: 2,
       tokenNo: 'TKN-002',
       vehicleNo: 'HR55 CD 7890',
-      type: 'truck',
+      type: 'Covered Container',
       driverName: 'Sandeep Kumar',
-      supplier: 'Defence Foods',
+      driverPhone: '98123 45678',
+      supplier: 'Prime Foods & Logistics',
       purpose: 'Material Inward',
+      bay: 'Bay 1 (Shade 1)',
       arrivedAt: '09:45 AM',
       waitingTime: '39m',
-      waitingTimeClass: 'text-emerald-700 font-semibold',
       status: 'In Queue',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
     },
     {
       id: 3,
       tokenNo: 'TKN-003',
       vehicleNo: 'DL01 EF 4321',
-      type: 'car',
+      type: 'Light Cargo Vehicle (LCV)',
       driverName: 'Amit Singh',
-      supplier: 'Ordnance Factory',
+      driverPhone: '98450 12345',
+      supplier: 'Apex Manufacturing Ltd',
       purpose: 'Dispatch',
+      bay: 'Dock 4 (Dispatch)',
       arrivedAt: '10:05 AM',
       waitingTime: '19m',
-      waitingTimeClass: 'text-emerald-700 font-semibold',
       status: 'Processing',
-      statusClass: 'bg-blue-100 text-blue-800 border-blue-200',
     },
     {
       id: 4,
       tokenNo: 'TKN-004',
       vehicleNo: 'UP78 GH 9987',
-      type: 'car',
+      type: 'Heavy Commercial Truck',
       driverName: 'Vikram Pal',
-      supplier: 'Army Stores',
+      driverPhone: '97920 01122',
+      supplier: 'Global Agri Traders',
       purpose: 'Material Inward',
+      bay: 'Bay 3 (Shade 3)',
       arrivedAt: '08:55 AM',
       waitingTime: '1h 29m',
-      waitingTimeClass: 'text-red-600 font-bold',
       status: 'Delayed',
-      statusClass: 'bg-red-100 text-red-800 border-red-200',
     },
     {
       id: 5,
       tokenNo: 'TKN-005',
       vehicleNo: 'RJ14 JK 6543',
-      type: 'car',
+      type: 'Standard Truck (6 Wheeler)',
       driverName: 'Imran Khan',
-      supplier: 'National Supply',
+      driverPhone: '99100 88223',
+      supplier: 'National Retail Distribution',
       purpose: 'Dispatch',
+      bay: 'Dock 5 (Dispatch)',
       arrivedAt: '10:10 AM',
       waitingTime: '14m',
-      waitingTimeClass: 'text-emerald-700 font-semibold',
       status: 'In Queue',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
     },
     {
       id: 6,
       tokenNo: 'TKN-006',
       vehicleNo: 'UP32 ZZ 1111',
-      type: 'truck',
+      type: 'Heavy Commercial Truck',
       driverName: 'Ramesh Tiwari',
-      supplier: 'Kansai Pvt Ltd',
+      driverPhone: '98333 44556',
+      supplier: 'Kansai Industrial Paints',
       purpose: 'Material Inward',
+      bay: 'Bay 4 (Hazardous)',
       arrivedAt: '07:50 AM',
       waitingTime: '2h 34m',
-      waitingTimeClass: 'text-red-600 font-bold',
       status: 'Delayed',
-      statusClass: 'bg-red-100 text-red-800 border-red-200',
     },
     {
       id: 7,
       tokenNo: 'TKN-007',
       vehicleNo: 'BR01 XY 2222',
-      type: 'car',
+      type: 'Light Cargo Vehicle (LCV)',
       driverName: 'Manoj Kumar',
-      supplier: 'Eastern Logistics',
+      driverPhone: '98222 33441',
+      supplier: 'Eastern Logistics Corridors',
       purpose: 'Dispatch',
+      bay: 'Dock 3 (Dispatch)',
       arrivedAt: '10:15 AM',
       waitingTime: '9m',
-      waitingTimeClass: 'text-emerald-700 font-semibold',
       status: 'In Queue',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
     },
     {
       id: 8,
       tokenNo: 'TKN-008',
       vehicleNo: 'MP09 KL 3333',
-      type: 'truck',
+      type: 'Heavy Commercial Truck',
       driverName: 'Suresh Patel',
-      supplier: 'Central Depot',
+      driverPhone: '98111 22334',
+      supplier: 'Central Warehouse Depot B',
       purpose: 'Material Inward',
+      bay: 'Bay 2 (Shade 2)',
       arrivedAt: '09:20 AM',
-      waitingTime: '1h 4m',
-      waitingTimeClass: 'text-amber-700 font-semibold',
+      waitingTime: '1h 04m',
       status: 'Processing',
-      statusClass: 'bg-blue-100 text-blue-800 border-blue-200',
     },
     {
       id: 9,
       tokenNo: 'TKN-009',
       vehicleNo: 'GJ05 MN 4444',
-      type: 'car',
+      type: 'Covered Container',
       driverName: 'Arun Mehta',
-      supplier: 'Western Traders',
+      driverPhone: '98999 11223',
+      supplier: 'Western Cargo Logistics',
       purpose: 'Dispatch',
+      bay: 'Dock 1 (Dispatch)',
       arrivedAt: '10:18 AM',
       waitingTime: '6m',
-      waitingTimeClass: 'text-emerald-700 font-semibold',
       status: 'In Queue',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
     },
     {
       id: 10,
       tokenNo: 'TKN-010',
       vehicleNo: 'UP81 RT 5555',
-      type: 'truck',
+      type: 'Heavy Commercial Truck',
       driverName: 'Deepak Singh',
-      supplier: 'Northern Supply',
+      driverPhone: '97888 77665',
+      supplier: 'Northern Agro Supply Ltd',
       purpose: 'Material Inward',
+      bay: 'Bay 1 (Shade 1)',
       arrivedAt: '08:30 AM',
       waitingTime: '1h 54m',
-      waitingTimeClass: 'text-red-600 font-bold',
       status: 'Delayed',
-      statusClass: 'bg-red-100 text-red-800 border-red-200',
     },
   ])
 
   // New Vehicle Form State
   const [newVehicle, setNewVehicle] = useState({
     vehicleNo: '',
-    type: 'truck',
+    type: 'Heavy Commercial Truck',
     driverName: '',
+    driverPhone: '',
     supplier: '',
     purpose: 'Material Inward',
+    bay: 'Bay 1 (General Stores - Shade 1)',
   })
 
   // Toast trigger
@@ -169,21 +274,26 @@ export default function VehicleQueue() {
     setTimeout(() => setToastMessage(null), 3500)
   }
 
-  // Filtered vehicles
+  // Filtered vehicles calculated from state
   const filteredVehicles = useMemo(() => {
     return vehicles.filter((item) => {
       // Tab filter
+      if (activeTab === 'in-queue' && item.status !== 'In Queue') return false
+      if (activeTab === 'processing' && item.status !== 'Processing') return false
+      if (activeTab === 'delayed' && item.status !== 'Delayed') return false
       if (activeTab === 'incoming' && item.purpose !== 'Material Inward') return false
       if (activeTab === 'outgoing' && item.purpose !== 'Dispatch') return false
 
       // Search query filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
-        const matchVeh = item.vehicleNo.toLowerCase().includes(q)
-        const matchDriver = item.driverName.toLowerCase().includes(q)
-        const matchSupplier = item.supplier.toLowerCase().includes(q)
-        const matchToken = item.tokenNo.toLowerCase().includes(q)
-        return matchVeh || matchDriver || matchSupplier || matchToken
+        return (
+          item.vehicleNo.toLowerCase().includes(q) ||
+          item.driverName.toLowerCase().includes(q) ||
+          item.supplier.toLowerCase().includes(q) ||
+          item.tokenNo.toLowerCase().includes(q) ||
+          item.bay.toLowerCase().includes(q)
+        )
       }
       return true
     })
@@ -193,7 +303,7 @@ export default function VehicleQueue() {
   const handleAddVehicle = (e) => {
     e.preventDefault()
     if (!newVehicle.vehicleNo.trim() || !newVehicle.driverName.trim()) {
-      triggerToast('Please provide Vehicle Number and Driver Name!')
+      triggerToast('Vehicle Number and Driver Name are required!')
       return
     }
 
@@ -206,23 +316,25 @@ export default function VehicleQueue() {
       vehicleNo: newVehicle.vehicleNo.trim().toUpperCase(),
       type: newVehicle.type,
       driverName: newVehicle.driverName.trim(),
-      supplier: newVehicle.supplier.trim() || 'Direct Deputation',
+      driverPhone: newVehicle.driverPhone.trim() || '—',
+      supplier: newVehicle.supplier.trim() || 'Direct Consignment',
       purpose: newVehicle.purpose,
-      arrivedAt: 'Just now',
-      waitingTime: '1m',
-      waitingTimeClass: 'text-emerald-700 font-semibold',
+      bay: newVehicle.bay,
+      arrivedAt: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+      waitingTime: 'Just Arrived',
       status: 'In Queue',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
     }
 
     setVehicles([newItem, ...vehicles])
     setShowAddModal(false)
     setNewVehicle({
       vehicleNo: '',
-      type: 'truck',
+      type: 'Heavy Commercial Truck',
       driverName: '',
+      driverPhone: '',
       supplier: '',
       purpose: 'Material Inward',
+      bay: 'Bay 1 (General Stores - Shade 1)',
     })
     triggerToast(`Vehicle ${newItem.vehicleNo} added with Token ${tokenStr}`)
   }
@@ -230,16 +342,7 @@ export default function VehicleQueue() {
   // Action status update
   const handleStatusUpdate = (id, newStatus) => {
     setVehicles(
-      vehicles.map((v) => {
-        if (v.id === id) {
-          let sClass = 'bg-amber-100 text-amber-800 border-amber-200'
-          if (newStatus === 'Processing') sClass = 'bg-blue-100 text-blue-800 border-blue-200'
-          if (newStatus === 'Completed') sClass = 'bg-emerald-100 text-emerald-800 border-emerald-200'
-          if (newStatus === 'Delayed') sClass = 'bg-red-100 text-red-800 border-red-200'
-          return { ...v, status: newStatus, statusClass: sClass }
-        }
-        return v
-      })
+      vehicles.map((v) => (v.id === id ? { ...v, status: newStatus } : v))
     )
     setOpenActionMenuId(null)
     triggerToast(`Vehicle status updated to ${newStatus}`)
@@ -249,7 +352,7 @@ export default function VehicleQueue() {
   const handleCallNext = () => {
     const nextVeh = vehicles.find((v) => v.status === 'In Queue')
     if (nextVeh) {
-      triggerToast(`Calling ${nextVeh.vehicleNo} (${nextVeh.tokenNo}) to Depot Bay!`)
+      triggerToast(`📢 Calling Vehicle ${nextVeh.vehicleNo} (${nextVeh.tokenNo}) to ${nextVeh.bay}!`)
     } else {
       triggerToast('No vehicles currently waiting in queue.')
     }
@@ -257,350 +360,533 @@ export default function VehicleQueue() {
 
   // CSV export
   const handleExport = () => {
-    const headers = ['Token No', 'Vehicle No', 'Type', 'Driver Name', 'Supplier / Party', 'Purpose', 'Arrived At', 'Waiting Time', 'Status']
+    const headers = [
+      'Token No',
+      'Vehicle No',
+      'Type',
+      'Driver Name',
+      'Driver Phone',
+      'Supplier / Consignee',
+      'Purpose',
+      'Assigned Bay',
+      'Arrived At',
+      'Waiting Time',
+      'Status',
+    ]
     const rows = vehicles.map((v) => [
       v.tokenNo,
       v.vehicleNo,
       v.type,
-      v.driverName,
+      `"${v.driverName}"`,
+      v.driverPhone,
       `"${v.supplier}"`,
       v.purpose,
+      `"${v.bay}"`,
       v.arrivedAt,
       v.waitingTime,
       v.status,
     ])
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n')
+    const csvContent =
+      'data:text/csv;charset=utf-8,' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n')
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement('a')
     link.setAttribute('href', encodedUri)
-    link.setAttribute('download', 'Indian_Army_Vehicle_Queue.csv')
+    link.setAttribute('download', 'Warehouse_Vehicle_Queue.csv')
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    triggerToast('Vehicle queue exported to CSV file successfully.')
+    triggerToast('Vehicle queue exported to CSV successfully.')
+  }
+
+  // Status Badge Styling
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'In Queue':
+        return 'bg-amber-50 text-amber-700 border-amber-200'
+      case 'Processing':
+        return 'bg-blue-50 text-blue-700 border-blue-200'
+      case 'Completed':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      case 'Delayed':
+        return 'bg-rose-50 text-rose-700 border-rose-200'
+      default:
+        return 'bg-slate-50 text-slate-700 border-slate-200'
+    }
+  }
+
+  // Waiting Time Color Coding
+  const getWaitingTimeClass = (time) => {
+    if (time.includes('2h') || (time.includes('1h') && !time.includes('0m'))) {
+      return 'text-rose-600 font-bold'
+    }
+    if (time.includes('1h') || time.includes('4') || time.includes('5')) {
+      return 'text-amber-700 font-semibold'
+    }
+    return 'text-emerald-700 font-semibold'
   }
 
   return (
-    <div className="space-y-4 pb-12">
-      {/* Toast Notification */}
+    <div className="space-y-6 max-w-[1720px] mx-auto pb-10 select-none">
+      {/* Toast Alert */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-[#162214] border border-amber-400 text-amber-300 px-4 py-2.5 rounded-lg shadow-2xl flex items-center gap-2 text-xs font-medium animate-bounce">
-          <svg className="w-4 h-4 text-amber-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-          </svg>
+        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-fade-in text-sm font-semibold">
+          <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <Check className="w-4 h-4" />
+          </div>
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Top Himalayan Convoy Banner */}
-      <div className="relative rounded-xl overflow-hidden shadow-md border border-slate-200/80 bg-slate-900 h-28 sm:h-32">
-        <img
-          src="/border.png"
-          alt="Central Warehouse Logistics Operations"
-          className="w-full h-full object-cover object-center opacity-90"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/20 to-black/60"></div>
-        <div className="absolute top-3 right-4 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/20">
-          <div className="h-2 w-5 flex flex-col justify-between rounded-xs overflow-hidden">
-            <div className="h-0.5 bg-[#FF9933]"></div>
-            <div className="h-0.5 bg-white"></div>
-            <div className="h-0.5 bg-[#138808]"></div>
-          </div>
-          <span className="text-[10px] font-bold text-white tracking-widest uppercase">
-            NATION FIRST ALWAYS
-          </span>
-        </div>
-      </div>
-
-      {/* Page Header Bar */}
-      <div className="bg-white rounded-xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-lg bg-[#EBF5EA] border border-[#CDE5CA] flex items-center justify-center text-[#1E3A1E] shadow-xs">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 17H5a2 2 0 01-2-2V7a2 2 0 012-2h10a2 2 0 012 2v2m-6 8h6m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0zm10-6h3.5a1.5 1.5 0 011.2.6L22 14v3a1 1 0 01-1 1h-2" />
-            </svg>
+      {/* 1. Header Banner - Clean, Modern & Professional */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
+            <Truck className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-slate-800 tracking-tight">Vehicle Queue</h1>
-            <p className="text-xs text-slate-500 font-medium">
-              Real-time view of all incoming and outgoing vehicles at the warehouse.
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+                Vehicle Queue Management
+              </h1>
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                ● Live Terminal Queue Active
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+              Real-time monitoring of vehicle arrival, queue tokens, bay loading, and dispatch turnaround
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="text-xs text-slate-400 flex items-center gap-1.5 font-medium mr-2">
-            <Link to="/dashboard" className="hover:text-slate-700">Home</Link>
-            <span>›</span>
-            <span className="text-slate-800 font-semibold">Vehicle Queue</span>
-          </div>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2.5 flex-wrap shrink-0">
           <button
             type="button"
-            onClick={() => setShowAddModal(true)}
-            className="bg-[#1F331E] hover:bg-[#2A4428] text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs transition cursor-pointer"
+            onClick={handleCallNext}
+            className="px-4 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer shadow-2xs"
           >
-            <span className="text-base leading-none">+</span>
-            <span>Add to Queue</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 5 KPI Stat Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        {/* Card 1: Total in Queue */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 17H5a2 2 0 01-2-2V7a2 2 0 012-2h10a2 2 0 012 2v2m-6 8h6m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500">Total in Queue</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">12</h3>
-            <p className="text-[10px] text-slate-400 font-medium">Vehicles waiting</p>
-          </div>
-        </div>
-
-        {/* Card 2: Incoming Vehicles */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500">Incoming Vehicles</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">7</h3>
-            <p className="text-[10px] text-slate-400 font-medium">For Material Inward</p>
-          </div>
-        </div>
-
-        {/* Card 3: Outgoing Vehicles */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-orange-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500">Outgoing Vehicles</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">5</h3>
-            <p className="text-[10px] text-slate-400 font-medium">For Dispatch</p>
-          </div>
-        </div>
-
-        {/* Card 4: Avg. Waiting Time */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500">Avg. Waiting Time</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">38 mins</h3>
-            <p className="text-[10px] text-slate-400 font-medium">Current average</p>
-          </div>
-        </div>
-
-        {/* Card 5: Delayed Vehicles */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-red-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500">Delayed Vehicles</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">3</h3>
-            <p className="text-[10px] text-slate-400 font-medium">Waiting &gt; 2 Hours</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Filter Tabs & Search Controls Bar */}
-      <div className="bg-white rounded-xl p-3 shadow-xs border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        {/* Left Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab('all')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'all'
-                ? 'bg-[#1E381E] text-white shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-            }`}
-          >
-            All Vehicles ({vehicles.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('incoming')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'incoming'
-                ? 'bg-[#1E381E] text-white shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-            }`}
-          >
-            Incoming ({vehicles.filter((v) => v.purpose === 'Material Inward').length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('outgoing')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'outgoing'
-                ? 'bg-[#1E381E] text-white shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-            }`}
-          >
-            Outgoing ({vehicles.filter((v) => v.purpose === 'Dispatch').length})
-          </button>
-        </div>
-
-        {/* Right Search & Buttons */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 sm:w-64">
-            <svg className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search by Vehicle No., Driver, Supplier..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:bg-white"
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => triggerToast('Filter settings opened.')}
-            className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-          >
-            <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-            </svg>
-            <span>Filter</span>
+            <Megaphone className="w-4 h-4 text-indigo-600 shrink-0" />
+            <span>Call Next Vehicle</span>
           </button>
 
           <button
             type="button"
             onClick={handleExport}
-            className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+            className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer shadow-2xs"
           >
-            <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            <span>Export</span>
+            <Download className="w-4 h-4 text-slate-500 shrink-0" />
+            <span>Export CSV</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowAddModal(true)}
+            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer shadow-xs"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span>Add to Queue</span>
           </button>
         </div>
       </div>
 
-      {/* Main 2-Column Grid: Queue Table (Left) + Queue Status & Instructions (Right) */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-        {/* ========================================================================= */}
-        {/* LEFT COLUMN: Queue Table (Span 9 / 12)                                    */}
-        {/* ========================================================================= */}
-        <div className="xl:col-span-9 bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden flex flex-col">
-          <div 
-            className="overflow-x-auto no-scrollbar scroll-smooth w-full"
-            style={{
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-              WebkitOverflowScrolling: 'touch',
-            }}
+      {/* 2. Dynamic KPI Stat Cards (Interactive Fleet Indicators) */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        {/* Card 1: Total in Queue */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('all')}
+          className={`text-left bg-white rounded-2xl p-4 border transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+            activeTab === 'all'
+              ? 'border-indigo-600 ring-2 ring-indigo-500/20 shadow-sm bg-indigo-50/15'
+              : 'border-slate-200 hover:border-slate-300 hover:shadow-xs shadow-2xs'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100/80 text-indigo-600 flex items-center justify-center shrink-0">
+              <Truck className="w-4.5 h-4.5" />
+            </div>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60 truncate">
+              Registry
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-none">
+              {vehicles.length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-2 truncate">
+              Total Active
+            </div>
+            <div className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
+              Vehicles in Terminal
+            </div>
+          </div>
+        </button>
+
+        {/* Card 2: Waiting in Queue */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('in-queue')}
+          className={`text-left bg-white rounded-2xl p-4 border transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+            activeTab === 'in-queue'
+              ? 'border-amber-500 ring-2 ring-amber-500/20 shadow-sm bg-amber-50/15'
+              : 'border-slate-200 hover:border-slate-300 hover:shadow-xs shadow-2xs'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100/80 text-amber-600 flex items-center justify-center shrink-0">
+              <Clock className="w-4.5 h-4.5" />
+            </div>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80 truncate">
+              In Queue
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-black text-amber-600 tracking-tight leading-none">
+              {vehicles.filter((v) => v.status === 'In Queue').length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-2 truncate">
+              Waiting in Line
+            </div>
+            <div className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
+              Awaiting Dock Call
+            </div>
+          </div>
+        </button>
+
+        {/* Card 3: Currently Processing */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('processing')}
+          className={`text-left bg-white rounded-2xl p-4 border transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+            activeTab === 'processing'
+              ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-sm bg-blue-50/15'
+              : 'border-slate-200 hover:border-slate-300 hover:shadow-xs shadow-2xs'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100/80 text-blue-600 flex items-center justify-center shrink-0">
+              <Zap className="w-4.5 h-4.5" />
+            </div>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 truncate">
+              At Dock
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-black text-blue-600 tracking-tight leading-none">
+              {vehicles.filter((v) => v.status === 'Processing').length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-2 truncate">
+              At Bay / Dock
+            </div>
+            <div className="text-[11px] text-blue-600 font-semibold mt-0.5 truncate">
+              Unloading / Loading
+            </div>
+          </div>
+        </button>
+
+        {/* Card 4: Incoming Inward */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('incoming')}
+          className={`text-left bg-white rounded-2xl p-4 border transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+            activeTab === 'incoming'
+              ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm bg-emerald-50/15'
+              : 'border-slate-200 hover:border-slate-300 hover:shadow-xs shadow-2xs'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100/80 text-emerald-600 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4.5 h-4.5" />
+            </div>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 truncate">
+              Inward
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-black text-emerald-600 tracking-tight leading-none">
+              {vehicles.filter((v) => v.purpose === 'Material Inward').length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-2 truncate">
+              Inward Deliveries
+            </div>
+            <div className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
+              Goods Receiving
+            </div>
+          </div>
+        </button>
+
+        {/* Card 5: Delayed Vehicles */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('delayed')}
+          className={`text-left bg-white rounded-2xl p-4 border transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+            activeTab === 'delayed'
+              ? 'border-rose-500 ring-2 ring-rose-500/20 shadow-sm bg-rose-50/15'
+              : 'border-slate-200 hover:border-slate-300 hover:shadow-xs shadow-2xs'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-100/80 text-rose-600 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-4.5 h-4.5" />
+            </div>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80 truncate">
+              &gt; 1h Alert
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-black text-rose-600 tracking-tight leading-none">
+              {vehicles.filter((v) => v.status === 'Delayed').length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-2 truncate">
+              Delayed Vehicles
+            </div>
+            <div className="text-[11px] text-rose-600 font-semibold mt-0.5 truncate">
+              Supervisor Alert
+            </div>
+          </div>
+        </button>
+      </div>
+
+      {/* 3. Filter Navigation & Live Search Bar */}
+      <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto p-1 bg-slate-100 rounded-xl text-xs font-semibold">
+          <button
+            type="button"
+            onClick={() => setActiveTab('all')}
+            className={`px-3.5 py-2 rounded-lg transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'all'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+            }`}
           >
-            <table 
-              className="w-full text-left text-xs divide-y divide-slate-200 border-collapse table-nowrap"
-              style={{ minWidth: '1200px' }}
-            >
-              <thead className="bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+            All Vehicles ({vehicles.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('in-queue')}
+            className={`px-3.5 py-2 rounded-lg transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'in-queue'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+            }`}
+          >
+            In Queue ({vehicles.filter((v) => v.status === 'In Queue').length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('processing')}
+            className={`px-3.5 py-2 rounded-lg transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'processing'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+            }`}
+          >
+            Processing ({vehicles.filter((v) => v.status === 'Processing').length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('delayed')}
+            className={`px-3.5 py-2 rounded-lg transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'delayed'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+            }`}
+          >
+            Delayed ({vehicles.filter((v) => v.status === 'Delayed').length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('incoming')}
+            className={`px-3.5 py-2 rounded-lg transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'incoming'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+            }`}
+          >
+            Inward Deliveries ({vehicles.filter((v) => v.purpose === 'Material Inward').length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('outgoing')}
+            className={`px-3.5 py-2 rounded-lg transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'outgoing'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+            }`}
+          >
+            Dispatch Outward ({vehicles.filter((v) => v.purpose === 'Dispatch').length})
+          </button>
+        </div>
+
+        {/* Live Search */}
+        <div className="relative flex-1 md:max-w-xs">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search vehicle, driver, supplier, bay..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+          />
+        </div>
+      </div>
+
+      {/* 4. Full-Width Spacious Queue Table */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <span>Active Vehicles &amp; Dock Turnaround Ledger</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                {filteredVehicles.length} of {vehicles.length}
+              </span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Sequence order based on token generation and priority bay allocation
+            </p>
+          </div>
+
+          <div className="text-xs font-semibold text-slate-500">
+            Auto-refresh active
+          </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full text-left text-sm min-w-[1050px]">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-bold">
+                <th className="py-3.5 px-3 w-10 text-center">#</th>
+                <th className="py-3.5 px-4 w-28">Token No.</th>
+                <th className="py-3.5 px-4 min-w-[150px]">Vehicle Reg.</th>
+                <th className="py-3.5 px-4 min-w-[170px]">Driver Details</th>
+                <th className="py-3.5 px-4 min-w-[180px]">Supplier / Party</th>
+                <th className="py-3.5 px-4 min-w-[140px]">Purpose</th>
+                <th className="py-3.5 px-4 min-w-[150px]">Assigned Bay</th>
+                <th className="py-3.5 px-4 w-28">Arrived</th>
+                <th className="py-3.5 px-4 w-32">Wait Time</th>
+                <th className="py-3.5 px-4 text-center w-28">Status</th>
+                <th className="py-3.5 px-5 text-right w-36">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {filteredVehicles.length === 0 ? (
                 <tr>
-                  <th className="py-3 px-3 w-8 text-center whitespace-nowrap">#</th>
-                  <th className="py-3 px-3 min-w-[95px] whitespace-nowrap">Token No.</th>
-                  <th className="py-3 px-3 min-w-[125px] whitespace-nowrap">Vehicle No.</th>
-                  <th className="py-3 px-2 text-center w-8 whitespace-nowrap">Type</th>
-                  <th className="py-3 px-3 min-w-[130px] whitespace-nowrap">Driver Name</th>
-                  <th className="py-3 px-3 min-w-[150px] whitespace-nowrap">Supplier / Party</th>
-                  <th className="py-3 px-3 min-w-[130px] whitespace-nowrap">Purpose</th>
-                  <th className="py-3 px-3 min-w-[90px] whitespace-nowrap">Arrived At</th>
-                  <th className="py-3 px-3 min-w-[100px] whitespace-nowrap">Waiting Time</th>
-                  <th className="py-3 px-3 text-center min-w-[100px] whitespace-nowrap">Status</th>
-                  <th className="py-3 px-3 text-center w-12 whitespace-nowrap">Action</th>
+                  <td colSpan="11" className="py-10 text-center text-slate-400 text-sm">
+                    No vehicles found matching current filter or search criteria.
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredVehicles.map((row, idx) => (
-                  <tr key={row.id} className="hover:bg-slate-50/70 transition">
-                    <td className="py-3 px-3 text-center text-slate-400 font-bold text-[11px] whitespace-nowrap">{idx + 1}</td>
-                    <td className="py-3 px-3 font-mono font-bold text-slate-800 whitespace-nowrap">{row.tokenNo}</td>
-                    <td className="py-3 px-3 font-mono font-bold text-slate-800 tracking-wide whitespace-nowrap">{row.vehicleNo}</td>
-                    <td className="py-3 px-2 text-center whitespace-nowrap">
-                      {row.type === 'truck' ? (
-                        <span title="Heavy Truck" className="inline-block text-slate-700">
-                          <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 17H5a2 2 0 01-2-2V7a2 2 0 012-2h10a2 2 0 012 2v2m-6 8h6m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0zm10-6h3.5a1.5 1.5 0 011.2.6L22 14v3a1 1 0 01-1 1h-2" />
-                          </svg>
+              ) : (
+                filteredVehicles.map((row, idx) => (
+                  <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3.5 px-3 text-center text-slate-400 font-mono text-xs font-semibold">
+                      {idx + 1}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-indigo-700 whitespace-nowrap">
+                      {row.tokenNo}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="flex flex-col">
+                        <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 w-fit whitespace-nowrap shadow-2xs text-xs">
+                          {row.vehicleNo}
                         </span>
-                      ) : (
-                        <span title="Light / Pickup Vehicle" className="inline-block text-slate-700">
-                          <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
-                          </svg>
+                        <span className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[160px]">
+                          {row.type}
                         </span>
-                      )}
+                      </div>
                     </td>
-                    <td className="py-3 px-3 font-semibold text-slate-800 whitespace-nowrap">{row.driverName}</td>
-                    <td className="py-3 px-3 text-slate-600 whitespace-nowrap">{row.supplier}</td>
-                    <td className="py-3 px-3 whitespace-nowrap">
-                      <span className="text-slate-700 font-medium">{row.purpose}</span>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <p className="font-bold text-slate-900">{row.driverName}</p>
+                      <p className="text-xs text-slate-500 font-mono">{row.driverPhone}</p>
                     </td>
-                    <td className="py-3 px-3 text-slate-500 whitespace-nowrap">{row.arrivedAt}</td>
-                    <td className={`py-3 px-3 whitespace-nowrap ${row.waitingTimeClass}`}>
-                      {row.waitingTime}
+                    <td className="py-3.5 px-4 text-slate-700">
+                      <p className="font-medium text-slate-900 truncate max-w-[180px]">{row.supplier}</p>
                     </td>
-                    <td className="py-3 px-3 text-center whitespace-nowrap">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${row.statusClass}`}>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <span
+                        className={`text-xs font-semibold px-2 py-0.5 rounded-md border ${
+                          row.purpose === 'Material Inward'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                        }`}
+                      >
+                        {row.purpose}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-xs font-semibold text-slate-800 whitespace-nowrap">
+                      {row.bay}
+                    </td>
+                    <td className="py-3.5 px-4 text-xs text-slate-600 whitespace-nowrap">
+                      {row.arrivedAt}
+                    </td>
+                    <td className="py-3.5 px-4 text-xs whitespace-nowrap">
+                      <span className={getWaitingTimeClass(row.waitingTime)}>
+                        {row.waitingTime}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                      <span
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${getStatusBadge(
+                          row.status
+                        )}`}
+                      >
                         {row.status}
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-center relative whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => setOpenActionMenuId(openActionMenuId === row.id ? null : row.id)}
-                        className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 px-2 py-1 rounded-md text-xs font-bold transition cursor-pointer"
-                        title="Options"
-                      >
-                        •••
-                      </button>
+                    <td className="py-3.5 px-5 text-right relative whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerToast(`📢 Calling ${row.vehicleNo} (${row.tokenNo}) to ${row.bay}!`)
+                          }}
+                          className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 transition cursor-pointer shadow-2xs"
+                          title="Call Vehicle to Dock"
+                        >
+                          <Megaphone className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenActionMenuId(openActionMenuId === row.id ? null : row.id)
+                          }
+                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition cursor-pointer"
+                          title="Update Status"
+                        >
+                          Status ▾
+                        </button>
+                      </div>
 
                       {/* Dropdown Menu */}
                       {openActionMenuId === row.id && (
-                        <div className="absolute right-3 top-10 w-44 bg-white border border-slate-200 rounded-lg shadow-xl z-20 py-1 text-left text-xs font-medium">
+                        <div className="absolute right-5 top-12 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-20 py-1 text-left text-xs font-medium">
                           <button
                             type="button"
-                            onClick={() => {
-                              triggerToast(`Calling ${row.vehicleNo} to Dock!`)
-                              setOpenActionMenuId(null)
-                            }}
-                            className="w-full px-3 py-1.5 hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                            onClick={() => handleStatusUpdate(row.id, 'In Queue')}
+                            className="w-full px-3 py-2 hover:bg-amber-50 text-amber-800 flex items-center gap-2 cursor-pointer"
                           >
-                            <Megaphone className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Call Vehicle</span>
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Mark In Queue</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => handleStatusUpdate(row.id, 'Processing')}
-                            className="w-full px-3 py-1.5 hover:bg-blue-50 text-blue-700 flex items-center gap-2"
+                            className="w-full px-3 py-2 hover:bg-blue-50 text-blue-700 flex items-center gap-2 cursor-pointer"
                           >
                             <Zap className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Mark Processing</span>
+                            <span>Mark Processing (Bay)</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => handleStatusUpdate(row.id, 'Completed')}
-                            className="w-full px-3 py-1.5 hover:bg-emerald-50 text-emerald-700 flex items-center gap-2"
+                            className="w-full px-3 py-2 hover:bg-emerald-50 text-emerald-700 flex items-center gap-2 cursor-pointer"
                           >
                             <Check className="w-3.5 h-3.5 text-emerald-600" />
                             <span>Mark Completed</span>
@@ -608,330 +894,155 @@ export default function VehicleQueue() {
                           <button
                             type="button"
                             onClick={() => handleStatusUpdate(row.id, 'Delayed')}
-                            className="w-full px-3 py-1.5 hover:bg-red-50 text-red-700 flex items-center gap-2"
+                            className="w-full px-3 py-2 hover:bg-rose-50 text-rose-700 flex items-center gap-2 cursor-pointer"
                           >
-                            <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
                             <span>Mark Delayed</span>
                           </button>
                         </div>
                       )}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* RIGHT COLUMN: Queue Status Chart, Next in Line, Instructions (Span 3/12) */}
-        {/* ========================================================================= */}
-        <div className="xl:col-span-3 space-y-4">
-          {/* Card 1: Queue Status (SVG Donut Chart) */}
-          <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-200">
-            <div className="flex items-center gap-2 pb-3 mb-3 border-b border-slate-100">
-              <svg className="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-              </svg>
-              <h2 className="text-xs font-bold text-slate-800">Queue Status</h2>
-            </div>
-
-            <div className="flex items-center justify-between gap-4">
-              {/* SVG Donut Chart */}
-              <div className="relative w-28 h-28 shrink-0">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                  {/* Background Circle */}
-                  <path
-                    className="text-slate-100"
-                    strokeWidth="3.8"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  {/* In Queue (Amber: 5/12 = 41.6%) */}
-                  <path
-                    className="text-amber-500"
-                    strokeDasharray="41.6, 100"
-                    strokeDashoffset="0"
-                    strokeWidth="3.8"
-                    strokeLinecap="round"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  {/* Processing (Blue: 2/12 = 16.6%) */}
-                  <path
-                    className="text-blue-500"
-                    strokeDasharray="16.6, 100"
-                    strokeDashoffset="-41.6"
-                    strokeWidth="3.8"
-                    strokeLinecap="round"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  {/* Completed (Emerald: 3/12 = 25%) */}
-                  <path
-                    className="text-emerald-500"
-                    strokeDasharray="25, 100"
-                    strokeDashoffset="-58.2"
-                    strokeWidth="3.8"
-                    strokeLinecap="round"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  {/* Delayed (Red: 2/12 = 16.6%) */}
-                  <path
-                    className="text-red-500"
-                    strokeDasharray="16.6, 100"
-                    strokeDashoffset="-83.2"
-                    strokeWidth="3.8"
-                    strokeLinecap="round"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-base font-black text-slate-800">12</span>
-                  <span className="text-[9px] text-slate-400 font-semibold">Vehicles</span>
-                </div>
-              </div>
-
-              {/* Legend List */}
-              <div className="space-y-1.5 text-[11px] font-medium flex-1">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                    <span className="text-slate-600">In Queue</span>
-                  </div>
-                  <strong className="text-slate-800">5</strong>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-                    <span className="text-slate-600">Processing</span>
-                  </div>
-                  <strong className="text-slate-800">2</strong>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                    <span className="text-slate-600">Completed</span>
-                  </div>
-                  <strong className="text-slate-800">3</strong>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
-                    <span className="text-slate-600">Delayed</span>
-                  </div>
-                  <strong className="text-slate-800">2</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Next in Line */}
-          <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-200 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 13l-7 7-7-7m14-8l-7 7-7-7" />
-                </svg>
-                <h2 className="text-xs font-bold text-slate-800">Next in Line</h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-slate-500 font-medium">Auto Refresh</span>
-                <button
-                  type="button"
-                  onClick={() => setAutoRefresh(!autoRefresh)}
-                  className={`w-7 h-4 rounded-full transition-colors relative p-0.5 cursor-pointer ${
-                    autoRefresh ? 'bg-emerald-600' : 'bg-slate-300'
-                  }`}
-                >
-                  <div
-                    className={`w-3 h-3 rounded-full bg-white transition-transform ${
-                      autoRefresh ? 'translate-x-3' : 'translate-x-0'
-                    }`}
-                  ></div>
-                </button>
-              </div>
-            </div>
-
-            {/* Next Vehicle Details Box */}
-            <div className="bg-slate-50/90 rounded-lg p-3 border border-slate-200/80 space-y-2 text-xs">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="bg-emerald-800 text-white font-mono font-bold text-[10px] px-2 py-0.5 rounded">
-                    TKN-003
-                  </span>
-                  <span className="font-mono font-bold text-slate-800">DL01 EF 4221</span>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] text-amber-700 font-semibold">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>Waiting Time</span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-md bg-white border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 17H5a2 2 0 01-2-2V7a2 2 0 012-2h10a2 2 0 012 2v2m-6 8h6m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-800 text-xs">Amit Singh</p>
-                    <p className="text-[10px] text-slate-500">Ordnance Factory</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Dispatch</p>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <p className="text-base font-black text-slate-800">19 mins</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Call Next Button */}
-            <button
-              type="button"
-              onClick={handleCallNext}
-              className="w-full bg-[#1F331E] hover:bg-[#2A4428] text-white py-2.5 px-3 rounded-lg text-xs font-bold shadow-xs flex items-center justify-center gap-2 transition cursor-pointer"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-              </svg>
-              <span>Call Next Vehicle</span>
-            </button>
-          </div>
-
-          {/* Card 3: Queue Instructions */}
-          <div className="bg-[#FAF8F2] rounded-xl p-4 border border-amber-200/70">
-            <div className="flex items-center gap-2 mb-2 text-slate-800">
-              <svg className="w-4 h-4 text-amber-700" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-              <h3 className="text-xs font-bold tracking-tight text-slate-800">Queue Instructions</h3>
-            </div>
-            <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-slate-600 leading-relaxed font-medium">
-              <li>Vehicles will be served as per token sequence.</li>
-              <li>Ensure valid gate pass and documents.</li>
-              <li>Delayed vehicles require supervisor approval.</li>
-              <li>Keep documents ready for verification.</li>
-              <li>Follow security guidelines at all times.</li>
-            </ol>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* ADD TO QUEUE MODAL                                                        */}
-      {/* ========================================================================= */}
+      {/* ========================================================= */}
+      {/* ADD VEHICLE TO QUEUE MODAL (PURE REACT DROPDOWNS - NO FLICKER) */}
+      {/* ========================================================= */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4">
-            <div className="flex items-center justify-between border-b pb-3 border-slate-200">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-md bg-[#EBF5EA] text-[#1E3A1E] flex items-center justify-center font-black text-sm">
-                  +
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5 animate-scale-in border border-slate-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b pb-4 border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
+                  <Truck className="w-5 h-5" />
                 </div>
-                <h3 className="text-sm font-bold text-slate-800">Add Vehicle to Queue</h3>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Add Vehicle to Queue</h3>
+                  <p className="text-xs text-slate-500">Issue queue token and assign bay dock</p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1 font-bold"
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddVehicle} className="space-y-3 text-xs">
+            <form onSubmit={handleAddVehicle} className="space-y-4 text-xs">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Vehicle Number <span className="text-red-500">*</span>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Vehicle Registration Number <span className="text-rose-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. DL04 XY 9876"
-                  value={newVehicle.vehicleNo}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, vehicleNo: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono uppercase font-bold focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:bg-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Vehicle Type</label>
-                  <select
-                    value={newVehicle.type}
-                    onChange={(e) => setNewVehicle({ ...newVehicle, type: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                  >
-                    <option value="truck">Heavy Truck</option>
-                    <option value="car">Pickup / LTV</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Purpose</label>
-                  <select
-                    value={newVehicle.purpose}
-                    onChange={(e) => setNewVehicle({ ...newVehicle, purpose: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                  >
-                    <option value="Material Inward">Material Inward</option>
-                    <option value="Dispatch">Dispatch</option>
-                  </select>
+                <div className="relative flex rounded-xl overflow-hidden border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 shadow-2xs">
+                  <span className="inline-flex items-center px-3 bg-slate-100 border-r border-slate-200 text-xs font-bold text-indigo-900 select-none">
+                    IND
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. DL01 EF 4321"
+                    value={newVehicle.vehicleNo}
+                    onChange={(e) =>
+                      setNewVehicle({ ...newVehicle, vehicleNo: e.target.value.toUpperCase() })
+                    }
+                    className="w-full px-3 py-2.5 text-sm font-bold uppercase text-slate-900 font-mono outline-none"
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Driver Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Enter Driver Name"
-                  value={newVehicle.driverName}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, driverName: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:bg-white"
+              {/* Row 1: Vehicle Type & Purpose (Custom Select with High Z-Index) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <CustomSelect
+                  label="Vehicle Type"
+                  value={newVehicle.type}
+                  onChange={(val) => setNewVehicle({ ...newVehicle, type: val })}
+                  options={VEHICLE_TYPE_OPTIONS}
+                  zIndexClass="z-30"
+                />
+
+                <CustomSelect
+                  label="Purpose"
+                  value={newVehicle.purpose}
+                  onChange={(val) => setNewVehicle({ ...newVehicle, purpose: val })}
+                  options={PURPOSE_OPTIONS}
+                  zIndexClass="z-30"
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Supplier / Party</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Bharat Supply, Army Stores"
-                  value={newVehicle.supplier}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, supplier: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:bg-white"
+              {/* Row 2: Driver Name & Contact */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Driver Full Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter driver name"
+                    value={newVehicle.driverName}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, driverName: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Driver Phone Contact
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 98765 43210"
+                    value={newVehicle.driverPhone}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, driverPhone: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Row 3: Supplier & Assigned Bay (Custom Select for Bay) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Supplier / Transporter Party
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Bharat Supply, Prime Foods"
+                    value={newVehicle.supplier}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, supplier: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
+                <CustomSelect
+                  label="Assigned Bay / Dock"
+                  value={newVehicle.bay}
+                  onChange={(val) => setNewVehicle({ ...newVehicle, bay: val })}
+                  options={BAY_OPTIONS}
+                  zIndexClass="z-10"
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+              {/* Submit Buttons */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer"
+                  className="px-4 py-2.5 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50 font-bold cursor-pointer transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#1F331E] hover:bg-[#2A4428] text-white px-5 py-2 rounded-lg font-bold shadow-xs cursor-pointer"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-xs cursor-pointer transition"
                 >
                   Add Vehicle to Queue
                 </button>

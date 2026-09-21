@@ -1,38 +1,105 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   X,
-  AlertTriangle,
-  Warehouse,
   Package,
   Layers,
   CheckCircle2,
-  FlaskConical,
+  AlertTriangle,
   QrCode,
   Download,
   Printer,
   Plus,
   Search,
   Eye,
-  SlidersHorizontal,
-  RefreshCw,
-  ShieldCheck,
-  ShieldAlert,
+  RotateCcw,
+  Warehouse,
+  ChevronDown,
+  Check,
 } from 'lucide-react'
+
+// Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
+function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const selectedOption = options.find((opt) => opt.value === value)
+
+  return (
+    <div className={`relative ${className}`} ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-700 flex items-center justify-between gap-2 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+      >
+        <span className="truncate">
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className={`absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl py-1 ${zIndexClass} max-h-56 overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-100`}>
+          {options.map((opt) => {
+            const isSelected = opt.value === value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value)
+                  setIsOpen(false)
+                }}
+                className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition cursor-pointer ${
+                  isSelected
+                    ? 'bg-indigo-50 text-indigo-700 font-bold'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="truncate">
+                  <div>{opt.label}</div>
+                  {opt.sublabel && (
+                    <div className="text-[10px] text-slate-400 font-normal">{opt.sublabel}</div>
+                  )}
+                </div>
+                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function CurrentStock() {
   // Toast notifications state
   const [toastMessage, setToastMessage] = useState(null)
   const triggerToast = (msg) => {
     setToastMessage(msg)
+    setTimeout(() => setToastMessage(null), 3500)
   }
 
   // Filter toolbar state
-  const [filterShade, setFilterShade] = useState('All Shades')
-  const [filterCategory, setFilterCategory] = useState('All Categories')
-  const [filterLabStatus, setFilterLabStatus] = useState('All')
-  const [filterStockLevel, setFilterStockLevel] = useState('All')
+  const [filterShade, setFilterShade] = useState('ALL')
+  const [filterCategory, setFilterCategory] = useState('ALL')
+  const [filterLabStatus, setFilterLabStatus] = useState('ALL')
+  const [filterStockLevel, setFilterStockLevel] = useState('ALL')
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const perPage = 8
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false)
@@ -41,12 +108,12 @@ export default function CurrentStock() {
 
   // 6 Dedicated Shades
   const SHADES = [
-    { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses' },
-    { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids' },
-    { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG' },
-    { id: 'SH04', name: 'Shade 4: Packaging Materials & Cartons' },
-    { id: 'SH05', name: 'Shade 5: Chemicals & Hygiene' },
-    { id: 'SH06', name: 'Shade 6: Spares & General Goods' },
+    { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses', category: 'Grains & Pulses', baseUnit: 'Kg', packUnit: 'Bags (50kg)', unitsPerPack: 50 },
+    { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids', category: 'Edible Oils', baseUnit: 'Ltr', packUnit: 'Tins (15L)', unitsPerPack: 15 },
+    { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG', category: 'Packaged FMCG', baseUnit: 'Pieces', packUnit: 'Gatta (Cartons)', unitsPerPack: 6 },
+    { id: 'SH04', name: 'Shade 4: Packaging Materials & Cartons', category: 'Packaging', baseUnit: 'Cartons', packUnit: 'Bundles', unitsPerPack: 25 },
+    { id: 'SH05', name: 'Shade 5: Chemicals & Hygiene', category: 'Chemicals', baseUnit: 'Ltr', packUnit: 'Barrels (200L)', unitsPerPack: 200 },
+    { id: 'SH06', name: 'Shade 6: Spares & General Goods', category: 'Spares', baseUnit: 'Nos', packUnit: 'Crates', unitsPerPack: 10 },
   ]
 
   // Add Stock Form State
@@ -64,11 +131,11 @@ export default function CurrentStock() {
     availableQty: 600,
     reservedQty: 0,
     expiryDate: '15 Mar 2027',
-    labStatus: 'Pending Lab Test',
+    labStatus: 'Passed',
     status: 'In Stock',
   })
 
-  // Stock List Table Data (6 Shades, Base Units & Gatta tracking, Lab QA Status)
+  // Stock List Table Data
   const [stockData, setStockData] = useState([
     {
       id: 1,
@@ -77,7 +144,7 @@ export default function CurrentStock() {
       batchNo: 'BT-2026-FMCG-01',
       category: 'Packaged FMCG',
       shadeId: 'SH03',
-      shadeName: 'Shade 3: Packaged FMCG',
+      shadeName: 'Shade 3: Packaged Food & FMCG',
       row: 'R02',
       col: 'C04',
       location: 'SH03-R02-C04',
@@ -101,7 +168,7 @@ export default function CurrentStock() {
       batchNo: 'BT-2026-FMCG-02',
       category: 'Packaged FMCG',
       shadeId: 'SH03',
-      shadeName: 'Shade 3: Packaged FMCG',
+      shadeName: 'Shade 3: Packaged Food & FMCG',
       row: 'R02',
       col: 'C05',
       location: 'SH03-R02-C05',
@@ -116,219 +183,163 @@ export default function CurrentStock() {
       labCertNo: 'LAB-2026-FMCG-091',
       expiryDate: '28 Jun 2027',
       status: 'In Stock',
-      reorderLevel: 300,
+      reorderLevel: 250,
     },
     {
       id: 3,
       productName: 'Sharbati Wheat Grain (Grade A)',
       sku: 'GRN-WHT-01',
-      batchNo: 'BT-2026-GRN-01',
+      batchNo: 'BT-2026-GRN-09',
       category: 'Grains & Pulses',
       shadeId: 'SH01',
       shadeName: 'Shade 1: Grains & Bulk Pulses',
       row: 'R02',
-      col: 'C01',
-      location: 'SH01-R02-C01',
+      col: 'C08',
+      location: 'SH01-R02-C08',
       baseUnit: 'Kg',
       packUnit: 'Bags (50kg)',
       unitsPerPack: 50,
       packsCount: 40,
       availableQty: 2000,
-      reservedQty: 250,
-      totalQty: 2250,
+      reservedQty: 200,
+      totalQty: 2200,
       labStatus: 'Passed',
-      labCertNo: 'LAB-2026-GRN-042',
-      expiryDate: '10 Nov 2027',
+      labCertNo: 'LAB-2026-GRN-104',
+      expiryDate: '30 Nov 2027',
       status: 'In Stock',
       reorderLevel: 500,
     },
     {
       id: 4,
-      productName: 'Basmati Rice Premium XXL',
-      sku: 'GRN-RIC-01',
-      batchNo: 'BT-2026-GRN-02',
-      category: 'Grains & Pulses',
-      shadeId: 'SH01',
-      shadeName: 'Shade 1: Grains & Bulk Pulses',
-      row: 'R02',
-      col: 'C02',
-      location: 'SH01-R02-C02',
-      baseUnit: 'Kg',
-      packUnit: 'Bags (25kg)',
-      unitsPerPack: 25,
-      packsCount: 60,
-      availableQty: 1500,
-      reservedQty: 100,
-      totalQty: 1600,
-      labStatus: 'Passed',
-      labCertNo: 'LAB-2026-GRN-045',
-      expiryDate: '20 Dec 2027',
-      status: 'In Stock',
-      reorderLevel: 400,
-    },
-    {
-      id: 5,
-      productName: 'Fortune Refined Mustard Oil (15L)',
-      sku: 'OIL-REF-01',
-      batchNo: 'BT-2026-OIL-01',
+      productName: 'Fortune Refined Sunflower Oil',
+      sku: 'OIL-SUN-01',
+      batchNo: 'BT-2026-OIL-14',
       category: 'Edible Oils',
       shadeId: 'SH02',
       shadeName: 'Shade 2: Edible Oils & Liquids',
       row: 'R01',
-      col: 'C01',
-      location: 'SH02-R01-C01',
+      col: 'C02',
+      location: 'SH02-R01-C02',
       baseUnit: 'Ltr',
       packUnit: 'Tins (15L)',
       unitsPerPack: 15,
-      packsCount: 80,
-      availableQty: 1200,
-      reservedQty: 60,
-      totalQty: 1260,
+      packsCount: 60,
+      availableQty: 900,
+      reservedQty: 90,
+      totalQty: 990,
       labStatus: 'Passed',
-      labCertNo: 'LAB-2026-OIL-014',
-      expiryDate: '18 Aug 2027',
+      labCertNo: 'LAB-2026-OIL-052',
+      expiryDate: '15 Oct 2027',
       status: 'In Stock',
       reorderLevel: 300,
     },
     {
-      id: 6,
-      productName: 'Maggi 2-Minute Noodles (70g)',
-      sku: 'FMCG-NOD-01',
-      batchNo: 'BT-2026-FMCG-03',
+      id: 5,
+      productName: 'Tata Premium Tea (500g)',
+      sku: 'FMCG-TEA-01',
+      batchNo: 'BT-2026-FMCG-11',
       category: 'Packaged FMCG',
       shadeId: 'SH03',
-      shadeName: 'Shade 3: Packaged FMCG',
+      shadeName: 'Shade 3: Packaged Food & FMCG',
       row: 'R01',
-      col: 'C03',
-      location: 'SH03-R01-C03',
-      baseUnit: 'Packets',
-      packUnit: 'Cartons',
+      col: 'C06',
+      location: 'SH03-R01-C06',
+      baseUnit: 'Pieces',
+      packUnit: 'Gatta',
       unitsPerPack: 24,
-      packsCount: 20,
-      availableQty: 480,
-      reservedQty: 96,
-      totalQty: 576,
+      packsCount: 15,
+      availableQty: 360,
+      reservedQty: 0,
+      totalQty: 360,
       labStatus: 'Under Testing',
-      labCertNo: 'QC-IN-PROGRESS',
-      expiryDate: '10 Jan 2027',
-      status: 'Under Testing',
-      reorderLevel: 250,
+      labCertNo: 'LAB-PENDING-QC',
+      expiryDate: '10 Dec 2027',
+      status: 'In Stock',
+      reorderLevel: 200,
+    },
+    {
+      id: 6,
+      productName: 'Basmati Rice (Classic Grade)',
+      sku: 'GRN-RIC-02',
+      batchNo: 'BT-2026-GRN-15',
+      category: 'Grains & Pulses',
+      shadeId: 'SH01',
+      shadeName: 'Shade 1: Grains & Bulk Pulses',
+      row: 'R03',
+      col: 'C07',
+      location: 'SH01-R03-C07',
+      baseUnit: 'Kg',
+      packUnit: 'Bags (50kg)',
+      unitsPerPack: 50,
+      packsCount: 10,
+      availableQty: 500,
+      reservedQty: 0,
+      totalQty: 500,
+      labStatus: 'Passed',
+      labCertNo: 'LAB-2026-GRN-112',
+      expiryDate: '20 Jan 2028',
+      status: 'Low Stock',
+      reorderLevel: 800,
     },
     {
       id: 7,
-      productName: 'Corrugated Shipping Cartons (5-Ply)',
-      sku: 'PKG-CRT-01',
-      batchNo: 'BT-2026-PKG-01',
-      category: 'Packaging Materials',
-      shadeId: 'SH04',
-      shadeName: 'Shade 4: Packaging Materials & Cartons',
-      row: 'R01',
-      col: 'C01',
-      location: 'SH04-R01-C01',
-      baseUnit: 'Nos',
-      packUnit: 'Bundles (50 Nos)',
-      unitsPerPack: 50,
-      packsCount: 30,
-      availableQty: 1500,
-      reservedQty: 200,
-      totalQty: 1700,
-      labStatus: 'Passed',
-      labCertNo: 'CERT-NOT-REQ',
-      expiryDate: 'N/A',
-      status: 'In Stock',
-      reorderLevel: 500,
-    },
-    {
-      id: 8,
-      productName: 'Industrial Floor Disinfectant Liquid',
+      productName: 'Industrial Disinfectant Concentrate',
       sku: 'CHM-DIS-01',
-      batchNo: 'BT-2026-CHM-01',
-      category: 'Chemicals & Hygiene',
+      batchNo: 'BT-2026-CHM-03',
+      category: 'Chemicals',
       shadeId: 'SH05',
       shadeName: 'Shade 5: Chemicals & Hygiene',
       row: 'R01',
-      col: 'C01',
-      location: 'SH05-R01-C01',
+      col: 'C03',
+      location: 'SH05-R01-C03',
       baseUnit: 'Ltr',
-      packUnit: 'Cans (5L)',
-      unitsPerPack: 5,
-      packsCount: 80,
-      availableQty: 400,
-      reservedQty: 0,
-      totalQty: 400,
+      packUnit: 'Carboys (20L)',
+      unitsPerPack: 20,
+      packsCount: 25,
+      availableQty: 500,
+      reservedQty: 40,
+      totalQty: 540,
       labStatus: 'Passed',
-      labCertNo: 'LAB-2026-CHM-008',
-      expiryDate: '05 May 2028',
+      labCertNo: 'LAB-2026-CHM-019',
+      expiryDate: '14 May 2028',
       status: 'In Stock',
-      reorderLevel: 150,
+      reorderLevel: 100,
     },
     {
-      id: 9,
-      productName: 'Hydraulic Pallet Jack Spares',
-      sku: 'SPR-PLT-01',
-      batchNo: 'BT-2026-SPR-01',
-      category: 'Spares & General',
-      shadeId: 'SH06',
-      shadeName: 'Shade 6: Spares & General Goods',
-      row: 'R01',
-      col: 'C01',
-      location: 'SH06-R01-C01',
-      baseUnit: 'Units',
-      packUnit: 'Crates',
-      unitsPerPack: 1,
-      packsCount: 120,
-      availableQty: 120,
-      reservedQty: 15,
-      totalQty: 135,
-      labStatus: 'Passed',
-      labCertNo: 'CERT-MECH-02',
-      expiryDate: 'N/A',
-      status: 'Low Stock',
-      reorderLevel: 150,
-    },
-    {
-      id: 10,
-      productName: 'Refined Mustard Oil (New Batch Sample)',
-      sku: 'OIL-REF-02',
-      batchNo: 'BT-2026-OIL-99',
-      category: 'Edible Oils',
-      shadeId: 'SH02',
-      shadeName: 'Shade 2: Edible Oils & Liquids',
-      row: 'R01',
-      col: 'C04',
-      location: 'SH02-R01-C04',
-      baseUnit: 'Ltr',
-      packUnit: 'Tins (15L)',
-      unitsPerPack: 15,
-      packsCount: 20,
-      availableQty: 300,
+      id: 8,
+      productName: 'Corrugated Shipping Cartons (5-Ply)',
+      sku: 'PKG-BOX-01',
+      batchNo: 'BT-2026-PKG-08',
+      category: 'Packaging',
+      shadeId: 'SH04',
+      shadeName: 'Shade 4: Packaging Materials & Cartons',
+      row: 'R02',
+      col: 'C02',
+      location: 'SH04-R02-C02',
+      baseUnit: 'Cartons',
+      packUnit: 'Bundles',
+      unitsPerPack: 25,
+      packsCount: 80,
+      availableQty: 2000,
       reservedQty: 0,
-      totalQty: 300,
-      labStatus: 'Pending Lab Test',
-      labCertNo: 'PENDING-QC',
-      expiryDate: '10 Aug 2027',
-      status: 'Pending Lab Test',
-      reorderLevel: 200,
+      totalQty: 2000,
+      labStatus: 'Passed',
+      labCertNo: 'LAB-2026-PKG-041',
+      expiryDate: '31 Dec 2029',
+      status: 'In Stock',
+      reorderLevel: 500,
     },
   ])
 
   // Filtered Stock Items
   const filteredStock = useMemo(() => {
     return stockData.filter((item) => {
-      // Shade filter
-      if (filterShade !== 'All Shades' && item.shadeId !== filterShade) return false
-
-      // Category filter
-      if (filterCategory !== 'All Categories' && item.category !== filterCategory) return false
-
-      // Lab Status filter
-      if (filterLabStatus !== 'All' && item.labStatus !== filterLabStatus) return false
-
-      // Stock Level filter
+      if (filterShade !== 'ALL' && item.shadeId !== filterShade) return false
+      if (filterCategory !== 'ALL' && item.category !== filterCategory) return false
+      if (filterLabStatus !== 'ALL' && item.labStatus !== filterLabStatus) return false
       if (filterStockLevel === 'Low Stock' && item.status !== 'Low Stock') return false
       if (filterStockLevel === 'In Stock' && item.status !== 'In Stock') return false
 
-      // Search Query
       if (searchQuery.trim() !== '') {
         const q = searchQuery.toLowerCase()
         return (
@@ -339,52 +350,46 @@ export default function CurrentStock() {
           item.category.toLowerCase().includes(q)
         )
       }
-
       return true
     })
   }, [stockData, filterShade, filterCategory, filterLabStatus, filterStockLevel, searchQuery])
 
-  // Aggregate metrics
-  const totalBaseUnits = useMemo(() => {
-    return stockData.reduce((sum, i) => sum + i.availableQty, 0)
-  }, [stockData])
+  // Paginated List
+  const totalPages = Math.max(1, Math.ceil(filteredStock.length / perPage))
+  const paginatedStock = filteredStock.slice((currentPage - 1) * perPage, currentPage * perPage)
 
-  const totalGattaPacks = useMemo(() => {
-    return stockData.reduce((sum, i) => sum + i.packsCount, 0)
-  }, [stockData])
-
-  const labPassedUnits = useMemo(() => {
-    return stockData
+  // Dynamic KPI Aggregates
+  const stats = useMemo(() => {
+    const totalBaseUnits = stockData.reduce((sum, i) => sum + i.availableQty, 0)
+    const totalPacks = stockData.reduce((sum, i) => sum + i.packsCount, 0)
+    const labPassedUnits = stockData
       .filter((i) => i.labStatus === 'Passed')
       .reduce((sum, i) => sum + i.availableQty, 0)
+    const lowStockCount = stockData.filter((i) => i.status === 'Low Stock').length
+    const clearancePct = totalBaseUnits > 0 ? Math.round((labPassedUnits / totalBaseUnits) * 100) : 100
+    return { totalBaseUnits, totalPacks, labPassedUnits, lowStockCount, clearancePct }
   }, [stockData])
 
   // Handle Add Stock Submit
   const handleAddStockSubmit = (e) => {
     e.preventDefault()
+    if (!newStock.productName || !newStock.sku || !newStock.batchNo) {
+      triggerToast('Please complete all required fields.')
+      return
+    }
+
     const computedBase = (Number(newStock.packsCount) || 0) * (Number(newStock.unitsPerPack) || 1)
     const locCode = `${newStock.shadeId}-${newStock.row}-${newStock.col}`
-    const matchedShade = SHADES.find((s) => s.id === newStock.shadeId)?.name || newStock.shadeId
+    const matchedShade = SHADES.find((s) => s.id === newStock.shadeId)
 
     const newEntry = {
       id: Date.now(),
       productName: newStock.productName,
       sku: newStock.sku,
       batchNo: newStock.batchNo,
-      category:
-        newStock.shadeId === 'SH01'
-          ? 'Grains & Pulses'
-          : newStock.shadeId === 'SH02'
-          ? 'Edible Oils'
-          : newStock.shadeId === 'SH03'
-          ? 'Packaged FMCG'
-          : newStock.shadeId === 'SH04'
-          ? 'Packaging Materials'
-          : newStock.shadeId === 'SH05'
-          ? 'Chemicals & Hygiene'
-          : 'Spares & General',
+      category: matchedShade?.category || 'General',
       shadeId: newStock.shadeId,
-      shadeName: matchedShade,
+      shadeName: matchedShade?.name || newStock.shadeId,
       row: newStock.row,
       col: newStock.col,
       location: locCode,
@@ -396,15 +401,15 @@ export default function CurrentStock() {
       reservedQty: 0,
       totalQty: computedBase,
       labStatus: newStock.labStatus,
-      labCertNo: newStock.labStatus === 'Passed' ? 'CERT-MANUAL-01' : 'PENDING-QC',
-      expiryDate: newStock.expiryDate || '-',
-      status: 'In Stock',
-      reorderLevel: 250,
+      labCertNo: newStock.labStatus === 'Passed' ? `LAB-2026-${Date.now().toString().slice(-4)}` : 'PENDING-QC',
+      expiryDate: newStock.expiryDate || '31 Dec 2027',
+      status: newStock.status,
+      reorderLevel: 200,
     }
 
     setStockData([newEntry, ...stockData])
     setShowAddModal(false)
-    triggerToast(`Added ${computedBase} ${newEntry.baseUnit} of ${newEntry.productName} to ${locCode}.`)
+    triggerToast(`Added ${computedBase} ${newEntry.baseUnit} of ${newEntry.productName}.`)
   }
 
   // Export CSV
@@ -420,14 +425,14 @@ export default function CurrentStock() {
       'Base Unit Stock',
       'Base Unit',
       'Packaging Packs',
-      'Pack Type',
+      'Pack Unit',
       'Units Per Pack',
       'Lab Status',
       'Expiry Date',
       'Status',
     ]
-    const rows = stockData.map((row) => [
-      row.id,
+    const rows = filteredStock.map((row, idx) => [
+      idx + 1,
       `"${row.productName}"`,
       row.sku,
       row.batchNo,
@@ -449,107 +454,82 @@ export default function CurrentStock() {
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement('a')
     link.setAttribute('href', encodedUri)
-    link.setAttribute('download', 'Current_Stock_6Shades_BaseUnits.csv')
+    link.setAttribute('download', 'Current_Stock_Inventory.csv')
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     triggerToast('Current Stock Inventory exported to CSV.')
   }
 
+  // Filter Dropdown Options
+  const categoryOptions = [
+    { value: 'ALL', label: 'All Categories' },
+    { value: 'Packaged FMCG', label: 'Packaged FMCG' },
+    { value: 'Grains & Pulses', label: 'Grains & Pulses' },
+    { value: 'Edible Oils', label: 'Edible Oils' },
+    { value: 'Packaging', label: 'Packaging Materials' },
+    { value: 'Chemicals', label: 'Chemicals & Hygiene' },
+    { value: 'Spares', label: 'Spares & General' },
+  ]
+
+  const labStatusOptions = [
+    { value: 'ALL', label: 'All Lab Status' },
+    { value: 'Passed', label: 'Lab Clearance Passed' },
+    { value: 'Under Testing', label: 'Under QC Testing' },
+  ]
+
+  const stockLevelOptions = [
+    { value: 'ALL', label: 'All Stock Levels' },
+    { value: 'In Stock', label: 'Optimal In Stock' },
+    { value: 'Low Stock', label: 'Low Stock Alerts' },
+  ]
+
   return (
-    <div className="space-y-4 pb-12">
+    <div className="space-y-5 pb-12">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-[#162214] border border-amber-400 text-amber-300 px-4 py-2.5 rounded-lg shadow-2xl flex items-center gap-2 text-xs font-medium animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold animate-bounce border border-slate-700">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Top Himalayan Convoy Banner (Preserved) */}
-      <div className="relative rounded-xl overflow-hidden shadow-md border border-slate-200/80 bg-slate-900 h-28 sm:h-32">
-        <img
-          src="/border.png"
-          alt="Warehouse Inventory & Logistics"
-          className="w-full h-full object-cover object-center opacity-90"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/25 to-black/65"></div>
-        <div className="absolute top-3 right-4 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/20">
-          <div className="h-2 w-5 flex flex-col justify-between rounded-xs overflow-hidden">
-            <div className="h-0.5 bg-[#FF9933]"></div>
-            <div className="h-0.5 bg-white"></div>
-            <div className="h-0.5 bg-[#138808]"></div>
-          </div>
-          <span className="text-[10px] font-bold text-white tracking-widest uppercase">
-            NATION FIRST ALWAYS
-          </span>
-        </div>
-      </div>
-
       {/* Page Header Bar */}
-      <div className="bg-white rounded-xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-xl bg-[#1E3A1E] text-white flex items-center justify-center shadow-xs shrink-0">
-            <Package className="w-6 h-6 text-white" />
+          <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs shrink-0">
+            <Package className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-              <span>Current Stock (6 Dedicated Shades &amp; Base Units)</span>
-            </h1>
-            <p className="text-xs text-slate-500 font-medium">
-              Real-time inventory balances recorded in base product units with Gatta conversion ratios across the 6 warehouse shades.
+            <h1 className="text-xl font-bold text-slate-800 tracking-tight">Current Stock Registry</h1>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              Live inventory balances, dual-unit conversion ratios, and lab clearance status across 6 warehouse shades.
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="text-xs text-slate-400 flex items-center gap-1.5 font-medium mr-2">
-            <Link to="/dashboard" className="hover:text-slate-700">Home</Link>
-            <span>›</span>
-            <span className="text-slate-500">Inventory</span>
-            <span>›</span>
-            <span className="text-slate-800 font-semibold">Current Stock</span>
-          </div>
-
           <Link
             to="/location-master"
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-lg transition"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
           >
-            2D Grid View
+            <Warehouse className="w-3.5 h-3.5 text-slate-500" />
+            <span>2D Bin Matrix</span>
           </Link>
 
           <button
             type="button"
             onClick={handleExportCSV}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5 text-slate-500" />
             <span>Export CSV</span>
           </button>
 
           <button
             type="button"
-            onClick={() => {
-              setNewStock({
-                productName: '',
-                sku: '',
-                batchNo: '',
-                shadeId: 'SH03',
-                row: 'R01',
-                col: 'C01',
-                baseUnit: 'Pieces',
-                packUnit: 'Gatta',
-                unitsPerPack: 6,
-                packsCount: 100,
-                availableQty: 600,
-                reservedQty: 0,
-                expiryDate: '15 Mar 2027',
-                labStatus: 'Pending Lab Test',
-                status: 'In Stock',
-              })
-              setShowAddModal(true)
-            }}
-            className="bg-[#1F331E] hover:bg-[#2A4428] text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-2 shadow-xs transition cursor-pointer"
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition"
           >
             <Plus className="w-4 h-4" />
             <span>Add Stock Item</span>
@@ -557,430 +537,550 @@ export default function CurrentStock() {
         </div>
       </div>
 
-      {/* 5 KPI Stat Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200">
-          <p className="text-[11px] font-semibold text-slate-500">Total Base Units</p>
-          <h3 className="text-2xl font-black text-slate-800 leading-tight">
-            {totalBaseUnits.toLocaleString()}
-          </h3>
-          <p className="text-[10px] text-slate-400">Pieces, Kg, Ltr &amp; Nos</p>
+      {/* 4 Dynamic KPI Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
+            <Package className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500">Total Base Units</p>
+            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+              {stats.totalBaseUnits.toLocaleString()}
+            </h3>
+            <p className="text-[11px] text-indigo-600 font-medium">Pieces, Kg, Ltr &amp; Cartons</p>
+          </div>
         </div>
 
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200">
-          <p className="text-[11px] font-semibold text-slate-500">Physical Gatta / Cartons</p>
-          <h3 className="text-2xl font-black text-slate-800 leading-tight">
-            {totalGattaPacks.toLocaleString()} Packs
-          </h3>
-          <p className="text-[10px] text-slate-400">Packaging units count</p>
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500">Packaging Cartons / Packs</p>
+            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+              {stats.totalPacks.toLocaleString()} Packs
+            </h3>
+            <p className="text-[11px] text-emerald-600 font-medium">Physical handling units</p>
+          </div>
         </div>
 
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200">
-          <p className="text-[11px] font-semibold text-slate-500">Lab Approved Stock</p>
-          <h3 className="text-2xl font-black text-emerald-800 leading-tight">
-            {labPassedUnits.toLocaleString()}
-          </h3>
-          <p className="text-[10px] text-emerald-600 font-bold">
-            {Math.round((labPassedUnits / totalBaseUnits) * 100)}% Clear for Dispatch
-          </p>
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500">Lab Approved Stock</p>
+            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+              {stats.clearancePct}% Cleared
+            </h3>
+            <p className="text-[11px] text-blue-600 font-medium">{stats.labPassedUnits.toLocaleString()} ready for dispatch</p>
+          </div>
         </div>
 
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200">
-          <p className="text-[11px] font-semibold text-slate-500">Under Lab Testing</p>
-          <h3 className="text-2xl font-black text-amber-700 leading-tight">
-            {(totalBaseUnits - labPassedUnits).toLocaleString()}
-          </h3>
-          <p className="text-[10px] text-amber-600 font-medium">Pending QC verification</p>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200">
-          <p className="text-[11px] font-semibold text-slate-500">Warehouse Architecture</p>
-          <h3 className="text-sm font-black text-slate-800 leading-tight mt-1">
-            6 Shades • 480 Bins
-          </h3>
-          <p className="text-[10px] text-slate-400">8 Rows × 10 Columns</p>
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500">Reorder Level Alerts</p>
+            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+              {stats.lowStockCount} Items
+            </h3>
+            <p className="text-[11px] text-amber-600 font-medium">Stock below threshold</p>
+          </div>
         </div>
       </div>
 
-      {/* SHADE PILL TABS */}
-      <div className="bg-white rounded-xl p-2.5 shadow-xs border border-slate-200 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-        <button
-          type="button"
-          onClick={() => setFilterShade('All Shades')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-            filterShade === 'All Shades'
-              ? 'bg-[#1E3A1E] text-white shadow-xs'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-          }`}
-        >
-          All 6 Shades
-        </button>
-        {SHADES.map((s) => (
+      {/* 6 Dedicated Shades Switcher Tabs */}
+      <div className="bg-white rounded-2xl p-3 shadow-xs border border-slate-200/80">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           <button
-            key={s.id}
             type="button"
-            onClick={() => setFilterShade(s.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              filterShade === s.id
-                ? 'bg-[#1E3A1E] text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            onClick={() => {
+              setFilterShade('ALL')
+              setCurrentPage(1)
+            }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 ${
+              filterShade === 'ALL'
+                ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-600/20'
+                : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/80'
             }`}
           >
-            {s.name}
+            <span>All 6 Shades</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${filterShade === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+              {stockData.length}
+            </span>
           </button>
-        ))}
+          {SHADES.map((s) => {
+            const isActive = filterShade === s.id
+            const count = stockData.filter((i) => i.shadeId === s.id).length
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => {
+                  setFilterShade(s.id)
+                  setCurrentPage(1)
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-600/20'
+                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/80'
+                }`}
+              >
+                <span className="font-mono">{s.id}:</span>
+                <span>{s.category}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      {/* FILTER & SEARCH TOOLBAR */}
-      <div className="bg-white rounded-xl p-3 shadow-xs border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-        <div className="flex flex-wrap items-center gap-2.5 flex-1">
-          {/* Lab Status Filter */}
-          <div className="min-w-[130px]">
-            <select
-              value={filterLabStatus}
-              onChange={(e) => setFilterLabStatus(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 focus:outline-none"
-            >
-              <option value="All">All Lab Status</option>
-              <option value="Passed">Lab Passed Only</option>
-              <option value="Pending Lab Test">Pending Lab Test</option>
-              <option value="Under Testing">Under Testing</option>
-            </select>
+      {/* 100% Full-Width Master Inventory Register Card */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+        {/* Table Filter Toolbar */}
+        <div className="p-5 border-b border-slate-100 space-y-4">
+          {/* Top Line: Section Title & Results Count */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <Package className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-800">Master Stock Registry</h2>
+                <p className="text-[11px] text-slate-500">Live item balances, batch allocations, and bin coordinates across all warehouse shades.</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-3 py-1 rounded-full border border-indigo-200/60">
+                {filteredStock.length} Items Found
+              </span>
+              {(searchQuery || filterShade !== 'ALL' || filterCategory !== 'ALL' || filterLabStatus !== 'ALL' || filterStockLevel !== 'ALL') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterShade('ALL')
+                    setFilterCategory('ALL')
+                    setFilterLabStatus('ALL')
+                    setFilterStockLevel('ALL')
+                    setSearchQuery('')
+                    setCurrentPage(1)
+                    triggerToast('Filters reset to default.')
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-semibold transition cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3 text-slate-400" />
+                  <span>Reset Filters</span>
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Stock Level Filter */}
-          <div className="min-w-[130px]">
-            <select
-              value={filterStockLevel}
-              onChange={(e) => setFilterStockLevel(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 focus:outline-none"
-            >
-              <option value="All">All Stock Levels</option>
-              <option value="In Stock">In Stock</option>
-              <option value="Low Stock">Low Stock Alert</option>
-            </select>
-          </div>
-
-          {/* Search Box */}
-          <div className="relative flex-1 min-w-[220px]">
+          {/* Main Keyword Search Bar */}
+          <div className="relative w-full">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
             <input
               type="text"
-              placeholder="Search by product, SKU, batch, or bin code..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:bg-white"
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setCurrentPage(1)
+              }}
+              placeholder="Search product name, SKU code, batch number, or bin coordinate..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition"
             />
-            <span className="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 p-0.5 rounded-full cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* 4 Filter Dropdowns in Spacious Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1 text-xs">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
+                Category
+              </label>
+              <CustomSelect
+                value={filterCategory}
+                onChange={(val) => {
+                  setFilterCategory(val)
+                  setCurrentPage(1)
+                }}
+                options={categoryOptions}
+                placeholder="All Categories"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
+                Lab Clearance Status
+              </label>
+              <CustomSelect
+                value={filterLabStatus}
+                onChange={(val) => {
+                  setFilterLabStatus(val)
+                  setCurrentPage(1)
+                }}
+                options={labStatusOptions}
+                placeholder="All Lab Status"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
+                Stock Availability
+              </label>
+              <CustomSelect
+                value={filterStockLevel}
+                onChange={(val) => {
+                  setFilterStockLevel(val)
+                  setCurrentPage(1)
+                }}
+                options={stockLevelOptions}
+                placeholder="Stock Level"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
+                Warehouse Shade
+              </label>
+              <CustomSelect
+                value={filterShade}
+                onChange={(val) => {
+                  setFilterShade(val)
+                  setCurrentPage(1)
+                }}
+                options={[
+                  { value: 'ALL', label: 'All 6 Dedicated Shades' },
+                  ...SHADES.map((s) => ({ value: s.id, label: s.name })),
+                ]}
+                placeholder="All Shades"
+              />
+            </div>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setFilterShade('All Shades')
-            setFilterCategory('All Categories')
-            setFilterLabStatus('All')
-            setFilterStockLevel('All')
-            setSearchQuery('')
-            triggerToast('Filters reset.')
-          }}
-          className="text-emerald-700 font-bold hover:underline cursor-pointer text-xs self-end md:self-center"
-        >
-          Reset Filters
-        </button>
-      </div>
-
-      {/* MASTER INVENTORY TABLE */}
-      <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden flex flex-col">
-        <div className="overflow-x-auto no-scrollbar scroll-smooth w-full">
-          <table className="w-full text-left text-xs divide-y divide-slate-200 border-collapse table-nowrap" style={{ minWidth: '1150px' }}>
-            <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
-              <tr>
-                <th className="py-3 px-3 w-10 text-center">#</th>
-                <th className="py-3 px-4 min-w-[200px]">Product Name &amp; SKU</th>
+        {/* Master Stock Table */}
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50/75 border-b border-slate-200/80 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">
+                <th className="py-3 px-4 w-12 text-center">#</th>
+                <th className="py-3 px-4 min-w-[200px]">Product &amp; SKU</th>
                 <th className="py-3 px-4 min-w-[150px]">Storage Bin &amp; Shade</th>
-                <th className="py-3 px-4 min-w-[120px]">Batch No.</th>
-                <th className="py-3 px-4 min-w-[140px] text-right">Available Base Stock</th>
-                <th className="py-3 px-4 min-w-[150px] text-right">Packaging (Gatta)</th>
-                <th className="py-3 px-4 text-center min-w-[120px]">Lab Clearance</th>
+                <th className="py-3 px-4 min-w-[120px]">Batch No</th>
+                <th className="py-3 px-4 min-w-[130px] text-right">Available Stock</th>
+                <th className="py-3 px-4 min-w-[140px] text-right">Packaging Packs</th>
+                <th className="py-3 px-4 min-w-[120px] text-center">Lab QC Status</th>
                 <th className="py-3 px-4 min-w-[110px]">Expiry Date</th>
-                <th className="py-3 px-4 text-center min-w-[100px]">Status</th>
-                <th className="py-3 px-3 text-center w-24">Action</th>
+                <th className="py-3 px-4 min-w-[100px] text-center">Stock Level</th>
+                <th className="py-3 px-4 text-center w-28">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {filteredStock.map((row, idx) => (
-                <tr key={row.id} className="hover:bg-emerald-50/40 transition">
-                  <td className="py-3 px-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                  <td className="py-3 px-4 text-slate-900">
-                    <div className="font-bold text-slate-900">{row.productName}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">{row.sku} • {row.category}</div>
-                  </td>
-                  <td className="py-3 px-4 font-mono font-bold text-slate-800">
-                    <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px]">
-                      {row.location}
-                    </span>
-                    <div className="text-[10px] text-slate-500 font-sans font-normal mt-0.5 truncate max-w-[140px]">
-                      {row.shadeName}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 font-mono text-slate-700">{row.batchNo}</td>
-                  <td className="py-3 px-4 text-right font-mono font-black text-emerald-900">
-                    {row.availableQty.toLocaleString()} {row.baseUnit}
-                  </td>
-                  <td className="py-3 px-4 text-right text-slate-700">
-                    <span className="font-bold text-slate-800">{row.packsCount} {row.packUnit}</span>
-                    <div className="text-[10px] text-slate-400">
-                      @ {row.unitsPerPack} {row.baseUnit}/pack
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        row.labStatus === 'Passed'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : row.labStatus === 'Under Testing'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {row.labStatus === 'Passed' ? '✓ Passed' : row.labStatus}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 font-mono text-slate-600 text-[11px]">{row.expiryDate}</td>
-                  <td className="py-3 px-4 text-center">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        row.status === 'In Stock'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
-                      }`}
-                    >
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setShowDetailsModal(row)}
-                        className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg border border-slate-200 transition cursor-pointer"
-                        title="View Details"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowQrModal(row)}
-                        className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg border border-emerald-200 transition cursor-pointer"
-                        title="Print Bin QR Locator"
-                      >
-                        <QrCode className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+            <tbody className="divide-y divide-slate-100">
+              {paginatedStock.length === 0 ? (
+                <tr>
+                  <td colSpan="10" className="py-12 text-center text-slate-400">
+                    <Package className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <p className="font-semibold text-slate-600">No stock records found</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Try adjusting search query or active shade filters.</p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                paginatedStock.map((row, idx) => (
+                  <tr key={row.id} className="hover:bg-indigo-50/20 transition">
+                    <td className="py-3.5 px-4 text-center text-slate-400 font-bold">
+                      {(currentPage - 1) * perPage + idx + 1}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-slate-900">{row.productName}</div>
+                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                        {row.sku} • <span className="text-slate-500 font-sans">{row.category}</span>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200/60 text-[11px]">
+                        {row.location}
+                      </span>
+                      <div className="text-[10px] text-slate-500 mt-1 truncate max-w-[150px]">
+                        {row.shadeName}
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-700">
+                      {row.batchNo}
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <span className="font-mono font-black text-slate-900 text-xs">
+                        {row.availableQty.toLocaleString()}
+                      </span>
+                      <span className="text-[11px] text-slate-500 ml-1">{row.baseUnit}</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <span className="font-bold text-slate-800">
+                        {row.packsCount} {row.packUnit}
+                      </span>
+                      <div className="text-[10px] text-slate-400">
+                        @ {row.unitsPerPack} {row.baseUnit}/pack
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          row.labStatus === 'Passed'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}
+                      >
+                        {row.labStatus === 'Passed' ? '✓ Passed' : row.labStatus}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-[11px] text-slate-600">
+                      {row.expiryDate}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          row.status === 'In Stock'
+                            ? 'bg-slate-100 text-slate-700'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200 font-black'
+                        }`}
+                      >
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setShowDetailsModal(row)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
+                          title="View Details"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowQrModal(row)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
+                          title="Print QR Sticker"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
+        </div>
+
+        {/* Table Pagination Footer */}
+        <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
+          <div>
+            Showing <span className="font-semibold text-slate-800">{filteredStock.length === 0 ? 0 : (currentPage - 1) * perPage + 1}</span> to{' '}
+            <span className="font-semibold text-slate-800">{Math.min(currentPage * perPage, filteredStock.length)}</span> of{' '}
+            <span className="font-semibold text-slate-800">{filteredStock.length}</span> results
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              Previous
+            </button>
+            <span className="px-3 py-1.5 text-slate-700 font-bold">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
 
       {/* MODAL 1: ADD STOCK ITEM */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
-                <Package className="w-4 h-4 text-emerald-700" />
-                <span>Add Stock Item (Base Units &amp; 6 Shades)</span>
-              </h3>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Package className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Add Stock Item</h3>
+                  <p className="text-[11px] text-slate-500">Record inventory balance with dual-unit packaging ratio.</p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleAddStockSubmit} className="space-y-3.5 pt-3 text-xs">
+            <form onSubmit={handleAddStockSubmit} className="space-y-3.5 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Product Name</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Product Name *</label>
                   <input
                     type="text"
                     required
+                    placeholder="e.g. Basmati Rice (50kg Bags)"
                     value={newStock.productName}
                     onChange={(e) => setNewStock({ ...newStock, productName: e.target.value })}
-                    placeholder="e.g. Parle-G Glucose Biscuits"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold focus:outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">SKU</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">SKU Code *</label>
                   <input
                     type="text"
                     required
+                    placeholder="e.g. GRN-RIC-01"
                     value={newStock.sku}
                     onChange={(e) => setNewStock({ ...newStock, sku: e.target.value })}
-                    placeholder="e.g. FMCG-BIS-01"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Batch No.</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Batch Number *</label>
                   <input
                     type="text"
                     required
+                    placeholder="e.g. BT-2026-GRN-101"
                     value={newStock.batchNo}
                     onChange={(e) => setNewStock({ ...newStock, batchNo: e.target.value })}
-                    placeholder="e.g. BT-2026-FMCG-01"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">Expiry Date</label>
                   <input
                     type="text"
+                    placeholder="e.g. 30 Nov 2027"
                     value={newStock.expiryDate}
                     onChange={(e) => setNewStock({ ...newStock, expiryDate: e.target.value })}
-                    placeholder="e.g. 15 Mar 2027"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
               </div>
 
-              {/* Grid Location Selection: Shade -> Row -> Column */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <span className="text-[11px] font-bold text-slate-800">Target Storage Bin Selection</span>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-[10px] text-slate-500 font-semibold mb-1">Shade</label>
-                    <select
-                      value={newStock.shadeId}
-                      onChange={(e) => setNewStock({ ...newStock, shadeId: e.target.value })}
-                      className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold"
-                    >
-                      {SHADES.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.id}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-500 font-semibold mb-1">Row (1-8)</label>
-                    <select
-                      value={newStock.row}
-                      onChange={(e) => setNewStock({ ...newStock, row: e.target.value })}
-                      className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono font-bold"
-                    >
-                      {Array.from({ length: 8 }, (_, i) => (
-                        <option key={i} value={`R0${i + 1}`}>
-                          Row 0{i + 1}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-500 font-semibold mb-1">Column (1-10)</label>
-                    <select
-                      value={newStock.col}
-                      onChange={(e) => setNewStock({ ...newStock, col: e.target.value })}
-                      className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono font-bold"
-                    >
-                      {Array.from({ length: 10 }, (_, i) => (
-                        <option key={i} value={i + 1 < 10 ? `C0${i + 1}` : `C${i + 1}`}>
-                          Col {i + 1 < 10 ? `0${i + 1}` : i + 1}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Target Shade</label>
+                  <CustomSelect
+                    value={newStock.shadeId}
+                    onChange={(val) => {
+                      const matched = SHADES.find((s) => s.id === val)
+                      setNewStock({
+                        ...newStock,
+                        shadeId: val,
+                        baseUnit: matched?.baseUnit || newStock.baseUnit,
+                        packUnit: matched?.packUnit || newStock.packUnit,
+                        unitsPerPack: matched?.unitsPerPack || newStock.unitsPerPack,
+                      })
+                    }}
+                    options={SHADES.map((s) => ({ value: s.id, label: s.name }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Row</label>
+                  <input
+                    type="text"
+                    value={newStock.row}
+                    onChange={(e) => setNewStock({ ...newStock, row: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Column</label>
+                  <input
+                    type="text"
+                    value={newStock.col}
+                    onChange={(e) => setNewStock({ ...newStock, col: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
                 </div>
               </div>
 
-              {/* Base Unit vs Packaging Calculation */}
-              <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-2">
-                <span className="text-[11px] font-bold text-emerald-900">Base Unit Minimum Quantity</span>
-                <div className="grid grid-cols-3 gap-2 text-[10px]">
+              {/* Packaging Conversion Ratio Card */}
+              <div className="p-3.5 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-2">
+                <span className="text-[11px] font-bold text-indigo-950">Packaging Conversion Calculation</span>
+                <div className="grid grid-cols-3 gap-2.5 text-xs">
                   <div>
-                    <span className="font-semibold block mb-1">Gatta / Pack Count</span>
+                    <label className="block text-[10px] font-semibold text-slate-600 mb-1">Packs Count</label>
                     <input
                       type="number"
                       value={newStock.packsCount}
                       onChange={(e) => setNewStock({ ...newStock, packsCount: e.target.value })}
-                      className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono font-bold"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-mono font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                   <div>
-                    <span className="font-semibold block mb-1">Units / Gatta</span>
+                    <label className="block text-[10px] font-semibold text-slate-600 mb-1">Units / Pack</label>
                     <input
                       type="number"
                       value={newStock.unitsPerPack}
                       onChange={(e) => setNewStock({ ...newStock, unitsPerPack: e.target.value })}
-                      className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono font-bold"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-mono font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                   <div>
-                    <span className="font-semibold block mb-1">Base Unit</span>
+                    <label className="block text-[10px] font-semibold text-slate-600 mb-1">Base Unit</label>
                     <input
                       type="text"
                       value={newStock.baseUnit}
                       onChange={(e) => setNewStock({ ...newStock, baseUnit: e.target.value })}
-                      className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                 </div>
-                <div className="text-[11px] text-emerald-900 font-bold pt-1 flex justify-between">
-                  <span>Computed Minimum Inventory:</span>
-                  <span className="font-mono">
-                    {((Number(newStock.packsCount) || 0) * (Number(newStock.unitsPerPack) || 1)).toLocaleString()}{' '}
-                    {newStock.baseUnit}
+                <div className="flex items-center justify-between text-[11px] text-indigo-900 font-bold pt-1 border-t border-indigo-100">
+                  <span>Computed Base Units:</span>
+                  <span className="font-mono text-xs">
+                    {((Number(newStock.packsCount) || 0) * (Number(newStock.unitsPerPack) || 1)).toLocaleString()} {newStock.baseUnit}
                   </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Lab Testing Status</label>
-                  <select
-                    value={newStock.labStatus}
-                    onChange={(e) => setNewStock({ ...newStock, labStatus: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold"
-                  >
-                    <option value="Pending Lab Test">Pending Lab Test</option>
-                    <option value="Under Testing">Under Testing</option>
-                    <option value="Passed">Passed</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Stock Status</label>
-                  <select
-                    value={newStock.status}
-                    onChange={(e) => setNewStock({ ...newStock, status: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold"
-                  >
-                    <option value="In Stock">In Stock</option>
-                    <option value="Low Stock">Low Stock</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-semibold transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#1E3A1E] hover:bg-[#2A4428] text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm transition cursor-pointer"
                 >
                   Save Stock Item
                 </button>
@@ -992,55 +1092,89 @@ export default function CurrentStock() {
 
       {/* MODAL 2: VIEW DETAILS */}
       {showDetailsModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-3.5 text-xs">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm">Stock Item Breakdown</h3>
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-xs animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Eye className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-slate-900 text-sm">Stock Item Details</h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowDetailsModal(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Commodity:</span>
-                <span className="font-bold text-slate-800">{showDetailsModal.productName}</span>
+            <div className="space-y-2.5">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Commodity</p>
+                  <p className="font-bold text-slate-900 text-sm">{showDetailsModal.productName}</p>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">{showDetailsModal.sku} • {showDetailsModal.category}</p>
+                </div>
+                <span className="font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded text-xs">
+                  {showDetailsModal.location}
+                </span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Storage Bin:</span>
-                <span className="font-mono font-bold text-emerald-900">{showDetailsModal.location} ({showDetailsModal.shadeName})</span>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Batch No</span>
+                  <span className="font-mono font-bold text-slate-800">{showDetailsModal.batchNo}</span>
+                </div>
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Expiry Date</span>
+                  <span className="font-mono text-slate-800">{showDetailsModal.expiryDate}</span>
+                </div>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Batch Number:</span>
-                <span className="font-mono font-bold text-slate-800">{showDetailsModal.batchNo}</span>
+
+              <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-indigo-950 font-bold">Total Available Stock:</span>
+                  <span className="font-mono font-black text-indigo-900 text-sm">
+                    {showDetailsModal.availableQty.toLocaleString()} {showDetailsModal.baseUnit}
+                  </span>
+                </div>
+                <div className="flex justify-between text-[11px] text-indigo-800">
+                  <span>Physical Packs:</span>
+                  <span className="font-bold">{showDetailsModal.packsCount} {showDetailsModal.packUnit}</span>
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-500 border-t border-indigo-100/80 pt-1">
+                  <span>Packaging Ratio:</span>
+                  <span>1 {showDetailsModal.packUnit} = {showDetailsModal.unitsPerPack} {showDetailsModal.baseUnit}</span>
+                </div>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Base Unit Stock:</span>
-                <span className="font-black font-mono text-emerald-900 text-sm">{showDetailsModal.availableQty.toLocaleString()} {showDetailsModal.baseUnit}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Packaging Ratio:</span>
-                <span>1 {showDetailsModal.packUnit} = {showDetailsModal.unitsPerPack} {showDetailsModal.baseUnit}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Physical Packaging:</span>
-                <span className="font-bold text-slate-800">{showDetailsModal.packsCount} {showDetailsModal.packUnit}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Lab Clearance:</span>
-                <span className="font-bold text-emerald-800">{showDetailsModal.labStatus} ({showDetailsModal.labCertNo})</span>
+
+              <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-slate-500 font-medium">Lab QC Clearance:</span>
+                <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  {showDetailsModal.labStatus} ({showDetailsModal.labCertNo})
+                </span>
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const item = showDetailsModal
+                  setShowDetailsModal(null)
+                  setShowQrModal(item)
+                }}
+                className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold transition flex items-center gap-1.5"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>QR Sticker</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setShowDetailsModal(null)}
-                className="px-4 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-bold"
+                className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition"
               >
                 Close
               </button>
@@ -1051,44 +1185,50 @@ export default function CurrentStock() {
 
       {/* MODAL 3: PRINT QR TAG */}
       {showQrModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 text-center space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="font-black text-slate-800 text-sm flex items-center gap-1.5">
-                <QrCode className="w-4 h-4 text-emerald-700" />
-                <span>Bin QR Locator Sticker</span>
-              </h3>
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <QrCode className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-slate-900 text-sm">Bin Locator Sticker</h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowQrModal(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="border-2 border-dashed border-slate-800 rounded-xl p-4 bg-slate-50 space-y-2">
-              <div className="flex justify-between text-[10px] font-bold text-slate-700 border-b pb-1">
-                <span>CENTRAL WAREHOUSE LOGISTICS</span>
-                <span className="text-emerald-800 font-mono">{showQrModal.location}</span>
+            <div className="border-2 border-dashed border-slate-300 rounded-2xl p-4 bg-slate-50/50 space-y-3 text-center">
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 border-b border-slate-200 pb-1.5">
+                <span>WAREHOUSE INVENTORY SYSTEM</span>
+                <span className="font-mono text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200">
+                  {showQrModal.location}
+                </span>
               </div>
-              <h4 className="text-base font-black text-slate-900">{showQrModal.productName}</h4>
-              <p className="text-[10px] font-mono text-slate-500">
-                BATCH: {showQrModal.batchNo} • EXP: {showQrModal.expiryDate}
-              </p>
-              <div className="w-28 h-28 bg-white p-2 mx-auto rounded border border-slate-300 flex items-center justify-center">
-                <QrCode className="w-full h-full text-slate-900" />
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">{showQrModal.productName}</h4>
+                <p className="text-[10px] font-mono text-slate-500 mt-0.5">
+                  BATCH: {showQrModal.batchNo} • EXP: {showQrModal.expiryDate}
+                </p>
               </div>
-              <div className="text-[10px] text-slate-700 font-medium pt-1 border-t">
-                Stock: {showQrModal.availableQty} {showQrModal.baseUnit} ({showQrModal.packsCount} {showQrModal.packUnit})
+              <div className="w-28 h-28 bg-white p-2 mx-auto rounded-xl border border-slate-200 flex items-center justify-center shadow-xs">
+                <QrCode className="w-full h-full text-slate-800" />
+              </div>
+              <div className="text-[11px] text-slate-700 font-semibold pt-1 border-t border-slate-200">
+                Stock: {showQrModal.availableQty.toLocaleString()} {showQrModal.baseUnit} ({showQrModal.packsCount} {showQrModal.packUnit})
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end gap-2">
+            <div className="pt-2 flex items-center justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => setShowQrModal(null)}
-                className="px-3 py-1.5 border rounded text-xs font-semibold"
+                className="px-3.5 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition"
               >
                 Close
               </button>
@@ -1098,9 +1238,10 @@ export default function CurrentStock() {
                   window.print()
                   setShowQrModal(null)
                 }}
-                className="px-4 py-1.5 bg-[#1E3A1E] text-white rounded text-xs font-bold"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5"
               >
-                Print Label
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Sticker</span>
               </button>
             </div>
           </div>

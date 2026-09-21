@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   X,
@@ -8,31 +8,100 @@ import {
   FlaskConical,
   CheckCircle2,
   AlertTriangle,
-  ShieldAlert,
-  ShieldCheck,
   Download,
   Eye,
-  ArrowRight,
   Plus,
   Lock,
   Unlock,
+  Search,
+  RotateCcw,
+  ChevronDown,
+  Check,
 } from 'lucide-react'
+
+// Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
+function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const selectedOption = options.find((opt) => opt.value === value)
+
+  return (
+    <div className={`relative ${className}`} ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-700 flex items-center justify-between gap-2 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+      >
+        <span className="truncate">
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className={`absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl py-1 ${zIndexClass} max-h-56 overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-100`}>
+          {options.map((opt) => {
+            const isSelected = opt.value === value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value)
+                  setIsOpen(false)
+                }}
+                className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition cursor-pointer ${
+                  isSelected
+                    ? 'bg-indigo-50 text-indigo-700 font-bold'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="truncate">
+                  <div>{opt.label}</div>
+                  {opt.sublabel && (
+                    <div className="text-[10px] text-slate-400 font-normal">{opt.sublabel}</div>
+                  )}
+                </div>
+                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function HoldStock() {
   // Toast notifications state
   const [toastMessage, setToastMessage] = useState(null)
   const triggerToast = (msg) => {
     setToastMessage(msg)
+    setTimeout(() => setToastMessage(null), 3500)
   }
 
   // Active filter tab
-  const [activeTab, setActiveTab] = useState('All Hold Items')
+  const [activeTab, setActiveTab] = useState('ALL')
 
   // Filter toolbar state
   const [searchKeyword, setSearchKeyword] = useState('')
-  const [filterShade, setFilterShade] = useState('All Shades')
-  const [filterReason, setFilterReason] = useState('All Reasons')
-  const [filterStatus, setFilterStatus] = useState('All Status')
+  const [filterShade, setFilterShade] = useState('ALL')
+  const [filterReason, setFilterReason] = useState('ALL')
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const perPage = 8
 
   // Modals state
   const [showPutOnHoldModal, setShowPutOnHoldModal] = useState(false)
@@ -70,7 +139,7 @@ export default function HoldStock() {
     remarks: 'Awaiting chemical purity and fatty acid profile test results.',
   })
 
-  // Hold Stock Items Data (Linked to Lab Testing, 6 Shades, Base Units)
+  // Hold Stock Items Data
   const [holdItems, setHoldItems] = useState([
     {
       id: 1,
@@ -90,7 +159,7 @@ export default function HoldStock() {
       holdDate: '18 Sep 2026',
       expectedRelease: '22 Sep 2026',
       status: 'On Hold',
-      officer: 'Priya Patel (QC Lead)',
+      officer: 'Priya Patel',
       remarks: 'Sample drawn at gate inward; locked from outward dispatch.',
     },
     {
@@ -98,21 +167,21 @@ export default function HoldStock() {
       refNo: 'HLD-2026-047',
       productName: 'Maggi 2-Minute Noodles (70g)',
       sku: 'FMCG-NOD-01',
-      batchNo: 'BT-2026-FMCG-03',
+      batchNo: 'BT-2026-FMCG-88',
       shadeId: 'SH03',
-      location: 'SH03-R01-C03',
+      location: 'SH03-R03-C02',
       baseQty: 480,
-      baseUnit: 'Packets',
+      baseUnit: 'Pieces',
       packQty: 20,
-      packUnit: 'Cartons',
+      packUnit: 'Gatta',
       unitsPerPack: 24,
-      reason: 'Under Lab Testing',
+      reason: 'FSSAI Heavy Metal Lead Testing',
       labStatus: 'Under Testing',
       holdDate: '17 Sep 2026',
-      expectedRelease: '20 Sep 2026',
+      expectedRelease: '21 Sep 2026',
       status: 'On Hold',
-      officer: 'Amit Patel (Storekeeper)',
-      remarks: 'Sensory and moisture analysis in progress at central lab.',
+      officer: 'Dr. Neha Verma',
+      remarks: 'Periodic compliance draw sent to referral laboratory.',
     },
     {
       id: 3,
@@ -128,90 +197,107 @@ export default function HoldStock() {
       packUnit: 'Bags',
       unitsPerPack: 50,
       reason: 'Quality Rejection (High Moisture)',
-      labStatus: 'Failed Lab Test',
-      holdDate: '16 Sep 2026',
-      expectedRelease: 'Return to Vendor',
+      labStatus: 'Lab Rejected',
+      holdDate: '17 Sep 2026',
+      expectedRelease: 'Vendor Return',
       status: 'Quarantine',
-      officer: 'Priya Patel (QC Lead)',
-      remarks: 'Moisture recorded at 14.8% (spec max 13.0%). Supplier return pass initiated.',
+      officer: 'Dr. Neha Verma',
+      remarks: 'Moisture 15.2% exceeds standard 12.0%. Awaiting RTV debit note.',
     },
     {
       id: 4,
       refNo: 'HLD-2026-045',
+      productName: 'Tata Premium Tea (500g)',
+      sku: 'FMCG-TEA-01',
+      batchNo: 'BT-2026-FMCG-11',
+      shadeId: 'SH03',
+      location: 'SH03-R01-C06',
+      baseQty: 360,
+      baseUnit: 'Pieces',
+      packQty: 15,
+      packUnit: 'Gatta',
+      unitsPerPack: 24,
+      reason: 'Under Lab Testing',
+      labStatus: 'Under Testing',
+      holdDate: '16 Sep 2026',
+      expectedRelease: '20 Sep 2026',
+      status: 'On Hold',
+      officer: 'Priya Patel',
+      remarks: 'Moisture and pesticide residue screening in process.',
+    },
+    {
+      id: 5,
+      refNo: 'HLD-2026-044',
       productName: 'Parle-G Glucose Biscuits (50g)',
       sku: 'FMCG-BIS-01',
       batchNo: 'BT-2026-FMCG-01',
       shadeId: 'SH03',
       location: 'SH03-R02-C04',
-      baseQty: 12,
+      baseQty: 900,
       baseUnit: 'Pieces',
-      packQty: 2,
+      packQty: 150,
       packUnit: 'Gatta',
       unitsPerPack: 6,
-      reason: 'Packaging Damage in Stacking',
+      reason: 'Routine Sampling Passed',
       labStatus: 'Passed',
-      holdDate: '16 Sep 2026',
-      expectedRelease: 'Scrap Write-off',
-      status: 'Damaged Hold',
-      officer: 'Rajesh Sharma (Warehouse Manager)',
-      remarks: 'Outer cartons torn by pallet truck. Biscuits undamaged but packaging compromised.',
-    },
-    {
-      id: 5,
-      refNo: 'HLD-2026-044',
-      productName: 'Fortune Refined Mustard Oil (15L)',
-      sku: 'OIL-REF-01',
-      batchNo: 'BT-2026-OIL-01',
-      shadeId: 'SH02',
-      location: 'SH02-R01-C01',
-      baseQty: 15,
-      baseUnit: 'Ltr',
-      packQty: 1,
-      packUnit: 'Tin',
-      unitsPerPack: 15,
-      reason: 'Container Seepage',
-      labStatus: 'Passed',
-      holdDate: '15 Sep 2026',
-      expectedRelease: 'Repack / Decant',
-      status: 'Damaged Hold',
-      officer: 'Vikas Verma (Storekeeper)',
-      remarks: 'Tin seam pinhole leak. Scheduled for decanting into fresh food-grade canister.',
+      holdDate: '12 Sep 2026',
+      expectedRelease: 'Released',
+      status: 'Released',
+      officer: 'Rajesh Sharma',
+      remarks: 'Lab Certificate LAB-2026-FMCG-088 approved; released to stock.',
     },
   ])
 
-  // Filtered rows
-  const filteredHold = useMemo(() => {
+  // Filtered Hold Items
+  const filteredItems = useMemo(() => {
     return holdItems.filter((item) => {
-      if (activeTab === 'Under Lab Testing' && item.reason !== 'Under Lab Testing') return false
-      if (activeTab === 'Quarantine' && item.status !== 'Quarantine') return false
-      if (activeTab === 'Damaged Hold' && item.status !== 'Damaged Hold') return false
+      // Tab filter
+      if (activeTab === 'PENDING' && item.status !== 'On Hold') return false
+      if (activeTab === 'REJECTED' && item.status !== 'Quarantine') return false
+      if (activeTab === 'RELEASED' && item.status !== 'Released') return false
 
-      if (filterShade !== 'All Shades' && item.shadeId !== filterShade) return false
-      if (filterReason !== 'All Reasons' && item.reason !== filterReason) return false
-      if (filterStatus !== 'All Status' && item.status !== filterStatus) return false
+      // Dropdown filters
+      if (filterShade !== 'ALL' && item.shadeId !== filterShade) return false
+      if (filterReason !== 'ALL' && item.reason !== filterReason) return false
 
       if (searchKeyword.trim() !== '') {
         const q = searchKeyword.toLowerCase()
         return (
-          item.productName.toLowerCase().includes(q) ||
           item.refNo.toLowerCase().includes(q) ||
+          item.productName.toLowerCase().includes(q) ||
           item.batchNo.toLowerCase().includes(q) ||
-          item.location.toLowerCase().includes(q)
+          item.location.toLowerCase().includes(q) ||
+          item.reason.toLowerCase().includes(q) ||
+          item.officer.toLowerCase().includes(q)
         )
       }
       return true
     })
-  }, [holdItems, activeTab, filterShade, filterReason, filterStatus, searchKeyword])
+  }, [holdItems, activeTab, filterShade, filterReason, searchKeyword])
 
-  // Put on hold submit
-  const handlePutOnHoldSubmit = (e) => {
+  // Paginated Results
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / perPage))
+  const paginatedItems = filteredItems.slice((currentPage - 1) * perPage, currentPage * perPage)
+
+  // Dynamic KPI Stats
+  const stats = useMemo(() => {
+    const total = holdItems.length
+    const onHoldCount = holdItems.filter((i) => i.status === 'On Hold').length
+    const quarantineCount = holdItems.filter((i) => i.status === 'Quarantine').length
+    const releasedCount = holdItems.filter((i) => i.status === 'Released').length
+    return { total, onHoldCount, quarantineCount, releasedCount }
+  }, [holdItems])
+
+  // Handle Save New Hold
+  const handleSaveHold = (e) => {
     e.preventDefault()
+    const computedBase = (Number(newHold.packsCount) || 0) * (Number(newHold.unitsPerPack) || 1)
+    const refCode = `HLD-2026-0${49 + holdItems.length}`
     const locCode = `${newHold.shadeId}-${newHold.row}-${newHold.col}`
-    const computedBase = (Number(newHold.packsCount) || 1) * (Number(newHold.unitsPerPack) || 1)
 
-    const newEntry = {
+    const newRecord = {
       id: Date.now(),
-      refNo: `HLD-2026-${Math.floor(100 + Math.random() * 900)}`,
+      refNo: refCode,
       productName: newHold.productName,
       sku: newHold.sku,
       batchNo: newHold.batchNo,
@@ -223,144 +309,152 @@ export default function HoldStock() {
       packUnit: newHold.packUnit,
       unitsPerPack: Number(newHold.unitsPerPack) || 1,
       reason: newHold.reason,
-      labStatus: newHold.reason === 'Under Lab Testing' ? 'Pending Lab Test' : 'Passed',
-      holdDate: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-      expectedRelease: newHold.expectedRelease || 'Pending Review',
+      labStatus: newHold.reason.includes('Rejection') ? 'Lab Rejected' : 'Under Testing',
+      holdDate: 'Today, Just now',
+      expectedRelease: newHold.expectedRelease || '3-5 Days',
       status: newHold.status,
       officer: newHold.holdOfficer,
       remarks: newHold.remarks,
     }
 
-    setHoldItems([newEntry, ...holdItems])
+    setHoldItems([newRecord, ...holdItems])
     setShowPutOnHoldModal(false)
-    triggerToast(`Batch ${newEntry.batchNo} placed on Hold at ${locCode}. Outward dispatch locked.`)
+    triggerToast(`Batch ${newHold.batchNo} placed on hold (${refCode}).`)
   }
 
-  // Release from hold submit
+  // Handle Confirm Release
   const handleConfirmRelease = (item) => {
-    setHoldItems(holdItems.filter((i) => i.id !== item.id))
-    setShowReleaseModal(null)
-    triggerToast(
-      `Batch ${item.batchNo} released from Hold back to active stock! Dispatch lock removed.`
+    setHoldItems((prev) =>
+      prev.map((i) =>
+        i.id === item.id
+          ? {
+              ...i,
+              status: 'Released',
+              labStatus: 'Passed',
+              expectedRelease: 'Released Today',
+            }
+          : i
+      )
     )
+    setShowReleaseModal(null)
+    triggerToast(`Batch ${item.batchNo} released to active stock successfully.`)
   }
 
   // Export CSV
   const handleExportCSV = () => {
     const headers = [
+      '#',
       'Hold Ref',
       'Product Name',
       'SKU',
       'Batch No',
-      'Bin Location',
-      'Base Qty Held',
-      'Packaging (Gatta)',
+      'Storage Location',
+      'Held Base Qty',
+      'Base Unit',
+      'Packaging Packs',
       'Hold Reason',
       'Lab Status',
       'Hold Date',
       'Expected Release',
-      'Officer',
       'Status',
+      'Officer',
     ]
-    const rows = holdItems.map((row) => [
+
+    const rows = filteredItems.map((row, idx) => [
+      idx + 1,
       row.refNo,
       `"${row.productName}"`,
       row.sku,
       row.batchNo,
       row.location,
-      `${row.baseQty} ${row.baseUnit}`,
-      `${row.packQty} ${row.packUnit}`,
+      row.baseQty,
+      row.baseUnit,
+      `"${row.packQty} ${row.packUnit}"`,
       `"${row.reason}"`,
       row.labStatus,
       row.holdDate,
       row.expectedRelease,
-      `"${row.officer}"`,
       row.status,
+      `"${row.officer}"`,
     ])
+
     const csvContent =
       'data:text/csv;charset=utf-8,' +
       [headers.join(','), ...rows.map((e) => e.join(','))].join('\n')
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement('a')
     link.setAttribute('href', encodedUri)
-    link.setAttribute('download', 'Hold_Quarantine_Stock_6Shades.csv')
+    link.setAttribute('download', 'Hold_Quarantine_Log.csv')
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    triggerToast('Hold Stock register exported to CSV.')
+    triggerToast('Hold stock registry exported to CSV.')
   }
 
+  // Dropdown Options
+  const shadeOptions = [
+    { value: 'ALL', label: 'All 6 Dedicated Shades' },
+    ...SHADES.map((s) => ({ value: s.id, label: s.name })),
+  ]
+
+  const reasonOptions = [
+    { value: 'ALL', label: 'All Hold Reasons' },
+    { value: 'Under Lab Testing', label: 'Under Lab QC Testing' },
+    { value: 'Quality Rejection (High Moisture)', label: 'Quality Rejection' },
+    { value: 'FSSAI Heavy Metal Lead Testing', label: 'FSSAI Compliance Test' },
+  ]
+
   return (
-    <div className="space-y-4 font-sans text-slate-800 pb-12">
+    <div className="space-y-5 pb-12">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-20 right-6 z-50 bg-[#142312] text-amber-300 border border-amber-400 px-4 py-3 rounded-lg shadow-2xl flex items-center gap-2 text-xs font-semibold animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold animate-bounce border border-slate-700">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
-          <button onClick={() => setToastMessage(null)} className="ml-2 text-slate-400 hover:text-white">
-            <X className="w-3.5 h-3.5" />
-          </button>
         </div>
       )}
 
-      {/* Top Himalayan Convoy Banner (Preserved) */}
-      <div className="relative rounded-xl overflow-hidden shadow-md border border-slate-200/80 bg-slate-900 h-28 sm:h-32">
-        <img
-          src="/border.png"
-          alt="Quarantine and Hold Stock Control"
-          className="w-full h-full object-cover object-center opacity-90"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/25 to-black/65"></div>
-        <div className="absolute top-3 right-4 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/20">
-          <div className="h-2 w-5 flex flex-col justify-between rounded-xs overflow-hidden">
-            <div className="h-0.5 bg-[#FF9933]"></div>
-            <div className="h-0.5 bg-white"></div>
-            <div className="h-0.5 bg-[#138808]"></div>
+      {/* Page Header Bar */}
+      <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-xs shrink-0">
+            <Lock className="w-5 h-5" />
           </div>
-          <span className="text-[10px] font-bold text-white tracking-widest uppercase">
-            NATION FIRST ALWAYS
-          </span>
-        </div>
-      </div>
-
-      {/* PAGE HEADER ROW */}
-      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-[#1E3A1E] text-white flex items-center justify-center shadow-xs shrink-0">
-            <Lock className="w-5 h-5 text-amber-400" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">
-              Hold Stock &amp; Quarantine Control (Lab QA Lock)
-            </h2>
-            <p className="text-xs text-slate-500">
-              Isolate batches awaiting Lab Clearance, failed QC tests, or packaging damage from dispatch across 6 shades.
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl font-bold text-slate-800 tracking-tight">Hold Stock &amp; Quarantine Control</h1>
+              <span className="text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60 px-2.5 py-0.5 rounded-full shrink-0">
+                Quarantine Desk
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 font-medium mt-1 max-w-2xl">
+              Lock unverified batches awaiting lab test clearance, failed QC runs, or damaged goods from dispatch.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
           <Link
             to="/lab-reports"
-            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-1 transition"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition shrink-0"
           >
-            <FlaskConical className="w-3.5 h-3.5" />
+            <FlaskConical className="w-3.5 h-3.5 text-slate-500" />
             <span>Lab Test Reports</span>
           </Link>
 
           <button
             type="button"
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition shrink-0 cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5 text-slate-500" />
             <span>Export CSV</span>
           </button>
 
           <button
             type="button"
             onClick={() => setShowPutOnHoldModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#1E3A1E] hover:bg-[#152915] text-white text-xs font-bold rounded-lg shadow-xs transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Place Stock on Hold</span>
@@ -368,374 +462,522 @@ export default function HoldStock() {
         </div>
       </div>
 
-      {/* 4 SUMMARY STAT CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200">
-          <p className="text-[11px] font-semibold text-slate-500">Total Batches on Hold</p>
-          <h3 className="text-2xl font-black text-slate-800 leading-tight">
-            {holdItems.length}
-          </h3>
-          <p className="text-[10px] text-slate-400">Locked from outward gate</p>
+      {/* 4 Dynamic KPI Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shrink-0">
+            <Lock className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500">Batches on Hold</p>
+            <h3 className="text-xl font-bold text-amber-700 leading-tight mt-0.5">
+              {stats.onHoldCount} Batches
+            </h3>
+            <p className="text-[11px] text-amber-600 font-medium">Locked from outward gate</p>
+          </div>
         </div>
 
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200">
-          <p className="text-[11px] font-semibold text-slate-500">Under Lab Testing</p>
-          <h3 className="text-2xl font-black text-amber-700 leading-tight">
-            {holdItems.filter((i) => i.reason === 'Under Lab Testing').length}
-          </h3>
-          <p className="text-[10px] text-amber-600 font-medium">Awaiting QA clearance</p>
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
+            <FlaskConical className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500">Awaiting Lab Results</p>
+            <h3 className="text-xl font-bold text-blue-700 leading-tight mt-0.5">
+              {holdItems.filter((i) => i.labStatus === 'Under Testing' || i.labStatus === 'Pending Lab Test').length} Batches
+            </h3>
+            <p className="text-[11px] text-blue-600 font-medium">In quality testing</p>
+          </div>
         </div>
 
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200">
-          <p className="text-[11px] font-semibold text-slate-500">Quarantine / Rejected</p>
-          <h3 className="text-2xl font-black text-rose-800 leading-tight">
-            {holdItems.filter((i) => i.status === 'Quarantine').length}
-          </h3>
-          <p className="text-[10px] text-rose-600 font-medium">Failed lab quality standards</p>
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500">Quarantine Zone</p>
+            <h3 className="text-xl font-bold text-rose-700 leading-tight mt-0.5">
+              {stats.quarantineCount} Batches
+            </h3>
+            <p className="text-[11px] text-rose-600 font-medium">Failed QC / Damaged</p>
+          </div>
         </div>
 
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200">
-          <p className="text-[11px] font-semibold text-slate-500">Dispatch Safety</p>
-          <h3 className="text-sm font-black text-emerald-800 leading-tight mt-1">
-            Zero Leakage
-          </h3>
-          <p className="text-[10px] text-slate-400">Strict gate checkout check</p>
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
+            <Unlock className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500">Released Batches</p>
+            <h3 className="text-xl font-bold text-emerald-700 leading-tight mt-0.5">
+              {stats.releasedCount} Released
+            </h3>
+            <p className="text-[11px] text-emerald-600 font-medium">Restored to active stock</p>
+          </div>
         </div>
       </div>
 
-      {/* FILTER TABS & TOOLBAR */}
-      <div className="bg-white rounded-xl p-3 shadow-xs border border-slate-200 space-y-2.5">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 text-xs">
-          <div className="flex items-center gap-1.5">
-            {['All Hold Items', 'Under Lab Testing', 'Quarantine', 'Damaged Hold'].map((tab) => (
+      {/* Hold Stock Master Card */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+        {/* Table Filter Toolbar */}
+        <div className="p-5 border-b border-slate-100 space-y-4">
+          {/* Top Line: Category Tabs & Count / Reset */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
               <button
-                key={tab}
                 type="button"
-                onClick={() => setActiveTab(tab)}
-                className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
-                  activeTab === tab
-                    ? 'bg-[#1E3A1E] text-white shadow-xs'
+                onClick={() => {
+                  setActiveTab('ALL')
+                  setCurrentPage(1)
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+                  activeTab === 'ALL'
+                    ? 'bg-slate-900 text-white shadow-xs'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {tab}
+                All Records ({holdItems.length})
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('PENDING')
+                  setCurrentPage(1)
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+                  activeTab === 'PENDING'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                On Hold ({stats.onHoldCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('REJECTED')
+                  setCurrentPage(1)
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+                  activeTab === 'REJECTED'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Quarantine ({stats.quarantineCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('RELEASED')
+                  setCurrentPage(1)
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+                  activeTab === 'RELEASED'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Released ({stats.releasedCount})
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs bg-amber-50 text-amber-700 font-bold px-3 py-1 rounded-full border border-amber-200/60">
+                {filteredItems.length} Records Found
+              </span>
+              {(searchKeyword || filterShade !== 'ALL' || filterReason !== 'ALL' || activeTab !== 'ALL') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('ALL')
+                    setFilterShade('ALL')
+                    setFilterReason('ALL')
+                    setSearchKeyword('')
+                    setCurrentPage(1)
+                    triggerToast('Filters reset to default.')
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-semibold transition cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3 text-slate-400" />
+                  <span>Reset</span>
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <select
-              value={filterShade}
-              onChange={(e) => setFilterShade(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-700"
-            >
-              <option value="All Shades">All 6 Shades</option>
-              {SHADES.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-
-            <select
-              value={filterReason}
-              onChange={(e) => setFilterReason(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-700"
-            >
-              <option value="All Reasons">All Reasons</option>
-              <option value="Under Lab Testing">Under Lab Testing</option>
-              <option value="Quality Rejection (High Moisture)">Quality Rejection</option>
-              <option value="Packaging Damage in Stacking">Packaging Damage</option>
-              <option value="Container Seepage">Container Seepage</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 text-xs">
-          <div className="relative flex-1">
+          {/* Main Keyword Search Bar */}
+          <div className="relative w-full">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
             <input
               type="text"
-              placeholder="Search by ref no, product, batch, bin code..."
               value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none"
+              onChange={(e) => {
+                setSearchKeyword(e.target.value)
+                setCurrentPage(1)
+              }}
+              placeholder="Search hold ref (HLD-...), product name, batch number, storage location, or officer..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition"
             />
-            <span className="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
+            {searchKeyword && (
+              <button
+                type="button"
+                onClick={() => setSearchKeyword('')}
+                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 p-0.5 rounded-full cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('All Hold Items')
-              setFilterShade('All Shades')
-              setFilterReason('All Reasons')
-              setFilterStatus('All Status')
-              setSearchKeyword('')
-              triggerToast('Filters reset.')
-            }}
-            className="text-emerald-700 font-bold hover:underline cursor-pointer"
-          >
-            Reset
-          </button>
-        </div>
-      </div>
+          {/* Filter Dropdowns Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
+                Storage Shade Zone
+              </label>
+              <CustomSelect
+                value={filterShade}
+                onChange={(val) => {
+                  setFilterShade(val)
+                  setCurrentPage(1)
+                }}
+                options={shadeOptions}
+                placeholder="All 6 Dedicated Shades"
+              />
+            </div>
 
-      {/* HOLD STOCK TABLE */}
-      <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden flex flex-col">
-        <div className="overflow-x-auto no-scrollbar scroll-smooth w-full">
-          <table className="w-full text-left text-xs divide-y divide-slate-200 border-collapse table-nowrap" style={{ minWidth: '1100px' }}>
-            <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
-              <tr>
-                <th className="py-3 px-3 w-10 text-center">#</th>
-                <th className="py-3 px-4 min-w-[120px]">Hold Ref</th>
-                <th className="py-3 px-4 min-w-[200px]">Product &amp; SKU</th>
-                <th className="py-3 px-4 min-w-[130px]">Storage Bin</th>
-                <th className="py-3 px-4 min-w-[120px]">Batch No.</th>
-                <th className="py-3 px-4 min-w-[130px] text-right">Base Qty on Hold</th>
-                <th className="py-3 px-4 min-w-[120px] text-right">Packaging (Gatta)</th>
-                <th className="py-3 px-4 min-w-[180px]">Hold Reason</th>
-                <th className="py-3 px-4 text-center min-w-[120px]">Lab Status</th>
-                <th className="py-3 px-4 text-center min-w-[100px]">Status</th>
-                <th className="py-3 px-3 text-center w-28">Action</th>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
+                Hold &amp; Quarantine Reason
+              </label>
+              <CustomSelect
+                value={filterReason}
+                onChange={(val) => {
+                  setFilterReason(val)
+                  setCurrentPage(1)
+                }}
+                options={reasonOptions}
+                placeholder="All Hold Reasons"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Hold Items Table */}
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50/75 border-b border-slate-200/80 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">
+                <th className="py-3 px-4 w-12 text-center">#</th>
+                <th className="py-3 px-4 min-w-[130px]">Hold Ref &amp; Date</th>
+                <th className="py-3 px-4 min-w-[190px]">Product &amp; Batch</th>
+                <th className="py-3 px-4 min-w-[130px]">Storage Location</th>
+                <th className="py-3 px-4 min-w-[120px] text-right">Held Base Units</th>
+                <th className="py-3 px-4 min-w-[120px] text-right">Packaging Eqv</th>
+                <th className="py-3 px-4 min-w-[160px]">Hold Reason</th>
+                <th className="py-3 px-4 min-w-[110px] text-center">Lab Clearance</th>
+                <th className="py-3 px-4 min-w-[100px] text-center">Status</th>
+                <th className="py-3 px-4 text-center w-24">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {filteredHold.map((row, idx) => (
-                <tr key={row.id} className="hover:bg-slate-50 transition">
-                  <td className="py-3 px-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                  <td className="py-3 px-4 font-mono font-bold text-slate-900">{row.refNo}</td>
-                  <td className="py-3 px-4 text-slate-900">
-                    <div className="font-bold text-slate-900">{row.productName}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">{row.sku}</div>
-                  </td>
-                  <td className="py-3 px-4 font-mono font-bold text-slate-800">
-                    <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px]">
-                      {row.location}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 font-mono text-slate-700">{row.batchNo}</td>
-                  <td className="py-3 px-4 text-right font-mono font-black text-rose-800">
-                    {row.baseQty} {row.baseUnit}
-                  </td>
-                  <td className="py-3 px-4 text-right text-slate-700 font-medium">
-                    {row.packQty} {row.packUnit}
-                  </td>
-                  <td className="py-3 px-4 text-slate-700">{row.reason}</td>
-                  <td className="py-3 px-4 text-center">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        row.labStatus === 'Passed'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : row.labStatus === 'Failed Lab Test'
-                          ? 'bg-rose-100 text-rose-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {row.labStatus}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        row.status === 'Quarantine'
-                          ? 'bg-rose-50 text-rose-800 border border-rose-200'
-                          : 'bg-amber-50 text-amber-800 border border-amber-200'
-                      }`}
-                    >
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setShowDetailsModal(row)}
-                        className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg border cursor-pointer"
-                        title="View Details"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowReleaseModal(row)}
-                        className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg border border-emerald-200 cursor-pointer"
-                        title="Release to Active Stock"
-                      >
-                        <Unlock className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+            <tbody className="divide-y divide-slate-100">
+              {paginatedItems.length === 0 ? (
+                <tr>
+                  <td colSpan="10" className="py-12 text-center text-slate-400">
+                    <Lock className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <p className="font-semibold text-slate-600">No hold records found</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Try changing your search query or tab filters.</p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                paginatedItems.map((row, idx) => (
+                  <tr key={row.id} className="hover:bg-amber-50/20 transition">
+                    <td className="py-3.5 px-4 text-center text-slate-400 font-bold">
+                      {(currentPage - 1) * perPage + idx + 1}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono font-bold text-slate-900 block">{row.refNo}</span>
+                      <span className="text-[10px] text-slate-400">{row.holdDate}</span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-slate-900">{row.productName}</div>
+                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">{row.sku} • {row.batchNo}</div>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200/60 text-[11px]">
+                        {row.location}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <span className="font-mono font-black text-rose-700 text-xs">
+                        {row.baseQty.toLocaleString()}
+                      </span>
+                      <span className="text-[11px] text-slate-500 ml-1">{row.baseUnit}</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <span className="font-bold text-slate-800">{row.packQty} {row.packUnit}</span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="font-medium text-slate-800 truncate max-w-[150px]" title={row.reason}>
+                        {row.reason}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Lock By: {row.officer}</div>
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          row.labStatus === 'Passed'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : row.labStatus === 'Lab Rejected'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}
+                      >
+                        {row.labStatus}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          row.status === 'Released'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : row.status === 'Quarantine'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}
+                      >
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setShowDetailsModal(row)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
+                          title="View Details"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        {row.status !== 'Released' && (
+                          <button
+                            type="button"
+                            onClick={() => setShowReleaseModal(row)}
+                            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition cursor-pointer"
+                            title="Release Stock"
+                          >
+                            <Unlock className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* Table Pagination Footer */}
+        <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
+          <div>
+            Showing <span className="font-semibold text-slate-800">{filteredItems.length === 0 ? 0 : (currentPage - 1) * perPage + 1}</span> to{' '}
+            <span className="font-semibold text-slate-800">{Math.min(currentPage * perPage, filteredItems.length)}</span> of{' '}
+            <span className="font-semibold text-slate-800">{filteredItems.length}</span> results
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              Previous
+            </button>
+            <span className="px-3 py-1.5 text-slate-700 font-bold">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* PUT ON HOLD MODAL */}
+      {/* MODAL 1: PLACE STOCK ON HOLD */}
       {showPutOnHoldModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl border space-y-3 text-xs">
-            <div className="flex items-center justify-between pb-2 border-b">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                <Lock className="w-4 h-4 text-amber-600" />
-                <span>Place Stock Batch on Hold / Quarantine</span>
-              </h3>
-              <button onClick={() => setShowPutOnHoldModal(false)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Place Stock on Hold</h3>
+                  <p className="text-[11px] text-slate-500">Lock inventory pending lab analysis or quality review.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPutOnHoldModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handlePutOnHoldSubmit} className="space-y-3">
+            <form onSubmit={handleSaveHold} className="space-y-3.5 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Product</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Product Name *</label>
                   <input
                     type="text"
                     required
                     value={newHold.productName}
                     onChange={(e) => setNewHold({ ...newHold, productName: e.target.value })}
-                    className="w-full bg-slate-50 border rounded-lg p-2 font-bold"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Batch No.</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Batch Number *</label>
                   <input
                     type="text"
                     required
                     value={newHold.batchNo}
                     onChange={(e) => setNewHold({ ...newHold, batchNo: e.target.value })}
-                    className="w-full bg-slate-50 border rounded-lg p-2 font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
-                </div>
-              </div>
-
-              {/* Grid Location: Shade -> Row -> Col */}
-              <div className="p-2.5 bg-slate-50 border rounded-lg space-y-1.5">
-                <span className="font-bold text-slate-700 text-[11px]">Storage Bin Coordinates</span>
-                <div className="grid grid-cols-3 gap-2 text-[10px]">
-                  <div>
-                    <span className="font-semibold block mb-1">Shade</span>
-                    <select
-                      value={newHold.shadeId}
-                      onChange={(e) => setNewHold({ ...newHold, shadeId: e.target.value })}
-                      className="w-full bg-white border rounded p-1 text-xs font-bold"
-                    >
-                      {SHADES.map((s) => (
-                        <option key={s.id} value={s.id}>{s.id}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <span className="font-semibold block mb-1">Row</span>
-                    <select
-                      value={newHold.row}
-                      onChange={(e) => setNewHold({ ...newHold, row: e.target.value })}
-                      className="w-full bg-white border rounded p-1 text-xs font-mono font-bold"
-                    >
-                      {Array.from({ length: 8 }, (_, i) => (
-                        <option key={i} value={`R0${i + 1}`}>Row 0{i + 1}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <span className="font-semibold block mb-1">Column</span>
-                    <select
-                      value={newHold.col}
-                      onChange={(e) => setNewHold({ ...newHold, col: e.target.value })}
-                      className="w-full bg-white border rounded p-1 text-xs font-mono font-bold"
-                    >
-                      {Array.from({ length: 10 }, (_, i) => (
-                        <option key={i} value={i + 1 < 10 ? `C0${i + 1}` : `C${i + 1}`}>
-                          Col {i + 1 < 10 ? `0${i + 1}` : i + 1}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Gatta Count</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={newHold.packsCount}
-                    onChange={(e) => setNewHold({ ...newHold, packsCount: e.target.value })}
-                    className="w-full bg-slate-50 border rounded-lg p-2 font-mono font-bold"
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Storage Shade</label>
+                  <CustomSelect
+                    value={newHold.shadeId}
+                    onChange={(val) => setNewHold({ ...newHold, shadeId: val })}
+                    options={SHADES.map((s) => ({ value: s.id, label: s.name }))}
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Units / Gatta</label>
-                  <input
-                    type="number"
-                    value={newHold.unitsPerPack}
-                    onChange={(e) => setNewHold({ ...newHold, unitsPerPack: e.target.value })}
-                    className="w-full bg-slate-50 border rounded-lg p-2 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Base Unit</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Row</label>
                   <input
                     type="text"
-                    value={newHold.baseUnit}
-                    onChange={(e) => setNewHold({ ...newHold, baseUnit: e.target.value })}
-                    className="w-full bg-slate-50 border rounded-lg p-2 font-bold"
+                    value={newHold.row}
+                    onChange={(e) => setNewHold({ ...newHold, row: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Column</label>
+                  <input
+                    type="text"
+                    value={newHold.col}
+                    onChange={(e) => setNewHold({ ...newHold, col: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Hold Reason</label>
-                  <select
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Hold Reason</label>
+                  <CustomSelect
                     value={newHold.reason}
-                    onChange={(e) => setNewHold({ ...newHold, reason: e.target.value })}
-                    className="w-full bg-slate-50 border rounded-lg p-2"
-                  >
-                    <option value="Under Lab Testing">Under Lab Testing</option>
-                    <option value="Quality Rejection (High Moisture)">Quality Rejection</option>
-                    <option value="Packaging Damage in Stacking">Packaging Damage</option>
-                    <option value="Container Seepage">Container Seepage</option>
-                    <option value="Documentation Missing">Documentation Missing</option>
-                  </select>
+                    onChange={(val) => setNewHold({ ...newHold, reason: val })}
+                    options={[
+                      { value: 'Under Lab Testing', label: 'Under Lab QC Testing' },
+                      { value: 'Quality Rejection (High Moisture)', label: 'Quality Rejection' },
+                      { value: 'FSSAI Heavy Metal Lead Testing', label: 'FSSAI Compliance Test' },
+                      { value: 'Damaged Transit Hold', label: 'Damaged Transit Hold' },
+                    ]}
+                  />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Status</label>
-                  <select
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Lock Classification</label>
+                  <CustomSelect
                     value={newHold.status}
-                    onChange={(e) => setNewHold({ ...newHold, status: e.target.value })}
-                    className="w-full bg-slate-50 border rounded-lg p-2 font-bold"
-                  >
-                    <option value="On Hold">On Hold (Pending QC)</option>
-                    <option value="Quarantine">Quarantine (Failed QC)</option>
-                    <option value="Damaged Hold">Damaged Hold</option>
-                  </select>
+                    onChange={(val) => setNewHold({ ...newHold, status: val })}
+                    options={[
+                      { value: 'On Hold', label: 'On Hold (Pending QC)' },
+                      { value: 'Quarantine', label: 'Quarantine (Failed QC)' },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              {/* Quantity Breakdown */}
+              <div className="p-3.5 bg-amber-50/50 border border-amber-100 rounded-xl space-y-2">
+                <span className="text-[11px] font-bold text-amber-950">Held Quantity Breakdown</span>
+                <div className="grid grid-cols-3 gap-2.5 text-xs">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-600 mb-1">Packs Count</label>
+                    <input
+                      type="number"
+                      value={newHold.packsCount}
+                      onChange={(e) => setNewHold({ ...newHold, packsCount: e.target.value })}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-mono font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-600 mb-1">Units / Pack</label>
+                    <input
+                      type="number"
+                      value={newHold.unitsPerPack}
+                      onChange={(e) => setNewHold({ ...newHold, unitsPerPack: e.target.value })}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-mono font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-600 mb-1">Base Unit</label>
+                    <input
+                      type="text"
+                      value={newHold.baseUnit}
+                      onChange={(e) => setNewHold({ ...newHold, baseUnit: e.target.value })}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-amber-900 font-bold pt-1 border-t border-amber-100">
+                  <span>Total Base Units Locked:</span>
+                  <span className="font-mono text-xs">
+                    {((Number(newHold.packsCount) || 0) * (Number(newHold.unitsPerPack) || 1)).toLocaleString()} {newHold.baseUnit}
+                  </span>
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Remarks</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">QC Officer Notes</label>
                 <textarea
                   rows={2}
                   value={newHold.remarks}
                   onChange={(e) => setNewHold({ ...newHold, remarks: e.target.value })}
-                  className="w-full bg-slate-50 border rounded-lg p-2 text-xs"
-                ></textarea>
+                  placeholder="Awaiting lab results or inspection details..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
               </div>
 
-              <div className="pt-2 flex justify-end gap-2 border-t">
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowPutOnHoldModal(false)}
-                  className="px-4 py-2 border rounded-lg text-slate-600"
+                  className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-semibold transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#1E3A1E] text-white font-bold rounded-lg"
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-sm transition cursor-pointer"
                 >
-                  Confirm Hold Lock
+                  Lock Stock on Hold
                 </button>
               </div>
             </form>
@@ -743,85 +985,128 @@ export default function HoldStock() {
         </div>
       )}
 
-      {/* RELEASE MODAL */}
+      {/* MODAL 2: CONFIRM RELEASE */}
       {showReleaseModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border text-center space-y-3 text-xs">
-            <div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mx-auto">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
               <Unlock className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-slate-900 text-sm">Release Batch to Active Stock?</h3>
-            <p className="text-slate-600">
-              Confirm that <strong>{showReleaseModal.productName}</strong> (Batch: {showReleaseModal.batchNo}) has completed Lab QA testing and is approved for dispatch.
-            </p>
-            <div className="pt-2 flex justify-center gap-2">
+
+            <div>
+              <h3 className="font-bold text-slate-900 text-base">Release to Active Stock?</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Confirm that <span className="font-bold text-slate-800">{showReleaseModal.productName}</span> (Batch: {showReleaseModal.batchNo}) has passed QC and can be dispatched.
+              </p>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs text-left space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Storage Bin:</span>
+                <span className="font-mono font-bold text-indigo-700">{showReleaseModal.location}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Releasing Quantity:</span>
+                <span className="font-mono font-black text-emerald-700">{showReleaseModal.baseQty.toLocaleString()} {showReleaseModal.baseUnit}</span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => setShowReleaseModal(null)}
-                className="px-4 py-2 border rounded-lg font-semibold"
+                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => handleConfirmRelease(showReleaseModal)}
-                className="px-5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition"
               >
-                Release Stock
+                Confirm Release
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* DETAILS MODAL */}
+      {/* MODAL 3: HOLD DETAILS */}
       {showDetailsModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border space-y-3 text-xs">
-            <div className="flex justify-between border-b pb-2">
-              <h3 className="font-bold text-slate-900 text-sm">Hold Batch Inspection ({showDetailsModal.refNo})</h3>
-              <button onClick={() => setShowDetailsModal(null)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-xs animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Hold Batch Inspection</h3>
+                  <p className="text-[10px] font-mono text-slate-400">{showDetailsModal.refNo}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDetailsModal(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="space-y-2">
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-slate-500">Product:</span>
-                <span className="font-bold">{showDetailsModal.productName}</span>
+
+            <div className="space-y-2.5">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Product</p>
+                  <p className="font-bold text-slate-900 text-sm">{showDetailsModal.productName}</p>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Batch: {showDetailsModal.batchNo}</p>
+                </div>
+                <span className="font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded text-xs">
+                  {showDetailsModal.location}
+                </span>
               </div>
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-slate-500">Storage Coordinate:</span>
-                <span className="font-mono font-bold text-emerald-900">{showDetailsModal.location}</span>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Held Base Stock</span>
+                  <span className="font-mono font-black text-rose-700 text-sm">
+                    {showDetailsModal.baseQty.toLocaleString()} {showDetailsModal.baseUnit}
+                  </span>
+                </div>
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Packaging Breakdown</span>
+                  <span className="font-bold text-slate-800 text-sm">{showDetailsModal.packQty} {showDetailsModal.packUnit}</span>
+                </div>
               </div>
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-slate-500">Held Base Units:</span>
-                <span className="font-mono font-black text-rose-800">{showDetailsModal.baseQty} {showDetailsModal.baseUnit}</span>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Hold Reason:</span>
+                  <span className="font-bold text-slate-800">{showDetailsModal.reason}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">QC Status:</span>
+                  <span className="font-bold text-amber-700">{showDetailsModal.labStatus}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Locked By:</span>
+                  <span className="text-slate-700 font-medium">{showDetailsModal.officer}</span>
+                </div>
               </div>
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-slate-500">Packaging (Gatta):</span>
-                <span className="font-bold">{showDetailsModal.packQty} {showDetailsModal.packUnit}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-slate-500">Hold Reason:</span>
-                <span className="font-semibold">{showDetailsModal.reason}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-slate-500">Lab Clearance:</span>
-                <span className="font-bold text-amber-800">{showDetailsModal.labStatus}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-slate-500">Locked By:</span>
-                <span>{showDetailsModal.officer}</span>
-              </div>
-              <div className="py-1">
-                <span className="text-slate-500 block mb-0.5">QC Officer Remarks:</span>
-                <p className="text-slate-700 bg-slate-50 p-2 rounded border">{showDetailsModal.remarks}</p>
-              </div>
+
+              {showDetailsModal.remarks && (
+                <div className="p-3 bg-amber-50/40 rounded-xl border border-amber-100/80">
+                  <span className="text-[10px] text-amber-900 font-bold uppercase block mb-1">QC Officer Remarks</span>
+                  <p className="text-slate-700 text-xs">{showDetailsModal.remarks}</p>
+                </div>
+              )}
             </div>
-            <div className="pt-2 flex justify-end">
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
               <button
+                type="button"
                 onClick={() => setShowDetailsModal(null)}
-                className="px-4 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-bold"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition"
               >
                 Close
               </button>

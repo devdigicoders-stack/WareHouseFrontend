@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Wand2,
@@ -8,7 +8,6 @@ import {
   Download,
   Clock,
   X,
-  Upload,
   QrCode,
   Warehouse,
   FlaskConical,
@@ -16,44 +15,111 @@ import {
   AlertCircle,
   Layers,
   ArrowRight,
+  Search,
+  RotateCcw,
+  SlidersHorizontal,
+  ChevronDown,
+  Sparkles,
+  MapPin,
+  Plus,
 } from 'lucide-react'
+
+// Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
+function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const selectedOption = options.find((opt) => opt.value === value)
+
+  return (
+    <div className={`relative ${className}`} ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-left font-medium text-slate-800 flex items-center justify-between transition focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+      >
+        <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
+        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ml-2 ${isOpen ? 'rotate-180 text-indigo-600' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className={`absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 ${zIndexClass} max-h-56 overflow-y-auto`}>
+          {options.map((opt) => {
+            const isSelected = opt.value === value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value)
+                  setIsOpen(false)
+                }}
+                className={`w-full px-3.5 py-2 text-xs text-left flex items-center justify-between transition ${
+                  isSelected
+                    ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="truncate">
+                  <div className="truncate">{opt.label}</div>
+                  {opt.sublabel && <div className="text-[10px] text-slate-400 font-normal">{opt.sublabel}</div>}
+                </div>
+                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function PutAwayCheckIn() {
   // Toast state
   const [toastMessage, setToastMessage] = useState(null)
   const triggerToast = (msg) => {
     setToastMessage(msg)
+    setTimeout(() => setToastMessage(null), 3200)
   }
 
-  // Active Tab
-  const [activeTab, setActiveTab] = useState('Pending Put-Away')
-
-  // Search query
+  // Active Tab for Queue
+  const [activeTab, setActiveTab] = useState('PENDING')
   const [searchQuery, setSearchQuery] = useState('')
-  const [filterModalOpen, setFilterModalOpen] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const perPage = 6
 
   // 6 Dedicated Shades Reference
-  const SHADES = [
-    { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses', category: 'Grains & Pulses' },
-    { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids', category: 'Edible Oils' },
-    { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG', category: 'Packaged FMCG' },
-    { id: 'SH04', name: 'Shade 4: Packaging Cartons & Bags', category: 'Packaging Materials' },
-    { id: 'SH05', name: 'Shade 5: Chemicals & Hygiene', category: 'Chemicals & Hygiene' },
-    { id: 'SH06', name: 'Shade 6: Spares & General Goods', category: 'Spares & General' },
-  ]
+  const SHADES = useMemo(() => [
+    { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses', category: 'Grains & Pulses', defaultPack: 'Bags (50kg)', baseUnit: 'Kg', ratio: 50 },
+    { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids', category: 'Edible Oils', defaultPack: 'Tins (15L)', baseUnit: 'Ltr', ratio: 15 },
+    { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG', category: 'Packaged FMCG', defaultPack: 'Gatta / Carton', baseUnit: 'Pieces', ratio: 6 },
+    { id: 'SH04', name: 'Shade 4: Packaging Cartons & Bags', category: 'Packaging Materials', defaultPack: 'Bundles (50 Pcs)', baseUnit: 'Nos', ratio: 50 },
+    { id: 'SH05', name: 'Shade 5: Chemicals & Hygiene', category: 'Chemicals & Hygiene', defaultPack: 'Cans (5L)', baseUnit: 'Ltr', ratio: 5 },
+    { id: 'SH06', name: 'Shade 6: Spares & General Hardware', category: 'Spares & General', defaultPack: 'Crates', baseUnit: 'Units', ratio: 1 },
+  ], [])
 
-  // Form State: 6 Shades, Row, Col & Base Unit computation
-  const [formGRN, setFormGRN] = useState('GRN-2026-FMCG-01')
+  // Form State
+  const [formGRN, setFormGRN] = useState('GRN-2026-001')
   const [formProduct, setFormProduct] = useState('Parle-G Glucose Biscuits (50g)')
   const [formBatch, setFormBatch] = useState('BT-2026-FMCG-01')
   const [formPackUnit, setFormPackUnit] = useState('Gatta / Carton')
   const [formBaseUnit, setFormBaseUnit] = useState('Pieces')
-  const [formUnitsPerPack, setFormUnitsPerPack] = useState(6) // 1 Gatta = 6 Biscuits
-  const [formPacksCount, setFormPacksCount] = useState(100) // 100 Gatta
+  const [formUnitsPerPack, setFormUnitsPerPack] = useState(6)
+  const [formPacksCount, setFormPacksCount] = useState(100)
   const [formSelectedShade, setFormSelectedShade] = useState('SH03')
   const [formSelectedRow, setFormSelectedRow] = useState('R02')
   const [formSelectedCol, setFormSelectedCol] = useState('C04')
-  const [formRemarks, setFormRemarks] = useState('Received from gate truck in sealed condition.')
+  const [formRemarks, setFormRemarks] = useState('Checked in from unloading dock in pristine sealed condition.')
 
   // Derived Base Quantity
   const baseQuantityComputed = useMemo(() => {
@@ -68,33 +134,32 @@ export default function PutAwayCheckIn() {
   // Modals
   const [showQrLabelModal, setShowQrLabelModal] = useState(false)
   const [printedLabelData, setPrintedLabelData] = useState(null)
-  const [showBulkModal, setShowBulkModal] = useState(false)
 
-  // Put-Away Queue Table Data (Civilian commodities, Base Units & Gatta tracking)
+  // Put-Away Staging Queue Table Data
   const [queueItems, setQueueItems] = useState([
     {
       id: 1,
       grnNo: 'GRN-2026-001',
       productName: 'Parle-G Glucose Biscuits (50g)',
+      sku: 'PRD-FMCG-001',
       batchNo: 'BT-2026-001',
       packUnit: 'Gatta',
       packsCount: 100,
       unitsPerPack: 6,
-      quantity: 600, // 100 Gatta @ 6 pcs = 600 Biscuits (Base unit)
+      quantity: 600,
       uom: 'Pieces',
       shadeId: 'SH03',
       recommendedLocation: 'SH03-R02-C04',
-      receivedOn: '18 Sep 2026',
+      receivedOn: '21 Sep 2026',
       priority: 'High',
-      priorityClass: 'bg-rose-100 text-rose-800 border-rose-200',
       status: 'Pending',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
       labStatus: 'Pending Lab Test',
     },
     {
       id: 2,
       grnNo: 'GRN-2026-001',
       productName: 'Good Day Butter Cookies (75g)',
+      sku: 'PRD-FMCG-002',
       batchNo: 'BT-2026-002',
       packUnit: 'Gatta',
       packsCount: 50,
@@ -103,17 +168,16 @@ export default function PutAwayCheckIn() {
       uom: 'Pieces',
       shadeId: 'SH03',
       recommendedLocation: 'SH03-R02-C05',
-      receivedOn: '18 Sep 2026',
+      receivedOn: '21 Sep 2026',
       priority: 'Medium',
-      priorityClass: 'bg-amber-100 text-amber-800 border-amber-200',
       status: 'Pending',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
       labStatus: 'Pending Lab Test',
     },
     {
       id: 3,
       grnNo: 'GRN-2026-002',
       productName: 'Sharbati Wheat Grain (Grade A)',
+      sku: 'PRD-GRN-001',
       batchNo: 'BT-2026-003',
       packUnit: 'Bags',
       packsCount: 30,
@@ -122,17 +186,16 @@ export default function PutAwayCheckIn() {
       uom: 'Kg',
       shadeId: 'SH01',
       recommendedLocation: 'SH01-R01-C02',
-      receivedOn: '17 Sep 2026',
+      receivedOn: '20 Sep 2026',
       priority: 'High',
-      priorityClass: 'bg-rose-100 text-rose-800 border-rose-200',
       status: 'Pending',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
       labStatus: 'Pending Lab Test',
     },
     {
       id: 4,
       grnNo: 'GRN-2026-002',
-      productName: 'Fortune Refined Mustard Oil (15L)',
+      productName: 'Refined Mustard Oil (15L Tin)',
+      sku: 'PRD-OIL-002',
       batchNo: 'BT-2026-004',
       packUnit: 'Tins',
       packsCount: 20,
@@ -141,17 +204,16 @@ export default function PutAwayCheckIn() {
       uom: 'Ltr',
       shadeId: 'SH02',
       recommendedLocation: 'SH02-R01-C03',
-      receivedOn: '17 Sep 2026',
+      receivedOn: '20 Sep 2026',
       priority: 'Medium',
-      priorityClass: 'bg-amber-100 text-amber-800 border-amber-200',
       status: 'Pending',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
       labStatus: 'Pending Lab Test',
     },
     {
       id: 5,
       grnNo: 'GRN-2026-003',
       productName: 'Maggi 2-Minute Noodles (70g)',
+      sku: 'PRD-FMCG-003',
       batchNo: 'BT-2026-005',
       packUnit: 'Carton',
       packsCount: 25,
@@ -160,17 +222,16 @@ export default function PutAwayCheckIn() {
       uom: 'Packets',
       shadeId: 'SH03',
       recommendedLocation: 'SH03-R03-C01',
-      receivedOn: '16 Sep 2026',
+      receivedOn: '19 Sep 2026',
       priority: 'Low',
-      priorityClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      status: 'Pending',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
-      labStatus: 'Pending Lab Test',
+      status: 'Completed',
+      labStatus: 'Passed',
     },
     {
       id: 6,
       grnNo: 'GRN-2026-004',
       productName: 'Corrugated Shipping Cartons (5-Ply)',
+      sku: 'PRD-BOX-007',
       batchNo: 'BT-2026-006',
       packUnit: 'Bundles',
       packsCount: 20,
@@ -179,11 +240,9 @@ export default function PutAwayCheckIn() {
       uom: 'Nos',
       shadeId: 'SH04',
       recommendedLocation: 'SH04-R01-C01',
-      receivedOn: '16 Sep 2026',
+      receivedOn: '19 Sep 2026',
       priority: 'Low',
-      priorityClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      status: 'Pending',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
+      status: 'Completed',
       labStatus: 'Passed (No Lab Needed)',
     },
   ])
@@ -191,8 +250,8 @@ export default function PutAwayCheckIn() {
   // Filtered Queue
   const filteredQueue = useMemo(() => {
     return queueItems.filter((item) => {
-      if (activeTab === 'Pending Put-Away' && item.status !== 'Pending') return false
-      if (activeTab === 'Completed' && item.status !== 'Completed') return false
+      if (activeTab === 'PENDING' && item.status !== 'Pending') return false
+      if (activeTab === 'COMPLETED' && item.status !== 'Completed') return false
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
         return (
@@ -206,6 +265,19 @@ export default function PutAwayCheckIn() {
     })
   }, [queueItems, activeTab, searchQuery])
 
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredQueue.length / perPage))
+  const paginatedQueue = filteredQueue.slice((currentPage - 1) * perPage, currentPage * perPage)
+
+  // Dynamic KPI Stats
+  const stats = useMemo(() => {
+    const pendingCount = queueItems.filter((i) => i.status === 'Pending').length
+    const completedCount = queueItems.filter((i) => i.status === 'Completed').length
+    const labPending = queueItems.filter((i) => i.labStatus.includes('Pending')).length
+    const totalProcessedUnits = queueItems.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0)
+    return { pendingCount, completedCount, labPending, totalProcessedUnits }
+  }, [queueItems])
+
   // Load Queue Item into Form
   const handleLoadQueueItem = (item) => {
     setFormGRN(item.grnNo)
@@ -216,7 +288,6 @@ export default function PutAwayCheckIn() {
     setFormUnitsPerPack(item.unitsPerPack)
     setFormPacksCount(item.packsCount)
 
-    // Pre-fill shade, row, col
     if (item.recommendedLocation) {
       const parts = item.recommendedLocation.split('-')
       if (parts.length === 3) {
@@ -226,33 +297,29 @@ export default function PutAwayCheckIn() {
       }
     }
 
-    triggerToast(`Loaded ${item.productName} (${item.quantity} ${item.uom}) into Check-In form.`)
+    triggerToast(`Loaded "${item.productName}" into Put-Away Form.`)
   }
 
   // Confirm Put-Away & Check-In
   const handleConfirmPutAway = (e) => {
     e.preventDefault()
     if (!formGRN || !formProduct || !formLocationCode) {
-      triggerToast('Please complete required fields.')
+      triggerToast('Please complete all required fields.')
       return
     }
 
-    // Mark completed in queue
     setQueueItems((prev) =>
       prev.map((i) =>
         i.batchNo === formBatch
           ? {
               ...i,
               status: 'Completed',
-              statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
               recommendedLocation: formLocationCode,
-              labStatus: 'Pending Lab Test',
             }
           : i
       )
     )
 
-    // Create Label data for physical sticker
     const labelData = {
       grnNo: formGRN,
       productName: formProduct,
@@ -272,327 +339,262 @@ export default function PutAwayCheckIn() {
 
     setPrintedLabelData(labelData)
     setShowQrLabelModal(true)
-
-    triggerToast(
-      `Put-Away confirmed! Allocated to ${formLocationCode}. Lab test status set to PENDING.`
-    )
+    triggerToast(`Put-Away confirmed! Allocated to ${formLocationCode}.`)
   }
 
+  // Dropdown Options
+  const shadeOptions = SHADES.map((s) => ({
+    value: s.id,
+    label: `${s.id}: ${s.name}`,
+    sublabel: `${s.category} • Ratio: ${s.defaultPack}`,
+  }))
+
+  const rowOptions = Array.from({ length: 8 }, (_, i) => ({
+    value: `R0${i + 1}`,
+    label: `Row R0${i + 1}`,
+  }))
+
+  const colOptions = Array.from({ length: 10 }, (_, i) => {
+    const cStr = i + 1 < 10 ? `C0${i + 1}` : `C${i + 1}`
+    return {
+      value: cStr,
+      label: `Column ${cStr}`,
+    }
+  })
+
   return (
-    <div className="space-y-4 pb-12">
+    <div className="space-y-5 pb-12">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-[#162214] border border-amber-400 text-amber-300 px-4 py-2.5 rounded-lg shadow-2xl flex items-center gap-2 text-xs font-medium animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold animate-bounce border border-slate-700">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Top Banner (Preserved) */}
-      <div className="relative rounded-xl overflow-hidden shadow-md border border-slate-200/80 bg-slate-900 h-28 sm:h-32">
-        <img
-          src="/border.png"
-          alt="Warehouse Put-Away Operations"
-          className="w-full h-full object-cover object-center opacity-90"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/25 to-black/65"></div>
-        <div className="absolute top-3 right-4 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/20">
-          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-          <span className="text-[10px] font-bold text-white tracking-widest uppercase">
-            PUT-AWAY &amp; LAB TESTING ACTIVE
-          </span>
-        </div>
-      </div>
-
       {/* Page Header Bar */}
-      <div className="bg-white rounded-xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-xl bg-[#1E3A1E] text-white flex items-center justify-center shadow-xs shrink-0">
-            <Warehouse className="w-6 h-6 text-white" />
+          <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs shrink-0">
+            <Warehouse className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-              <span>Put-Away / Check-In (6 Shades Grid Allocation)</span>
-            </h1>
-            <p className="text-xs text-slate-500 font-medium">
-              Allocate received gate items into Shade ➔ Row ➔ Column bins in base product units and print physical Gatta QR labels.
+            <h1 className="text-xl font-bold text-slate-800 tracking-tight">Put-Away / Check-In</h1>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              Allocate received gate items into Shade ➔ Row ➔ Column bins with base product unit auto-calculation.
             </p>
           </div>
         </div>
 
-        <div className="text-xs text-slate-400 flex items-center gap-1.5 font-medium mr-2">
-          <Link to="/dashboard" className="hover:text-slate-700">Home</Link>
-          <span>›</span>
-          <span className="text-slate-500">Warehouse Management</span>
-          <span>›</span>
-          <span className="text-slate-800 font-semibold">Put-Away / Check-In</span>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link
+            to="/location-master"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
+          >
+            <span>View 2D Grid Matrix</span>
+            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+          </Link>
         </div>
       </div>
 
-      {/* 4 Summary Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-200 flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <Package className="w-6 h-6" />
+      {/* 4 Dynamic KPI Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shrink-0">
+            <Package className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[11px] font-semibold text-slate-500">Pending Put-Away</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">6 GRNs</h3>
-            <p className="text-[10px] text-slate-400 font-medium">From Gate Truck Unloading</p>
+            <p className="text-xs font-semibold text-slate-500">Pending Put-Away</p>
+            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+              {stats.pendingCount} Lots
+            </h3>
+            <p className="text-[11px] text-amber-600 font-medium">Awaiting bay allocation</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-200 flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <FlaskConical className="w-6 h-6" />
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[11px] font-semibold text-slate-500">Sent to Lab Test</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">5 Batches</h3>
-            <p className="text-[10px] text-amber-700 font-medium">Under Testing / Pending</p>
+            <p className="text-xs font-semibold text-slate-500">Put-Away Completed</p>
+            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+              {stats.completedCount} Lots
+            </h3>
+            <p className="text-[11px] text-emerald-600 font-medium">Stored in assigned bins</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-200 flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <CheckCircle2 className="w-6 h-6" />
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
+            <FlaskConical className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[11px] font-semibold text-slate-500">Allocated Bins Today</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">86 Bins</h3>
-            <p className="text-[10px] text-emerald-700 font-medium">Across 6 Shades</p>
+            <p className="text-xs font-semibold text-slate-500">Sent to QC Lab</p>
+            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+              {stats.labPending} Lots
+            </h3>
+            <p className="text-[11px] text-indigo-600 font-medium">Quarantined for test</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-200 flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-[#1E3A1E] text-white flex items-center justify-center shrink-0 shadow-xs">
-            <QrCode className="w-6 h-6" />
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-slate-50 text-slate-600 border border-slate-200 flex items-center justify-center shrink-0">
+            <Layers className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[11px] font-semibold text-slate-500">Base Unit Principle</p>
-            <h3 className="text-sm font-black text-slate-800 leading-tight">1 Gatta = 6 Pcs</h3>
-            <p className="text-[10px] text-slate-400 font-medium">Calculates Minimum Units</p>
+            <p className="text-xs font-semibold text-slate-500">Processed Quantity</p>
+            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+              {stats.totalProcessedUnits.toLocaleString()}
+            </h3>
+            <p className="text-[11px] text-slate-500 font-medium">Total base units</p>
           </div>
         </div>
       </div>
 
-      {/* Main Screen Layout: Form & Preview on Top/Side + Queue Table Below */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* ========================================================================= */}
-        {/* PUT-AWAY CHECK-IN FORM (Span 7 / 12)                                      */}
-        {/* ========================================================================= */}
-        <div className="lg:col-span-7 bg-white rounded-xl p-4 sm:p-5 shadow-xs border border-slate-200 space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <h2 className="text-sm font-black text-slate-800 flex items-center gap-2">
-              <Warehouse className="w-4 h-4 text-emerald-700" />
-              <span>Put-Away Check-In &amp; Grid Allocation Form</span>
-            </h2>
-            <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-              Lab Status: Auto Pending
+      {/* 2-Column Workspace: Left Form, Right Live QR Badge */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left Form: Put-Away & Bin Allocation (7 Cols) */}
+        <div className="lg:col-span-7 bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-indigo-600" />
+              <h2 className="text-sm font-bold text-slate-800">Bin Allocation &amp; Check-In</h2>
+            </div>
+            <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+              {formLocationCode}
             </span>
           </div>
 
           <form onSubmit={handleConfirmPutAway} className="space-y-3.5 text-xs">
-            {/* Row 1: GRN and Product */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  GRN No. <span className="text-red-500">*</span>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Inward GRN Reference <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={formGRN}
                   onChange={(e) => setFormGRN(e.target.value)}
-                  placeholder="e.g. GRN-2026-FMCG-01"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:bg-white focus:ring-1 focus:ring-emerald-600"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Batch No. <span className="text-red-500">*</span>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Batch Number <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={formBatch}
                   onChange={(e) => setFormBatch(e.target.value)}
-                  placeholder="e.g. BT-2026-001"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:bg-white focus:ring-1 focus:ring-emerald-600"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                Commodity / Product Name <span className="text-red-500">*</span>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Commodity / Product Name <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
                 required
                 value={formProduct}
                 onChange={(e) => setFormProduct(e.target.value)}
-                placeholder="e.g. Parle-G Glucose Biscuits (50g)"
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:bg-white focus:ring-1 focus:ring-emerald-600"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
               />
             </div>
 
-            {/* Base Unit vs Gatta Breakdown Calculation Card */}
-            <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-2.5">
+            {/* Packaging Ratio & Base Unit Auto-Calculation */}
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">
-                  <Package className="w-3.5 h-3.5 text-emerald-700" />
-                  <span>Base Unit Inventory Calculator</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  Unit Breakdown Calculation
                 </span>
-                <span className="text-[10px] font-semibold text-emerald-800">
-                  Minimum Unit Rule Active
+                <span className="text-xs font-bold text-indigo-600 font-mono">
+                  Total: {baseQuantityComputed.toLocaleString()} {formBaseUnit}
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-3 gap-2.5">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                    Gatta / Pack Count
-                  </label>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Cartons / Packs Count</label>
                   <input
                     type="number"
                     min="1"
                     value={formPacksCount}
-                    onChange={(e) => setFormPacksCount(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold"
+                    onChange={(e) => setFormPacksCount(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
-                  <span className="text-[9px] text-slate-500">e.g. 100 Gatta</span>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                    Pieces Per Gatta / Pack
-                  </label>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Units per Pack</label>
                   <input
                     type="number"
                     min="1"
                     value={formUnitsPerPack}
-                    onChange={(e) => setFormUnitsPerPack(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold"
+                    onChange={(e) => setFormUnitsPerPack(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
-                  <span className="text-[9px] text-slate-500">e.g. 6 Biscuits / Gatta</span>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                    Base Unit Type
-                  </label>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Base Measure Unit</label>
                   <input
                     type="text"
                     value={formBaseUnit}
                     onChange={(e) => setFormBaseUnit(e.target.value)}
-                    placeholder="Pieces / Kg / Ltr"
-                    className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold"
+                    className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
-                  <span className="text-[9px] text-slate-500">GRN stock unit</span>
                 </div>
-              </div>
-
-              {/* Live Computed Minimum Quantity Banner */}
-              <div className="p-2 bg-white rounded-lg border border-emerald-300 flex items-center justify-between text-xs">
-                <span className="text-slate-600 font-semibold">
-                  Total Minimum Quantity Recorded:
-                </span>
-                <span className="font-black font-mono text-emerald-900 text-sm">
-                  {baseQuantityComputed.toLocaleString()} {formBaseUnit}
-                </span>
               </div>
             </div>
 
-            {/* Grid Allocation: Shade -> Row -> Column */}
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
-              <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-slate-600" />
-                <span>Target Storage Bin Selection (6 Shades Architecture)</span>
-              </span>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                    Select Shade <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formSelectedShade}
-                    onChange={(e) => setFormSelectedShade(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800"
-                  >
-                    {SHADES.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                    Select Row (1 to 8) <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formSelectedRow}
-                    onChange={(e) => setFormSelectedRow(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold"
-                  >
-                    {Array.from({ length: 8 }, (_, i) => (
-                      <option key={i} value={`R0${i + 1}`}>
-                        Row 0{i + 1}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                    Select Column (1 to 10) <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formSelectedCol}
-                    onChange={(e) => setFormSelectedCol(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold"
-                  >
-                    {Array.from({ length: 10 }, (_, i) => (
-                      <option key={i} value={i + 1 < 10 ? `C0${i + 1}` : `C${i + 1}`}>
-                        Column {i + 1 < 10 ? `0${i + 1}` : i + 1}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200">
-                <span className="text-slate-500">Allocated Bin Code:</span>
-                <span className="font-mono font-black text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded">
-                  {formLocationCode}
-                </span>
+            {/* Target Bin Location Coordinates */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Target Warehouse Facility &amp; Coordinates <span className="text-rose-500">*</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2.5">
+                <CustomSelect
+                  value={formSelectedShade}
+                  onChange={setFormSelectedShade}
+                  options={shadeOptions}
+                  zIndexClass="z-40"
+                />
+                <CustomSelect
+                  value={formSelectedRow}
+                  onChange={setFormSelectedRow}
+                  options={rowOptions}
+                  zIndexClass="z-30"
+                />
+                <CustomSelect
+                  value={formSelectedCol}
+                  onChange={setFormSelectedCol}
+                  options={colOptions}
+                  zIndexClass="z-30"
+                />
               </div>
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Remarks</label>
-              <textarea
-                rows={2}
+              <label className="block text-xs font-bold text-slate-700 mb-1">Put-Away Remarks</label>
+              <input
+                type="text"
                 value={formRemarks}
                 onChange={(e) => setFormRemarks(e.target.value)}
-                placeholder="Gate entry check, truck condition, seals..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:bg-white resize-none"
-              ></textarea>
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+              />
             </div>
 
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-              <div className="text-[10px] text-amber-700 font-semibold flex items-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                <span>Auto marks product as &ldquo;Pending Lab Test&rdquo; on check-in</span>
-              </div>
-
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="submit"
-                className="px-5 py-2 bg-[#1F331E] hover:bg-[#2A4428] text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer transition"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2"
               >
                 <Check className="w-4 h-4" />
                 <span>Confirm Put-Away &amp; Print QR</span>
@@ -601,360 +603,373 @@ export default function PutAwayCheckIn() {
           </form>
         </div>
 
-        {/* ========================================================================= */}
-        {/* LIVE LOCATION & QR STICKER PREVIEW CARD (Span 5 / 12)                     */}
-        {/* ========================================================================= */}
-        <div className="lg:col-span-5 bg-white rounded-xl p-4 sm:p-5 shadow-xs border border-slate-200 flex flex-col justify-between space-y-4">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+        {/* Right: Live Put-Away Confirmation & Physical QR Sticker Badge (5 Cols) */}
+        <div className="lg:col-span-5 bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <h2 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <QrCode className="w-4 h-4 text-indigo-600" />
+              <span>Physical Pallet / Gatta QR Sticker</span>
+            </h2>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+              Auto-Calculated
+            </span>
+          </div>
+
+          {/* High-Contrast Industrial QR Sticker Canvas */}
+          <div className="border-2 border-slate-900 rounded-2xl p-4 bg-white space-y-3 font-sans shadow-md">
+            <div className="flex items-start justify-between border-b pb-2 border-slate-900">
               <div className="flex items-center gap-2">
-                <QrCode className="w-4 h-4 text-emerald-700" />
-                <h2 className="text-xs font-bold text-slate-800">Gatta Physical QR Sticker Preview</h2>
+                <div className="w-7 h-7 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
+                  WH
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-xs tracking-wider uppercase">
+                    CENTRAL WAREHOUSE
+                  </h3>
+                  <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">
+                    PUT-AWAY &amp; BIN ALLOCATION TAG
+                  </p>
+                </div>
               </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full">
-                Live Preview
+              <span className="text-xs font-mono font-bold bg-slate-100 text-slate-900 px-2 py-0.5 rounded border border-slate-300">
+                {formLocationCode}
               </span>
             </div>
 
-            <p className="text-[11px] text-slate-500 mt-2">
-              This QR label is printed and stuck onto the physical cartons/Gatta after put-away. It encodes the base quantity and bin location.
-            </p>
-
-            {/* Sticker Graphic Container */}
-            <div className="mt-3 border-2 border-slate-800 rounded-xl p-4 bg-slate-50 space-y-3 shadow-xs">
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-700 border-b border-slate-300 pb-1">
-                <span>CENTRAL WAREHOUSE LOGISTICS</span>
-                <span className="text-emerald-800 font-mono">{formSelectedShade}</span>
+            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-center space-y-1">
+              <span className="text-[9px] font-bold text-slate-400 uppercase">Allocated Bin Locator</span>
+              <div className="text-xl font-black font-mono tracking-widest text-slate-900">
+                {formLocationCode}
               </div>
+              <p className="text-[10px] text-slate-600 font-semibold">
+                {SHADES.find((s) => s.id === formSelectedShade)?.name || formSelectedShade}
+              </p>
+            </div>
 
-              <div className="text-center space-y-1">
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                  BIN LOCATION
-                </span>
-                <h3 className="text-xl font-black font-mono text-slate-900">{formLocationCode}</h3>
-                <p className="text-[11px] font-bold text-slate-800 truncate">
-                  {formProduct || 'Product Name'}
-                </p>
-                <p className="text-[10px] text-slate-500 font-mono">
-                  Batch: {formBatch} • GRN: {formGRN}
-                </p>
+            <div className="space-y-1.5 text-[11px] font-mono bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-sans">Product:</span>
+                <span className="font-bold text-slate-900 truncate max-w-[170px]">{formProduct}</span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-sans">Batch No:</span>
+                <span className="font-bold text-slate-900">{formBatch}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-sans">Packs Count:</span>
+                <span className="font-bold text-slate-900">{formPacksCount} {formPackUnit}</span>
+              </div>
+              <div className="flex justify-between border-t border-slate-200 pt-1 text-indigo-900 font-bold">
+                <span className="font-sans">Base Quantity:</span>
+                <span>{baseQuantityComputed.toLocaleString()} {formBaseUnit}</span>
+              </div>
+            </div>
 
-              {/* QR Simulation */}
-              <div className="w-28 h-28 bg-white p-2 mx-auto rounded border border-slate-300 flex items-center justify-center">
-                <svg className="w-full h-full text-slate-900" viewBox="0 0 100 100" fill="currentColor">
-                  <rect x="0" y="0" width="28" height="28" />
-                  <rect x="4" y="4" width="20" height="20" fill="white" />
-                  <rect x="8" y="8" width="12" height="12" />
-                  <rect x="72" y="0" width="28" height="28" />
-                  <rect x="76" y="4" width="20" height="20" fill="white" />
-                  <rect x="80" y="8" width="12" height="12" />
-                  <rect x="0" y="72" width="28" height="28" />
-                  <rect x="4" y="76" width="20" height="20" fill="white" />
-                  <rect x="8" y="80" width="12" height="12" />
-                  <rect x="36" y="6" width="8" height="8" />
-                  <rect x="52" y="6" width="8" height="8" />
-                  <rect x="36" y="24" width="8" height="8" />
-                  <rect x="6" y="36" width="8" height="8" />
-                  <rect x="24" y="36" width="8" height="8" />
-                  <rect x="42" y="36" width="8" height="8" />
-                  <rect x="60" y="36" width="8" height="8" />
-                  <rect x="78" y="36" width="8" height="8" />
-                  <rect x="36" y="54" width="8" height="8" />
-                  <rect x="54" y="54" width="8" height="8" />
-                  <rect x="72" y="54" width="8" height="8" />
-                  <rect x="36" y="72" width="8" height="8" />
-                  <rect x="54" y="72" width="8" height="8" />
-                  <rect x="72" y="72" width="8" height="8" />
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="w-16 h-16 bg-white border border-slate-300 p-1 rounded-lg shrink-0">
+                <svg viewBox="0 0 100 100" className="w-full h-full text-slate-900" fill="currentColor">
+                  <rect x="0" y="0" width="30" height="30" />
+                  <rect x="5" y="5" width="20" height="20" fill="white" />
+                  <rect x="9" y="9" width="12" height="12" />
+                  <rect x="70" y="0" width="30" height="30" />
+                  <rect x="75" y="5" width="20" height="20" fill="white" />
+                  <rect x="79" y="9" width="12" height="12" />
+                  <rect x="0" y="70" width="30" height="30" />
+                  <rect x="5" y="75" width="20" height="20" fill="white" />
+                  <rect x="9" y="79" width="12" height="12" />
+                  <rect x="36" y="8" width="6" height="14" />
+                  <rect x="46" y="12" width="14" height="6" />
+                  <rect x="40" y="24" width="8" height="8" />
+                  <rect x="54" y="26" width="8" height="8" />
+                  <rect x="38" y="38" width="24" height="24" />
+                  <rect x="42" y="42" width="16" height="16" fill="white" />
+                  <rect x="46" y="46" width="8" height="8" />
+                  <rect x="74" y="38" width="8" height="14" />
+                  <rect x="38" y="70" width="12" height="8" />
+                  <rect x="54" y="74" width="14" height="6" />
+                  <rect x="72" y="72" width="8" height="18" />
                 </svg>
               </div>
 
-              {/* Minimum quantity & lab details */}
-              <div className="text-[10px] text-slate-600 border-t border-slate-200 pt-2 space-y-0.5">
-                <div className="flex items-center justify-between font-bold text-slate-800">
-                  <span>Base Unit Quantity:</span>
-                  <span className="font-mono text-emerald-900">
-                    {baseQuantityComputed.toLocaleString()} {formBaseUnit}
-                  </span>
+              <div className="flex-1 text-center">
+                <div className="flex justify-center items-end h-8 gap-0.5 max-w-[180px] mx-auto">
+                  {[2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 4, 2, 1, 3, 1, 2, 3, 1, 4, 2, 1, 3, 1, 2, 3, 2, 1, 4, 1, 2].map((w, i) => (
+                    <div key={i} style={{ width: `${w * 1.5}px` }} className="h-full bg-slate-900"></div>
+                  ))}
                 </div>
-                <div className="flex items-center justify-between text-slate-500">
-                  <span>Packaging:</span>
-                  <span>
-                    {formPacksCount} {formPackUnit} (@ {formUnitsPerPack} {formBaseUnit}/pack)
-                  </span>
-                </div>
-                <div className="flex items-center justify-between pt-1 border-t border-slate-200">
-                  <span>Lab Testing Status:</span>
-                  <span className="font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">
-                    Pending Lab Test
-                  </span>
-                </div>
+                <span className="font-mono text-[9px] tracking-wider text-slate-900 font-bold mt-1 block">
+                  {formLocationCode}-{formBatch}
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="pt-2 flex items-center justify-between">
-            <Link
-              to="/lab-reports"
-              className="text-xs font-bold text-emerald-800 hover:underline flex items-center gap-1"
-            >
-              <span>View Lab Reports Queue</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5"
+          >
+            <Printer className="w-4 h-4 text-slate-600" />
+            <span>Print Physical Tag Now</span>
+          </button>
+        </div>
+      </div>
 
+      {/* 100% Full-Width Staging Queue Table */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+        {/* Table Toolbar */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('PENDING')
+                  setCurrentPage(1)
+                }}
+                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                  activeTab === 'PENDING'
+                    ? 'bg-white text-amber-700 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Pending Put-Away ({queueItems.filter((i) => i.status === 'Pending').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('COMPLETED')
+                  setCurrentPage(1)
+                }}
+                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                  activeTab === 'COMPLETED'
+                    ? 'bg-white text-emerald-700 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Completed ({queueItems.filter((i) => i.status === 'Completed').length})
+              </button>
+            </div>
+          </div>
+
+          <div className="relative w-full sm:w-72">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by GRN, product, batch..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+            />
+          </div>
+        </div>
+
+        {/* Full-Width Table */}
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left text-xs divide-y divide-slate-200">
+            <thead className="bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+              <tr>
+                <th className="py-3.5 px-4 w-12 text-center">#</th>
+                <th className="py-3.5 px-4 min-w-[125px]">GRN No.</th>
+                <th className="py-3.5 px-4 min-w-[200px]">Product Name</th>
+                <th className="py-3.5 px-4 min-w-[120px]">Batch No.</th>
+                <th className="py-3.5 px-4 min-w-[130px]">Packs Count</th>
+                <th className="py-3.5 px-4 text-center min-w-[110px]">Base Quantity</th>
+                <th className="py-3.5 px-4 min-w-[140px]">Target Bin</th>
+                <th className="py-3.5 px-4 min-w-[110px]">Received On</th>
+                <th className="py-3.5 px-4 text-center min-w-[95px]">Priority</th>
+                <th className="py-3.5 px-4 text-center min-w-[120px]">QC Lab Status</th>
+                <th className="py-3.5 px-4 text-center w-28">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {paginatedQueue.length === 0 ? (
+                <tr>
+                  <td colSpan="11" className="py-10 text-center text-slate-400">
+                    No items in this queue matching your filter criteria.
+                  </td>
+                </tr>
+              ) : (
+                paginatedQueue.map((row, idx) => (
+                  <tr key={row.id} className="hover:bg-slate-50/80 transition">
+                    <td className="py-3.5 px-4 text-center text-slate-400 font-bold text-[11px]">
+                      {(currentPage - 1) * perPage + idx + 1}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                      {row.grnNo}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="font-semibold text-slate-800">{row.productName}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">{row.sku}</div>
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-semibold text-slate-700 text-[11px]">
+                      {row.batchNo}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-700 font-medium">
+                      {row.packsCount} {row.packUnit} ({row.unitsPerPack} / pack)
+                    </td>
+                    <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-900">
+                      {row.quantity} {row.uom}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-indigo-600">
+                      {row.recommendedLocation}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
+                      {row.receivedOn}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          row.priority === 'High'
+                            ? 'bg-rose-100 text-rose-800'
+                            : row.priority === 'Medium'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        {row.priority}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          row.labStatus.includes('Passed')
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {row.labStatus}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleLoadQueueItem(row)}
+                        className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition cursor-pointer"
+                      >
+                        Allocate
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Footer */}
+        <div className="p-4 bg-slate-50/80 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 font-medium">
+          <div>
+            Showing <strong>{filteredQueue.length > 0 ? (currentPage - 1) * perPage + 1 : 0}</strong> to{' '}
+            <strong>{Math.min(currentPage * perPage, filteredQueue.length)}</strong> of{' '}
+            <strong>{filteredQueue.length}</strong> items
+          </div>
+
+          <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => {
-                setPrintedLabelData({
-                  grnNo: formGRN,
-                  productName: formProduct,
-                  batchNo: formBatch,
-                  baseQuantity: baseQuantityComputed,
-                  baseUnit: formBaseUnit,
-                  packsCount: formPacksCount,
-                  packUnit: formPackUnit,
-                  unitsPerPack: formUnitsPerPack,
-                  locationCode: formLocationCode,
-                  shadeName: SHADES.find((s) => s.id === formSelectedShade)?.name || formSelectedShade,
-                  row: formSelectedRow,
-                  col: formSelectedCol,
-                  labStatus: 'Pending Lab Test',
-                  checkInTime: new Date().toLocaleString(),
-                })
-                setShowQrLabelModal(true)
-              }}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print Sticker</span>
+              ‹ Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setCurrentPage(p)}
+                className={`px-3 py-1 rounded-lg font-bold transition ${
+                  currentPage === p
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold"
+            >
+              Next ›
             </button>
           </div>
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* PUT-AWAY QUEUE TABLE                                                      */}
-      {/* ========================================================================= */}
-      <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Package className="w-4 h-4 text-emerald-700" />
-            <h2 className="text-sm font-bold text-slate-800">
-              Gate Inward Put-Away Queue ({filteredQueue.length} Items)
-            </h2>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="relative w-64">
-              <input
-                type="text"
-                placeholder="Search queue..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none"
-              />
-              <span className="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div
-          className="overflow-x-auto no-scrollbar scroll-smooth w-full"
-          style={{
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            WebkitOverflowScrolling: 'touch',
-          }}
-        >
-          <table
-            className="w-full text-left text-xs divide-y divide-slate-200 border-collapse table-nowrap"
-            style={{ minWidth: '1050px' }}
-          >
-            <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
-              <tr>
-                <th className="py-3 px-3 w-10 text-center">#</th>
-                <th className="py-3 px-4 min-w-[120px]">GRN No.</th>
-                <th className="py-3 px-4 min-w-[200px]">Product &amp; Batch</th>
-                <th className="py-3 px-4 min-w-[140px] text-right">Base Quantity</th>
-                <th className="py-3 px-4 min-w-[160px] text-right">Packaging (Gatta)</th>
-                <th className="py-3 px-4 min-w-[130px]">Target Bin</th>
-                <th className="py-3 px-4 text-center min-w-[120px]">Lab Status</th>
-                <th className="py-3 px-4 text-center min-w-[100px]">Status</th>
-                <th className="py-3 px-3 text-center w-28">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {filteredQueue.map((item, idx) => (
-                <tr key={item.id} className="hover:bg-emerald-50/40 transition">
-                  <td className="py-3 px-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                  <td className="py-3 px-4 font-mono font-bold text-slate-900">{item.grnNo}</td>
-                  <td className="py-3 px-4 text-slate-800">
-                    <div className="font-bold text-slate-900">{item.productName}</div>
-                    <div className="text-[10px] text-slate-500 font-mono">
-                      Batch: {item.batchNo} • Recd: {item.receivedOn}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono font-black text-slate-900">
-                    {item.quantity.toLocaleString()} {item.uom}
-                  </td>
-                  <td className="py-3 px-4 text-right text-slate-700">
-                    <span className="font-bold text-emerald-800">
-                      {item.packsCount} {item.packUnit}
-                    </span>
-                    <div className="text-[10px] text-slate-400 font-medium">
-                      @ {item.unitsPerPack} {item.uom}/pack
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 font-mono font-bold text-slate-800">
-                    <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
-                      {item.recommendedLocation}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        item.labStatus === 'Pending Lab Test'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}
-                    >
-                      {item.labStatus}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${item.statusClass}`}
-                    >
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    <button
-                      type="button"
-                      onClick={() => handleLoadQueueItem(item)}
-                      className="px-2.5 py-1.5 bg-[#1F331E] hover:bg-[#2A4428] text-white rounded-lg font-bold text-[11px] transition shadow-xs cursor-pointer"
-                    >
-                      Allocate
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* MODAL: Printable Gatta QR Sticker Tag                                      */}
-      {/* ========================================================================= */}
+      {/* MODAL: Printable Physical QR Sticker */}
       {showQrLabelModal && printedLabelData && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 text-center space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="font-black text-slate-800 text-sm flex items-center gap-1.5">
-                <QrCode className="w-4 h-4 text-emerald-700" />
-                <span>Print Physical Gatta QR Sticker</span>
-              </h3>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center space-y-4">
+            <div className="flex items-center justify-between border-b pb-2.5 border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800">Confirmed Put-Away QR Tag</h3>
               <button
                 type="button"
                 onClick={() => setShowQrLabelModal(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 p-1"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Printable Carton Sticker */}
-            <div className="border-2 border-dashed border-slate-800 rounded-xl p-4 bg-slate-50 space-y-3">
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-700 pb-1 border-b border-slate-200">
-                <span>GATE CHECK-IN LABEL</span>
-                <span className="text-emerald-800 font-mono">{printedLabelData.locationCode}</span>
+            <div className="border-2 border-slate-900 rounded-xl p-4 bg-white space-y-2 text-center">
+              <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+                CENTRAL WAREHOUSE • PALLET / CARTON LABEL
               </div>
-
-              <div>
-                <h4 className="text-base font-black text-slate-900 leading-tight">
-                  {printedLabelData.productName}
-                </h4>
-                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                  GRN: {printedLabelData.grnNo} • BATCH: {printedLabelData.batchNo}
-                </p>
+              <div className="text-xl font-black font-mono tracking-widest text-slate-900 py-1 bg-slate-50 rounded border border-dashed border-slate-300">
+                {printedLabelData.locationCode}
               </div>
-
-              {/* QR Code */}
-              <div className="w-32 h-32 bg-white p-2 mx-auto rounded border border-slate-300 flex items-center justify-center">
-                <svg className="w-full h-full text-slate-900" viewBox="0 0 100 100" fill="currentColor">
-                  <rect x="0" y="0" width="28" height="28" />
-                  <rect x="4" y="4" width="20" height="20" fill="white" />
-                  <rect x="8" y="8" width="12" height="12" />
-                  <rect x="72" y="0" width="28" height="28" />
-                  <rect x="76" y="4" width="20" height="20" fill="white" />
-                  <rect x="80" y="8" width="12" height="12" />
-                  <rect x="0" y="72" width="28" height="28" />
-                  <rect x="4" y="76" width="20" height="20" fill="white" />
-                  <rect x="8" y="80" width="12" height="12" />
-                  <rect x="36" y="6" width="8" height="8" />
-                  <rect x="52" y="6" width="8" height="8" />
-                  <rect x="36" y="24" width="8" height="8" />
-                  <rect x="6" y="36" width="8" height="8" />
-                  <rect x="24" y="36" width="8" height="8" />
-                  <rect x="42" y="36" width="8" height="8" />
-                  <rect x="60" y="36" width="8" height="8" />
-                  <rect x="78" y="36" width="8" height="8" />
-                  <rect x="36" y="54" width="8" height="8" />
-                  <rect x="54" y="54" width="8" height="8" />
-                  <rect x="72" y="54" width="8" height="8" />
-                  <rect x="36" y="72" width="8" height="8" />
-                  <rect x="54" y="72" width="8" height="8" />
-                  <rect x="72" y="72" width="8" height="8" />
+              <div className="w-28 h-28 mx-auto border border-slate-300 p-1 rounded-lg flex items-center justify-center">
+                <svg viewBox="0 0 100 100" className="w-full h-full text-slate-900" fill="currentColor">
+                  <rect x="0" y="0" width="30" height="30" />
+                  <rect x="5" y="5" width="20" height="20" fill="white" />
+                  <rect x="9" y="9" width="12" height="12" />
+                  <rect x="70" y="0" width="30" height="30" />
+                  <rect x="75" y="5" width="20" height="20" fill="white" />
+                  <rect x="79" y="9" width="12" height="12" />
+                  <rect x="0" y="70" width="30" height="30" />
+                  <rect x="5" y="75" width="20" height="20" fill="white" />
+                  <rect x="9" y="79" width="12" height="12" />
+                  <rect x="36" y="8" width="6" height="14" />
+                  <rect x="46" y="12" width="14" height="6" />
+                  <rect x="40" y="24" width="8" height="8" />
+                  <rect x="54" y="26" width="8" height="8" />
+                  <rect x="38" y="38" width="24" height="24" />
+                  <rect x="42" y="42" width="16" height="16" fill="white" />
+                  <rect x="46" y="46" width="8" height="8" />
+                  <rect x="74" y="38" width="8" height="14" />
+                  <rect x="38" y="70" width="12" height="8" />
+                  <rect x="54" y="74" width="14" height="6" />
+                  <rect x="72" y="72" width="8" height="18" />
                 </svg>
               </div>
-
-              <div className="text-[10px] text-slate-700 border-t border-slate-200 pt-2 space-y-1 text-left">
-                <div className="flex justify-between">
-                  <span className="font-semibold">Base Quantity:</span>
-                  <span className="font-black font-mono text-emerald-900">
-                    {printedLabelData.baseQuantity.toLocaleString()} {printedLabelData.baseUnit}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-semibold">Gatta Breakdown:</span>
-                  <span>
-                    {printedLabelData.packsCount} {printedLabelData.packUnit} (@ {printedLabelData.unitsPerPack} {printedLabelData.baseUnit})
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-semibold">Storage Bin:</span>
-                  <span className="font-mono font-bold text-slate-800">
-                    {printedLabelData.locationCode} ({printedLabelData.shadeName})
-                  </span>
-                </div>
-                <div className="flex justify-between items-center pt-1 border-t border-slate-200">
-                  <span className="font-semibold">Lab Status:</span>
-                  <span className="font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded text-[9px]">
-                    {printedLabelData.labStatus}
-                  </span>
-                </div>
+              <p className="text-xs font-bold text-slate-900 truncate">{printedLabelData.productName}</p>
+              <div className="text-[10px] text-slate-600 font-mono">
+                {printedLabelData.packsCount} {printedLabelData.packUnit} = {printedLabelData.baseQuantity} {printedLabelData.baseUnit}
+              </div>
+              <div className="text-[9px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block">
+                QC Status: {printedLabelData.labStatus}
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setShowQrLabelModal(false)}
-                className="px-3.5 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold cursor-pointer"
+                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
               >
-                Close
+                Done
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  window.print()
-                  setShowQrLabelModal(false)
-                }}
-                className="px-5 py-1.5 bg-[#1F331E] hover:bg-[#2A4428] text-white rounded-lg text-xs font-bold cursor-pointer shadow-xs"
+                onClick={() => window.print()}
+                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5"
               >
-                Print Sticker
+                <Printer className="w-4 h-4" />
+                <span>Print Tag</span>
               </button>
             </div>
           </div>

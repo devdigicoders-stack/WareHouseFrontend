@@ -12,11 +12,10 @@ import {
   ChevronDown,
   X,
   Search,
-  ArrowUpRight,
+  ArrowRight,
   QrCode,
   LogOut,
   Clock,
-  Shield,
   Plus,
   Warehouse,
 } from 'lucide-react'
@@ -37,8 +36,8 @@ export default function GateEntry() {
   const [driverContact, setDriverContact] = useState('')
   const [supplier, setSupplier] = useState('')
   const [challanNo, setChallanNo] = useState('')
-  const [purpose, setPurpose] = useState('Goods Delivery (GRN)')
-  const [assignedBay, setAssignedBay] = useState('Bay 2 (Dry Ration / Food)')
+  const [purpose, setPurpose] = useState('Goods Delivery (GRN Inward)')
+  const [assignedBay, setAssignedBay] = useState('Bay 2 (Dry Ration / Food - Shade 2)')
   const [inTime, setInTime] = useState('18 Sep 2026, 10:30 AM')
   const [remarks, setRemarks] = useState('')
 
@@ -46,11 +45,11 @@ export default function GateEntry() {
   const [materialItems, setMaterialItems] = useState([
     {
       id: 1,
-      product: 'Biscuit (Glucose 100g)',
+      product: 'Standard Biscuit Packs (Glucose 100g)',
       packageQty: 100,
       packagingUnit: 'Gatta (Carton)',
-      baseUnitEstimate: '600 Biscuits (6 pcs/gatta)',
-      remarks: 'Primary shipment for Shade 3',
+      baseUnitEstimate: '600 Packs (6 pcs/gatta)',
+      remarks: 'Primary shipment for Shade 2',
     },
   ])
 
@@ -69,7 +68,7 @@ export default function GateEntry() {
       challanNo: 'CH-9912',
       itemsSummary: '100 Gatta (Biscuits)',
       inTime: '18 Sep 2026, 09:12 AM',
-      bay: 'Bay 2 (Dry Ration / Food)',
+      bay: 'Bay 2 (Food & Grains - Shade 2)',
       status: 'Unloading at Bay',
     },
     {
@@ -78,11 +77,11 @@ export default function GateEntry() {
       vehicleType: 'Covered Container',
       driver: 'Manoj Yadav',
       phone: '94120-78123',
-      supplier: 'M/s Defence Foods Ltd',
+      supplier: 'M/s Prime Foods Ltd',
       challanNo: 'PO-2026-4587',
       itemsSummary: '200 Bags (Basmati Rice)',
       inTime: '18 Sep 2026, 09:45 AM',
-      bay: 'Bay 1 (General Stores)',
+      bay: 'Bay 1 (General Stores - Shade 1)',
       status: 'GRN In Process',
     },
     {
@@ -91,11 +90,11 @@ export default function GateEntry() {
       vehicleType: 'Light Cargo Vehicle (LCV)',
       driver: 'Abdul Kalam',
       phone: '99201-44589',
-      supplier: 'M/s Ordnance Stores Ltd',
+      supplier: 'M/s Apex Manufacturing Ltd',
       challanNo: 'ORD-5521',
-      itemsSummary: '50 Boxes (Footwear)',
+      itemsSummary: '50 Boxes (Hardware & Tools)',
       inTime: '18 Sep 2026, 10:15 AM',
-      bay: 'Bay 3 (Ammunition & Spares)',
+      bay: 'Bay 3 (Industrial Supplies - Shade 3)',
       status: 'Waiting at Gate',
     },
   ])
@@ -123,7 +122,7 @@ export default function GateEntry() {
       vehicleType: 'Covered Container',
       driver: 'Manoj Yadav',
       phone: '94120-78123',
-      supplier: 'M/s Defence Foods Ltd',
+      supplier: 'M/s Prime Foods Ltd',
       challanNo: 'PO-2026-4587',
       itemsSummary: '200 Bags (Basmati Rice)',
       inTime: '18 Sep 2026, 09:45 AM',
@@ -138,9 +137,9 @@ export default function GateEntry() {
       vehicleType: 'Light Cargo Vehicle (LCV)',
       driver: 'Abdul Kalam',
       phone: '99201-44589',
-      supplier: 'M/s Ordnance Stores Ltd',
+      supplier: 'M/s Apex Manufacturing Ltd',
       challanNo: 'ORD-5521',
-      itemsSummary: '50 Boxes (Footwear)',
+      itemsSummary: '50 Boxes (Hardware & Tools)',
       inTime: '18 Sep 2026, 10:15 AM',
       outTime: '-',
       type: 'Inward',
@@ -153,7 +152,7 @@ export default function GateEntry() {
       vehicleType: 'Heavy Commercial Truck',
       driver: 'Ram Kumar',
       phone: '98711-22334',
-      supplier: 'M/s Army Supply Corp',
+      supplier: 'M/s Metro Supplies Corp',
       challanNo: 'CH-9844',
       itemsSummary: '150 Tins (Cooking Oil)',
       inTime: '18 Sep 2026, 07:30 AM',
@@ -235,7 +234,7 @@ export default function GateEntry() {
           const prod = field === 'product' ? val : item.product
 
           if (unit.includes('Gatta') && prod.includes('Biscuit')) {
-            updated.baseUnitEstimate = `${qty * 6} Biscuits (6 pcs/gatta)`
+            updated.baseUnitEstimate = `${qty * 6} Packs (6 pcs/gatta)`
           } else if (unit.includes('Bags') && prod.includes('Rice')) {
             updated.baseUnitEstimate = `${qty * 50} Kg (50 kg/bag)`
           } else if (unit.includes('Tins') && prod.includes('Oil')) {
@@ -257,16 +256,16 @@ export default function GateEntry() {
     setDriverContact('')
     setSupplier('')
     setChallanNo('')
-    setPurpose('Goods Delivery (GRN)')
-    setAssignedBay('Bay 2 (Dry Ration / Food)')
+    setPurpose('Goods Delivery (GRN Inward)')
+    setAssignedBay('Bay 2 (Dry Ration / Food - Shade 2)')
     setRemarks('')
     setMaterialItems([
       {
         id: Date.now(),
-        product: 'Biscuit (Glucose 100g)',
+        product: 'Standard Biscuit Packs (Glucose 100g)',
         packageQty: 100,
         packagingUnit: 'Gatta (Carton)',
-        baseUnitEstimate: '600 Biscuits (6 pcs/gatta)',
+        baseUnitEstimate: '600 Packs (6 pcs/gatta)',
         remarks: '',
       },
     ])
@@ -297,7 +296,7 @@ export default function GateEntry() {
       vehicleType,
       driver: driverName.trim(),
       phone: driverContact.trim() || 'N/A',
-      supplier: supplier || 'M/s Army Stores Depot',
+      supplier: supplier || 'M/s Bharat Logistics',
       challanNo: challanNo.trim() || 'N/A',
       itemsSummary: summaryText || 'General Consignment',
       inTime,
@@ -351,136 +350,130 @@ export default function GateEntry() {
   }
 
   return (
-    <div className="space-y-4 max-w-[1720px] mx-auto pb-10 select-none">
+    <div className="space-y-6 max-w-[1720px] mx-auto pb-10 select-none">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-[#142312] text-white px-4 py-3 rounded-xl shadow-2xl border border-emerald-500/40 flex items-center gap-3 animate-fade-in text-xs font-semibold">
-          <div className="w-6 h-6 rounded-full bg-emerald-600/30 text-emerald-400 flex items-center justify-center">
+        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-fade-in text-sm font-semibold">
+          <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
             <Check className="w-4 h-4" />
           </div>
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* 1. Military Depot Hero Header Banner */}
-      <div
-        className="relative rounded-2xl overflow-hidden shadow-xs border border-slate-300/80 bg-cover bg-center min-h-[90px] p-5 flex items-center justify-between"
-        style={{
-          backgroundImage: "url('/border.png')",
-          backgroundPosition: 'center',
-          backgroundSize: 'cover',
-        }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/80 to-black/20 pointer-events-none"></div>
-
-        <div className="relative z-10 flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-[#283822] text-amber-300 flex items-center justify-center shadow-md">
-            <Truck className="w-5 h-5" />
+      {/* 1. Header Hero Banner - Clean & Modern */}
+      <div className="bg-white rounded-2xl p-6 sm:p-7 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
+            <Truck className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-              <span>Main Gate Inward &amp; Clearance</span>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                Gate 01 Operational
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+                Gate Entry &amp; Vehicle Clearance
+              </h1>
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                ● Gate 01 Operational
               </span>
-            </h2>
-            <p className="text-xs text-slate-700 font-semibold">
-              Step 2 in Warehouse Flow: Truck Check-In, Inward Gate Pass &amp; Unloading Bay Assignment
+            </div>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+              Commercial vehicle check-in, driver authentication, unloading bay allocation &amp; gate pass management
             </p>
           </div>
         </div>
 
-        <div className="relative z-10 text-right shrink-0 hidden sm:block">
-          <h3 className="text-xs font-black tracking-[0.25em] text-white drop-shadow-md uppercase">
-            NATION FIRST
-          </h3>
-          <p className="text-[9px] font-extrabold tracking-[0.3em] text-amber-300 drop-shadow-md uppercase mt-0.5">
-            ── ALWAYS ──
-          </p>
-        </div>
+        <Link
+          to="/goods-receiving"
+          className="px-4 py-2.5 rounded-xl bg-slate-50 hover:bg-indigo-600 text-slate-700 hover:text-white border border-slate-200 hover:border-indigo-600 text-sm font-bold transition-all flex items-center gap-2 shadow-xs self-start sm:self-auto group"
+        >
+          <span>Proceed to GRN Receiving</span>
+          <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
+        </Link>
       </div>
 
-      {/* 2. KPI Summary Bar (Real-Time Gate Stats) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+      {/* 2. KPI Summary Bar (4 Balanced Stat Cards) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Trucks Inside</p>
-            <p className="text-xl font-extrabold text-slate-900 mt-0.5">{activeVehicles.length}</p>
-            <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
-              <Clock className="w-3 h-3" /> Currently in Depots
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Vehicles Inside</p>
+            <p className="text-2xl font-extrabold text-slate-900 mt-1">{activeVehicles.length}</p>
+            <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1 mt-1">
+              <Clock className="w-3.5 h-3.5" /> Inside Warehouse
             </p>
           </div>
-          <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-            <Warehouse className="w-5 h-5" />
+          <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+            <Warehouse className="w-6 h-6" />
           </div>
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Today&apos;s Inward</p>
-            <p className="text-xl font-extrabold text-[#283822] mt-0.5">{gateLog.length}</p>
-            <p className="text-[10px] text-slate-500 font-medium mt-0.5">Total Vehicles Entered</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Today&apos;s Inward</p>
+            <p className="text-2xl font-extrabold text-slate-900 mt-1">{gateLog.length}</p>
+            <p className="text-xs text-slate-500 font-medium mt-1">Total Gate Check-Ins</p>
           </div>
-          <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
-            <Truck className="w-5 h-5" />
+          <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center">
+            <Truck className="w-6 h-6" />
           </div>
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">At Unloading Bay</p>
-            <p className="text-xl font-extrabold text-amber-700 mt-0.5">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">At Unloading Bay</p>
+            <p className="text-2xl font-extrabold text-slate-900 mt-1">
               {activeVehicles.filter((v) => v.status.includes('Unloading') || v.status.includes('GRN')).length}
             </p>
-            <p className="text-[10px] text-amber-600 font-semibold mt-0.5">Awaiting GRN / Stacking</p>
+            <p className="text-xs text-amber-600 font-semibold mt-1">Unloading &amp; Stacking</p>
           </div>
-          <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
-            <Package className="w-5 h-5" />
+          <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center">
+            <Package className="w-6 h-6" />
           </div>
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Gate Out Cleared</p>
-            <p className="text-xl font-extrabold text-slate-700 mt-0.5">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Gate Out Cleared</p>
+            <p className="text-2xl font-extrabold text-slate-900 mt-1">
               {gateLog.filter((v) => v.status === 'Gate Out / Cleared').length}
             </p>
-            <p className="text-[10px] text-slate-500 font-medium mt-0.5">Exited with Outward Pass</p>
+            <p className="text-xs text-slate-500 font-medium mt-1">Departed with Outward Slip</p>
           </div>
-          <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
-            <LogOut className="w-5 h-5" />
+          <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center">
+            <LogOut className="w-6 h-6" />
           </div>
         </div>
       </div>
 
       {/* 3. Navigation Tabs Bar */}
-      <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl w-fit text-xs font-semibold">
+      <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl w-fit text-sm font-semibold flex-wrap">
           <button
             type="button"
             onClick={() => setActiveTab('new')}
-            className={`px-4 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shrink-0 ${
               activeTab === 'new'
-                ? 'bg-[#283822] text-white shadow-xs'
-                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/70'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>New Gate Entry (Inward)</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('queue')}
-            className={`px-4 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shrink-0 ${
               activeTab === 'queue'
-                ? 'bg-[#283822] text-white shadow-xs'
-                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/70'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
-            <Truck className="w-3.5 h-3.5" />
-            <span>Trucks Inside Depot</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-200 text-amber-900 font-bold">
+            <Truck className="w-4 h-4 shrink-0" />
+            <span>Vehicles Inside</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold shrink-0 ${
+              activeTab === 'queue' ? 'bg-indigo-800 text-white' : 'bg-slate-200 text-slate-800'
+            }`}>
               {activeVehicles.length}
             </span>
           </button>
@@ -488,26 +481,19 @@ export default function GateEntry() {
           <button
             type="button"
             onClick={() => setActiveTab('log')}
-            className={`px-4 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shrink-0 ${
               activeTab === 'log'
-                ? 'bg-[#283822] text-white shadow-xs'
-                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/70'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
-            <ClipboardList className="w-3.5 h-3.5" />
+            <ClipboardList className="w-4 h-4 shrink-0" />
             <span>Daily Gate Register (Log)</span>
           </button>
         </div>
 
-        {/* Quick Link to Next Step (GRN / Goods Receiving) */}
-        <div className="flex items-center gap-2">
-          <Link
-            to="/goods-receiving"
-            className="px-3.5 py-2 rounded-lg border border-slate-300 hover:border-emerald-600 hover:text-emerald-800 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-          >
-            <span>Proceed to Step 3 (GRN)</span>
-            <ArrowUpRight className="w-3.5 h-3.5" />
-          </Link>
+        <div className="flex items-center gap-2 px-2 text-xs font-semibold text-slate-500">
+          <span>Inward Station: Terminal 01</span>
         </div>
       </div>
 
@@ -515,36 +501,36 @@ export default function GateEntry() {
       {/* TAB 1: NEW GATE ENTRY FORM                                */}
       {/* ========================================================= */}
       {activeTab === 'new' && (
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          {/* Left 8 Cols: Form Fields */}
-          <div className="lg:col-span-8 space-y-4">
-            {/* Section 1: Vehicle & Driver */}
-            <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <Truck className="w-4 h-4 text-emerald-700" />
+        <form onSubmit={handleSubmit} className="w-full space-y-6">
+          {/* Section 1: Vehicle & Driver */}
+          <div className="bg-white rounded-2xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                    <Truck className="w-4 h-4" />
+                  </div>
                   <span>1. Vehicle &amp; Driver Details</span>
                 </h3>
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
                   <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Entry Time:</span>
+                  <span className="font-medium text-slate-500">In-Time:</span>
                   <input
                     type="text"
                     value={inTime}
                     onChange={(e) => setInTime(e.target.value)}
-                    className="w-36 bg-transparent font-semibold text-slate-800 focus:outline-none border-b border-dashed border-slate-400"
+                    className="w-40 bg-transparent font-semibold text-slate-800 focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Vehicle Number */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Vehicle Registration No. <span className="text-rose-500">*</span>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Vehicle Number <span className="text-rose-500">*</span>
                   </label>
-                  <div className="relative flex">
-                    <span className="inline-flex items-center px-2 rounded-l-lg border border-r-0 border-slate-300 bg-slate-100 text-[10px] font-black text-blue-900 select-none">
+                  <div className="relative flex shadow-2xs rounded-lg overflow-hidden border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
+                    <span className="inline-flex items-center px-2.5 bg-slate-100 border-r border-slate-200 text-xs font-bold text-indigo-900 select-none">
                       IND
                     </span>
                     <input
@@ -553,21 +539,21 @@ export default function GateEntry() {
                       onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
                       placeholder="e.g. RJ14 GA 4589"
                       required
-                      className="w-full pl-2.5 pr-2 py-2 rounded-r-lg border border-slate-300 text-xs font-bold uppercase text-slate-900 font-mono focus:outline-none focus:ring-1 focus:ring-[#283822]"
+                      className="w-full px-3 py-2 text-sm font-bold uppercase text-slate-900 font-mono outline-none"
                     />
                   </div>
                 </div>
 
                 {/* Vehicle Type */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Vehicle Type <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <select
                       value={vehicleType}
                       onChange={(e) => setVehicleType(e.target.value)}
-                      className="w-full pl-3 pr-7 py-2 rounded-lg border border-slate-300 text-xs text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-[#283822] appearance-none cursor-pointer"
+                      className="w-full pl-3 pr-8 py-2 rounded-lg border border-slate-300 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer"
                     >
                       <option value="Heavy Commercial Truck">Heavy Commercial Truck</option>
                       <option value="Covered Container">Covered Container</option>
@@ -575,13 +561,13 @@ export default function GateEntry() {
                       <option value="Trailor (Multi-Axle)">Trailor (Multi-Axle)</option>
                       <option value="Tanker (Fuel/Liquid)">Tanker (Fuel/Liquid)</option>
                     </select>
-                    <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-3 pointer-events-none text-slate-400" />
+                    <ChevronDown className="w-4 h-4 absolute right-2.5 top-3 pointer-events-none text-slate-400" />
                   </div>
                 </div>
 
                 {/* Driver Name */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Driver Full Name <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -590,14 +576,14 @@ export default function GateEntry() {
                     onChange={(e) => setDriverName(e.target.value)}
                     placeholder="Enter driver name"
                     required
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#283822]"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
 
                 {/* Driver Contact Phone */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Driver Mobile Contact <span className="text-rose-500">*</span>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Driver Phone Contact <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="tel"
@@ -605,63 +591,67 @@ export default function GateEntry() {
                     onChange={(e) => setDriverContact(e.target.value)}
                     placeholder="e.g. 98765 43210"
                     required
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#283822]"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
 
                 {/* Purpose of Entry */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Purpose of Entry <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <select
                       value={purpose}
                       onChange={(e) => setPurpose(e.target.value)}
-                      className="w-full pl-3 pr-7 py-2 rounded-lg border border-slate-300 text-xs text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-[#283822] appearance-none cursor-pointer"
+                      className="w-full pl-3 pr-8 py-2 rounded-lg border border-slate-300 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer"
                     >
-                      <option value="Goods Delivery (GRN)">Goods Delivery (GRN Inward)</option>
+                      <option value="Goods Delivery (GRN Inward)">Goods Delivery (GRN Inward)</option>
                       <option value="Quality / Lab Testing Sample">Quality / Lab Sample</option>
                       <option value="Return / Replaced Stock">Return / Replaced Stock</option>
-                      <option value="Maintenance / Empty Exit">Maintenance / Transfer</option>
+                      <option value="Maintenance / Transfer">Maintenance / Transfer</option>
                     </select>
-                    <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-3 pointer-events-none text-slate-400" />
+                    <ChevronDown className="w-4 h-4 absolute right-2.5 top-3 pointer-events-none text-slate-400" />
                   </div>
                 </div>
 
                 {/* Unloading Bay Assignment */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Assign Unloading Bay <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <select
                       value={assignedBay}
                       onChange={(e) => setAssignedBay(e.target.value)}
-                      className="w-full pl-3 pr-7 py-2 rounded-lg border border-slate-300 text-xs text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-[#283822] appearance-none cursor-pointer font-medium"
+                      className="w-full pl-3 pr-8 py-2 rounded-lg border border-slate-300 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer font-medium"
                     >
-                      <option value="Bay 1 (General Stores)">Bay 1 (General Stores)</option>
-                      <option value="Bay 2 (Dry Ration / Food)">Bay 2 (Dry Ration / Food - Shade 3)</option>
-                      <option value="Bay 3 (Ammunition & Spares)">Bay 3 (Ammunition &amp; Spares - Shade 1)</option>
-                      <option value="Bay 4 (Bulk Storage)">Bay 4 (Bulk Storage - Shade 6)</option>
+                      <option value="Bay 1 (General Stores - Shade 1)">Bay 1 (General Stores - Shade 1)</option>
+                      <option value="Bay 2 (Food & Grains - Shade 2)">Bay 2 (Food &amp; Grains - Shade 2)</option>
+                      <option value="Bay 3 (Industrial Supplies - Shade 3)">Bay 3 (Industrial Supplies - Shade 3)</option>
+                      <option value="Bay 4 (Apparel & Uniforms - Shade 4)">Bay 4 (Apparel &amp; Uniforms - Shade 4)</option>
+                      <option value="Bay 5 (Hardware & Tools - Shade 5)">Bay 5 (Hardware &amp; Tools - Shade 5)</option>
+                      <option value="Bay 6 (Medical & Pharma - Shade 6)">Bay 6 (Medical &amp; Pharma - Shade 6)</option>
                     </select>
-                    <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-3 pointer-events-none text-slate-400" />
+                    <ChevronDown className="w-4 h-4 absolute right-2.5 top-3 pointer-events-none text-slate-400" />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Section 2: Supplier & Document Reference (Critical for Step 3 GRN) */}
-            <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-4">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2.5">
-                <FileText className="w-4 h-4 text-emerald-700" />
+            {/* Section 2: Supplier & Document Reference */}
+            <div className="bg-white rounded-2xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-5">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                  <FileText className="w-4 h-4" />
+                </div>
                 <span>2. Supplier &amp; Document Reference</span>
               </h3>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Supplier / Vendor Name */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Supplier / Vendor / Party Name <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
@@ -669,23 +659,23 @@ export default function GateEntry() {
                       value={supplier}
                       onChange={(e) => setSupplier(e.target.value)}
                       required
-                      className="w-full pl-3 pr-7 py-2 rounded-lg border border-slate-300 text-xs text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-[#283822] appearance-none cursor-pointer"
+                      className="w-full pl-3 pr-8 py-2 rounded-lg border border-slate-300 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer"
                     >
                       <option value="">Select Registered Supplier</option>
                       <option value="M/s Bharat Supply Corp">M/s Bharat Supply Corp</option>
-                      <option value="M/s Defence Foods Ltd">M/s Defence Foods Ltd</option>
-                      <option value="M/s Ordnance Factory Board">M/s Ordnance Factory Board</option>
-                      <option value="M/s Army Stores Depot">M/s Army Stores Depot</option>
+                      <option value="M/s Prime Foods Ltd">M/s Prime Foods Ltd</option>
+                      <option value="M/s Apex Manufacturing Ltd">M/s Apex Manufacturing Ltd</option>
+                      <option value="M/s Metro Supplies Corp">M/s Metro Supplies Corp</option>
                       <option value="M/s National Logistics">M/s National Logistics</option>
-                      <option value="M/s Reliance Logistics & Ration">M/s Reliance Logistics &amp; Ration</option>
+                      <option value="M/s Reliance Logistics & Retail">M/s Reliance Logistics &amp; Retail</option>
                     </select>
-                    <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-3 pointer-events-none text-slate-400" />
+                    <ChevronDown className="w-4 h-4 absolute right-2.5 top-3 pointer-events-none text-slate-400" />
                   </div>
                 </div>
 
                 {/* PO / Challan / Invoice Reference */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Challan / PO / Invoice Number <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -694,70 +684,72 @@ export default function GateEntry() {
                     onChange={(e) => setChallanNo(e.target.value.toUpperCase())}
                     placeholder="e.g. CH-2026-9912 or PO-4587"
                     required
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-mono font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#283822]"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
-                  <span className="text-[10px] text-slate-500">Required by GRN team to match order</span>
+                  <span className="text-xs text-slate-400 mt-1 block">Cross-verified by GRN inspection team</span>
                 </div>
               </div>
             </div>
 
-            {/* Section 3: Material & Declared Packaging (Counted at Gate) */}
-            <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3.5">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            {/* Section 3: Material & Declared Packaging */}
+            <div className="bg-white rounded-2xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                    <Package className="w-4 h-4 text-emerald-700" />
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                      <Package className="w-4 h-4" />
+                    </div>
                     <span>3. Declared Packaging / Material Inward</span>
                   </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Gate records physical packaging (e.g. Gattas / Bags). Base inventory units will be verified in Step 3 (GRN).
+                  <p className="text-xs text-slate-500 mt-1">
+                    Gate logs physical carton/packaging count. Detailed piece verification happens at Step 3 (GRN).
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleAddItem}
-                  className="px-3 py-1.5 rounded-lg bg-[#283822] hover:bg-[#1f2c1a] text-white text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                  className="px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs self-start sm:self-auto"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Line Item</span>
                 </button>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs min-w-[650px]">
+              <div className="overflow-x-auto rounded-xl border border-slate-100">
+                <table className="w-full text-left text-sm min-w-[700px]">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider font-bold">
-                      <th className="py-3 px-3 w-10">#</th>
-                      <th className="py-3 px-3 min-w-[180px]">Product / Material</th>
+                    <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 text-xs uppercase tracking-wider font-bold">
+                      <th className="py-3 px-3 w-10 text-center">#</th>
+                      <th className="py-3 px-3 min-w-[200px]">Product / Material</th>
                       <th className="py-3 px-3 w-32">Declared Qty</th>
                       <th className="py-3 px-3 w-40">Packaging Unit</th>
-                      <th className="py-3 px-3 min-w-[160px]">Estimated Base Units</th>
+                      <th className="py-3 px-3 min-w-[170px]">Estimated Base Units</th>
                       <th className="py-3 px-3 min-w-[130px]">Remarks / Note</th>
                       <th className="py-3 px-3 w-10 text-center"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 bg-white">
                     {materialItems.map((item, index) => (
                       <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3.5 px-3 text-slate-400 font-mono text-[11px]">{index + 1}</td>
-                        <td className="py-3.5 px-3">
+                        <td className="py-3 px-3 text-slate-400 font-mono text-xs text-center font-semibold">{index + 1}</td>
+                        <td className="py-3 px-3">
                           <select
                             value={item.product}
                             onChange={(e) => handleItemChange(item.id, 'product', e.target.value)}
                             required
-                            className="w-full px-2 py-1.5 rounded-md border border-slate-300 text-xs bg-white text-slate-800"
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           >
                             <option value="">Select Material</option>
-                            <option value="Biscuit (Glucose 100g)">Biscuit (Glucose 100g)</option>
-                            <option value="Rice (Basmati Grade 1)">Rice (Basmati Grade 1)</option>
-                            <option value="Cooking Oil (Refined)">Cooking Oil (Refined 15L)</option>
-                            <option value="Dal (Arhar / Toor)">Dal (Arhar / Toor)</option>
-                            <option value="Sugar (Refined)">Sugar (Refined White)</option>
-                            <option value="Standard Combat Boots">Standard Combat Boots</option>
-                            <option value="7.62mm Ammunition Box">7.62mm Ammunition Box</option>
+                            <option value="Biscuit (Glucose 100g)">Standard Biscuit Packs (Glucose 100g)</option>
+                            <option value="Rice (Basmati Grade 1)">Basmati Rice (Grade 1 Special)</option>
+                            <option value="Cooking Oil (Refined)">Refined Mustard Oil (15L)</option>
+                            <option value="Dal (Arhar / Toor)">Chana Dal (Super Clean)</option>
+                            <option value="Sugar (Refined)">Refined Sugar (Bulk Pack)</option>
+                            <option value="Industrial Hardware Tools">Industrial Hardware &amp; Tools Box</option>
+                            <option value="Medical & Pharma Supplies">Medical &amp; First Aid Supplies</option>
                           </select>
                         </td>
-                        <td className="py-3.5 px-3">
+                        <td className="py-3 px-3">
                           <input
                             type="number"
                             min="1"
@@ -765,14 +757,14 @@ export default function GateEntry() {
                             onChange={(e) => handleItemChange(item.id, 'packageQty', e.target.value)}
                             placeholder="e.g. 100"
                             required
-                            className="w-full px-2 py-1.5 rounded-md border border-slate-300 text-xs text-slate-900 font-bold"
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           />
                         </td>
-                        <td className="py-3.5 px-3">
+                        <td className="py-3 px-3">
                           <select
                             value={item.packagingUnit}
                             onChange={(e) => handleItemChange(item.id, 'packagingUnit', e.target.value)}
-                            className="w-full px-2 py-1.5 rounded-md border border-slate-300 text-xs bg-white text-slate-800"
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           >
                             <option value="Gatta (Carton)">Gatta (Carton)</option>
                             <option value="Bags (50 Kg)">Bags (50 Kg)</option>
@@ -781,26 +773,26 @@ export default function GateEntry() {
                             <option value="Individual Pieces">Individual Pieces</option>
                           </select>
                         </td>
-                        <td className="py-3.5 px-3">
-                          <span className="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-1.5 rounded border border-emerald-200 block truncate">
+                        <td className="py-3 px-3">
+                          <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 block truncate">
                             {item.baseUnitEstimate || 'Calculated in GRN'}
                           </span>
                         </td>
-                        <td className="py-3.5 px-3">
+                        <td className="py-3 px-3">
                           <input
                             type="text"
                             value={item.remarks}
                             onChange={(e) => handleItemChange(item.id, 'remarks', e.target.value)}
-                            placeholder="e.g. Shade 3"
-                            className="w-full px-2 py-1.5 rounded-md border border-slate-300 text-xs text-slate-700"
+                            placeholder="e.g. Shade 2"
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           />
                         </td>
-                        <td className="py-3.5 px-3 text-center">
+                        <td className="py-3 px-3 text-center">
                           <button
                             type="button"
                             onClick={() => handleRemoveItem(item.id)}
                             disabled={materialItems.length === 1}
-                            className="text-slate-400 hover:text-rose-500 disabled:opacity-30 cursor-pointer p-1.5 rounded hover:bg-rose-50 transition-colors"
+                            className="text-slate-400 hover:text-rose-600 disabled:opacity-30 cursor-pointer p-1.5 rounded-md hover:bg-rose-50 transition-colors"
                             title="Remove row"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -814,107 +806,34 @@ export default function GateEntry() {
             </div>
 
             {/* General Remarks & Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
-              <input
-                type="text"
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                placeholder="Optional gate note or security remarks..."
-                className="px-3 py-2 rounded-lg border border-slate-300 text-xs text-slate-800 sm:w-1/2 focus:outline-none focus:ring-1 focus:ring-[#283822]"
-              />
+            <div className="pt-2 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+              <div className="flex-1 min-w-[200px]">
+                <input
+                  type="text"
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  placeholder="Optional gate officer remarks or delivery note..."
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs bg-white"
+                />
+              </div>
 
-              <div className="flex items-center justify-end gap-2.5">
+              <div className="flex items-center justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="px-4 py-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer shadow-xs"
+                  className="px-5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 text-sm font-bold whitespace-nowrap shrink-0 cursor-pointer shadow-2xs transition-colors"
                 >
                   Clear Form
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-lg bg-[#283822] hover:bg-[#1e2b19] text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md transition-all"
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-bold whitespace-nowrap shrink-0 flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:shadow transition-all"
                 >
-                  <Printer className="w-3.5 h-3.5 text-emerald-300" />
-                  <span>Register Inward &amp; Print Pass</span>
+                  <Printer className="w-4 h-4 shrink-0" />
+                  <span>Register &amp; Print Pass</span>
                 </button>
               </div>
             </div>
-          </div>
-
-          {/* Right 4 Cols: Quick Operator Help & Recent Inward Badges */}
-          <div className="lg:col-span-4 space-y-4">
-            {/* Quick Flow Reference Card */}
-            <div className="bg-[#182815] text-white rounded-xl p-4 border border-[#2d4727] shadow-sm space-y-3">
-              <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-wider">
-                <Shield className="w-4 h-4" />
-                <span>Gate Inward Protocol</span>
-              </div>
-              <p className="text-xs text-slate-200 leading-relaxed">
-                Every arriving truck is assigned a unique <strong className="text-white">Gate Pass Token</strong>. The driver carries this slip to the unloading bay where the <strong className="text-emerald-300">GRN team</strong> conducts physical verification and piece conversion.
-              </p>
-              <div className="bg-[#121f10] p-3 rounded-lg border border-emerald-900/50 space-y-1.5 text-[11px]">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <span className="w-4 h-4 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[9px] font-bold">1</span>
-                  <span>Vehicle enters ➔ Register Gate Inward</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <span className="w-4 h-4 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[9px] font-bold">2</span>
-                  <span>Driver proceeds to assigned Bay</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <span className="w-4 h-4 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[9px] font-bold">3</span>
-                  <span>GRN team unpacks to minimum base units</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <span className="w-4 h-4 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[9px] font-bold">4</span>
-                  <span>After unload ➔ Issue Exit Gate Outward Pass</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Live Preview of Vehicles Inside */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-emerald-700" />
-                  <span>Currently at Bays ({activeVehicles.length})</span>
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('queue')}
-                  className="text-[10px] font-bold text-emerald-800 hover:underline cursor-pointer"
-                >
-                  Manage All →
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                {activeVehicles.slice(0, 3).map((truck) => (
-                  <div
-                    key={truck.id}
-                    className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition-colors flex items-center justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold text-xs text-slate-900">{truck.vehicleNo}</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 font-semibold">
-                          {truck.bay.split(' ')[0]}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{truck.itemsSummary}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 block">
-                        {truck.status}
-                      </span>
-                      <span className="text-[9px] text-slate-400 font-mono mt-0.5 block">{truck.inTime.split(',')[1]}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </form>
       )}
 
@@ -922,87 +841,92 @@ export default function GateEntry() {
       {/* TAB 2: TRUCKS INSIDE DEPOT (LIVE BAY QUEUE)               */}
       {/* ========================================================= */}
       {activeTab === 'queue' && (
-        <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Truck className="w-4 h-4 text-emerald-700" />
-                <span>Live Trucks Inside Warehouse Premises</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Vehicles currently parked, unloading material at bays, or undergoing GRN inspection.
-              </p>
+        <div className="w-full bg-white rounded-2xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 shadow-xs">
+                <Truck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg sm:text-xl font-bold text-slate-900">
+                  Vehicles Inside Warehouse Premises
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+                  Live tracking of carriers actively parked, unloading at bays, or undergoing receiving inspections
+                </p>
+              </div>
             </div>
-            <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
+
+            <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3.5 py-1.5 rounded-xl self-start sm:self-auto">
               Active Count: {activeVehicles.length} Vehicles
             </span>
           </div>
 
           {activeVehicles.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-xs">
-              <Truck className="w-10 h-10 mx-auto mb-2 opacity-40" />
-              <p className="font-semibold">No vehicles currently inside the premises.</p>
+            <div className="py-16 text-center text-slate-400 text-sm">
+              <Truck className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="font-semibold text-slate-600">No vehicles currently inside the premises.</p>
               <button
                 onClick={() => setActiveTab('new')}
-                className="mt-3 px-4 py-2 bg-[#283822] text-white rounded-lg text-xs font-bold"
+                className="mt-4 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-indigo-700 transition-colors"
               >
                 Register New Gate Inward
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs min-w-[950px]">
+            <div className="overflow-x-auto rounded-xl border border-slate-100">
+              <table className="w-full text-left text-sm min-w-[850px]">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] uppercase tracking-wider font-bold">
-                    <th className="py-3 px-4">Pass Token</th>
-                    <th className="py-3 px-4">Vehicle Reg.</th>
-                    <th className="py-3 px-4">Driver &amp; Phone</th>
-                    <th className="py-3 px-4">Supplier / Challan</th>
-                    <th className="py-3 px-4">Assigned Bay</th>
-                    <th className="py-3 px-4">Declared Material</th>
-                    <th className="py-3 px-4">In Time</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                  <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-bold">
+                    <th className="py-4 px-4">Pass Token</th>
+                    <th className="py-4 px-4">Vehicle Reg.</th>
+                    <th className="py-4 px-4">Driver &amp; Phone</th>
+                    <th className="py-4 px-4">Supplier / Challan</th>
+                    <th className="py-4 px-4">Assigned Bay</th>
+                    <th className="py-4 px-4">Declared Material</th>
+                    <th className="py-4 px-4">In Time</th>
+                    <th className="py-4 px-4 text-center">Status</th>
+                    <th className="py-4 px-5 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 bg-white">
                   {activeVehicles.map((vehicle) => (
                     <tr key={vehicle.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-4 px-4 font-mono font-bold text-emerald-800 whitespace-nowrap">{vehicle.id}</td>
+                      <td className="py-4 px-4 font-mono font-bold text-indigo-700 whitespace-nowrap">{vehicle.id}</td>
                       <td className="py-4 px-4">
-                        <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 whitespace-nowrap">
+                        <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 whitespace-nowrap shadow-2xs">
                           {vehicle.vehicleNo}
                         </span>
-                        <span className="block text-[10px] text-slate-500 mt-1">{vehicle.vehicleType}</span>
+                        <span className="block text-xs text-slate-500 mt-1 font-medium">{vehicle.vehicleType}</span>
                       </td>
                       <td className="py-4 px-4 whitespace-nowrap">
-                        <p className="font-semibold text-slate-800">{vehicle.driver}</p>
-                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">{vehicle.phone}</p>
+                        <p className="font-bold text-slate-900">{vehicle.driver}</p>
+                        <p className="text-xs text-slate-500 font-mono mt-0.5">{vehicle.phone}</p>
                       </td>
                       <td className="py-4 px-4">
                         <p className="font-medium text-slate-800">{vehicle.supplier}</p>
-                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">Ref: {vehicle.challanNo}</p>
+                        <p className="text-xs text-slate-500 font-mono mt-0.5">Ref: {vehicle.challanNo}</p>
                       </td>
                       <td className="py-4 px-4">
-                        <span className="font-semibold text-slate-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200 text-[11px] whitespace-nowrap">
+                        <span className="font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 text-xs whitespace-nowrap">
                           {vehicle.bay}
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-slate-700 font-medium max-w-[160px]">
+                      <td className="py-4 px-4 text-slate-700 font-medium max-w-[180px]">
                         <span className="block truncate">{vehicle.itemsSummary}</span>
                       </td>
-                      <td className="py-4 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">{vehicle.inTime}</td>
-                      <td className="py-4 px-4">
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap">
+                      <td className="py-4 px-4 text-slate-500 font-mono text-xs whitespace-nowrap">{vehicle.inTime}</td>
+                      <td className="py-4 px-4 text-center">
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
                           {vehicle.status}
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-right">
+                      <td className="py-4 px-5 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => setActivePassModal(vehicle)}
-                            className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold cursor-pointer transition-colors"
+                            className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold cursor-pointer transition-colors shadow-2xs"
                             title="View Inward Slip"
                           >
                             Slip
@@ -1010,10 +934,10 @@ export default function GateEntry() {
                           <button
                             type="button"
                             onClick={() => handleGateOut(vehicle.id)}
-                            className="px-3 py-1.5 rounded-lg bg-[#283822] hover:bg-[#1a2616] text-white text-[11px] font-bold cursor-pointer shadow-xs flex items-center gap-1.5 transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer shadow-2xs flex items-center gap-1.5 transition-colors"
                             title="Issue Outward Gate Pass"
                           >
-                            <LogOut className="w-3 h-3" />
+                            <LogOut className="w-3.5 h-3.5" />
                             <span>Gate Out</span>
                           </button>
                         </div>
@@ -1031,35 +955,39 @@ export default function GateEntry() {
       {/* TAB 3: DAILY GATE REGISTER (LOG)                          */}
       {/* ========================================================= */}
       {activeTab === 'log' && (
-        <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <ClipboardList className="w-4 h-4 text-emerald-700" />
-                <span>Daily Gate Inward &amp; Outward Register</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Search, filter, and audit all vehicle movement records through the gate.
-              </p>
+        <div className="w-full bg-white rounded-2xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 shadow-xs">
+                <ClipboardList className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg sm:text-xl font-bold text-slate-900">
+                  Daily Gate Inward &amp; Outward Register
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+                  Complete historical audit ledger of all vehicle check-ins and check-outs
+                </p>
+              </div>
             </div>
 
             {/* Filters & Search */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
               <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400 pointer-events-none" />
+                <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
                   value={logSearch}
                   onChange={(e) => setLogSearch(e.target.value)}
                   placeholder="Search vehicle, driver, token..."
-                  className="pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-800 w-56 focus:outline-none focus:ring-1 focus:ring-[#283822]"
+                  className="pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
               <select
                 value={logStatusFilter}
                 onChange={(e) => setLogStatusFilter(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-700 font-semibold"
+                className="px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               >
                 <option value="All">All Movements</option>
                 <option value="Inside">Inside Warehouse Only</option>
@@ -1068,55 +996,59 @@ export default function GateEntry() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs min-w-[950px]">
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
+            <table className="w-full text-left text-sm min-w-[850px]">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] uppercase tracking-wider font-bold">
-                  <th className="py-3 px-4">Pass Token</th>
-                  <th className="py-3 px-4">Vehicle Reg.</th>
-                  <th className="py-3 px-4">Driver Name</th>
-                  <th className="py-3 px-4">Supplier</th>
-                  <th className="py-3 px-4">Challan / PO</th>
-                  <th className="py-3 px-4">In Time</th>
-                  <th className="py-3 px-4">Out Time</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Gate Pass</th>
+                <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-bold">
+                  <th className="py-4 px-4">Pass Token</th>
+                  <th className="py-4 px-4">Vehicle Reg.</th>
+                  <th className="py-4 px-4">Driver Name</th>
+                  <th className="py-4 px-4">Supplier</th>
+                  <th className="py-4 px-4">Challan / PO</th>
+                  <th className="py-4 px-4">In Time</th>
+                  <th className="py-4 px-4">Out Time</th>
+                  <th className="py-4 px-4 text-center">Status</th>
+                  <th className="py-4 px-5 text-right">Gate Pass</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {filteredGateLog.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-4 px-4 font-mono font-bold text-emerald-800 whitespace-nowrap">{log.id}</td>
-                    <td className="py-4 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">{log.vehicleNo}</td>
-                    <td className="py-4 px-4 font-medium text-slate-800 whitespace-nowrap">{log.driver}</td>
+                    <td className="py-4 px-4 font-mono font-bold text-indigo-700 whitespace-nowrap">{log.id}</td>
+                    <td className="py-4 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">
+                      <span className="bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                        {log.vehicleNo}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 font-bold text-slate-900 whitespace-nowrap">{log.driver}</td>
                     <td className="py-4 px-4 text-slate-700">{log.supplier}</td>
                     <td className="py-4 px-4 font-mono text-slate-600 whitespace-nowrap">{log.challanNo}</td>
-                    <td className="py-4 px-4 font-mono text-slate-500 text-[11px] whitespace-nowrap">{log.inTime}</td>
-                    <td className="py-4 px-4 font-mono text-slate-500 text-[11px] whitespace-nowrap">
+                    <td className="py-4 px-4 font-mono text-slate-500 text-xs whitespace-nowrap">{log.inTime}</td>
+                    <td className="py-4 px-4 font-mono text-slate-500 text-xs whitespace-nowrap">
                       {log.outTime === '-' ? (
-                        <span className="text-amber-600 font-semibold italic">On-site</span>
+                        <span className="text-amber-600 font-semibold italic bg-amber-50 px-2 py-0.5 rounded border border-amber-200">On-site</span>
                       ) : (
                         log.outTime
                       )}
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="py-4 px-4 text-center">
                       <span
-                        className={`text-[10px] font-bold px-2.5 py-1 rounded-full border whitespace-nowrap ${
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap ${
                           log.status === 'Inside Warehouse'
-                            ? 'bg-amber-100 text-amber-800 border-amber-300'
-                            : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         }`}
                       >
                         {log.status}
                       </span>
                     </td>
-                    <td className="py-4 px-4 text-right">
+                    <td className="py-4 px-5 text-right">
                       <button
                         type="button"
                         onClick={() => setActivePassModal(log)}
-                        className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold cursor-pointer inline-flex items-center gap-1.5 transition-colors"
+                        className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5 transition-colors shadow-2xs"
                       >
-                        <Printer className="w-3 h-3 text-slate-500" />
+                        <Printer className="w-3.5 h-3.5 text-slate-500" />
                         <span>View Pass</span>
                       </button>
                     </td>
@@ -1132,56 +1064,56 @@ export default function GateEntry() {
       {/* PRINTABLE GATE PASS / INWARD SLIP MODAL (WITH QR CODE)   */}
       {/* ========================================================= */}
       {activePassModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-300 overflow-hidden space-y-0 animate-scale-in">
-            {/* Slip Header (Military Depot Official Format) */}
-            <div className="bg-[#142312] text-white p-4 border-b-2 border-amber-400">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden space-y-0 animate-scale-in">
+            {/* Slip Header */}
+            <div className="bg-slate-900 text-white p-5 border-b border-slate-800">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-[#243d1f] text-amber-300 flex items-center justify-center font-bold">
-                    <Shield className="w-4 h-4" />
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold">
+                    <Truck className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-sm tracking-wide text-white">
-                      CENTRAL SUPPLY DEPOT
+                    <h3 className="font-extrabold text-base tracking-wide text-white">
+                      WAREHOUSE OPERATIONS
                     </h3>
-                    <p className="text-[10px] text-amber-300 font-semibold tracking-wider uppercase">
-                      Official Gate Inward Pass &amp; Transit Slip
+                    <p className="text-xs text-indigo-300 font-semibold tracking-wider uppercase">
+                      Official Vehicle Inward Gate Pass
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setActivePassModal(null)}
-                  className="text-slate-400 hover:text-white p-1 cursor-pointer"
+                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
             {/* Slip Body Content */}
-            <div className="p-5 space-y-4 text-xs">
+            <div className="p-6 space-y-4 text-sm">
               {/* Token & Simulated QR Code */}
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
-                  <p className="text-[10px] uppercase font-bold text-slate-500">Gate Pass Token No.</p>
-                  <p className="text-base font-extrabold text-[#283822] font-mono">{activePassModal.id}</p>
-                  <p className="text-[10px] text-slate-500 font-medium mt-0.5">
-                    Assigned Bay: <strong className="text-slate-800">{activePassModal.bay || 'Bay 2'}</strong>
+                  <p className="text-xs uppercase font-bold text-slate-500">Gate Pass Token No.</p>
+                  <p className="text-lg font-extrabold text-indigo-700 font-mono mt-0.5">{activePassModal.id}</p>
+                  <p className="text-xs text-slate-600 font-medium mt-1">
+                    Assigned Bay: <strong className="text-slate-900">{activePassModal.bay || 'Bay 2'}</strong>
                   </p>
                 </div>
-                <div className="w-16 h-16 bg-white border border-slate-300 rounded-lg p-1.5 flex flex-col items-center justify-center shadow-xs">
-                  <QrCode className="w-11 h-11 text-slate-800" />
-                  <span className="text-[8px] font-mono font-bold text-slate-500">GATE-QR</span>
+                <div className="w-18 h-18 bg-white border border-slate-300 rounded-xl p-2 flex flex-col items-center justify-center shadow-xs">
+                  <QrCode className="w-12 h-12 text-slate-800" />
+                  <span className="text-[9px] font-mono font-bold text-slate-500 mt-0.5">GATE-PASS</span>
                 </div>
               </div>
 
               {/* Two Column Key-Value Details */}
-              <div className="grid grid-cols-2 gap-2.5 border-y border-slate-200 py-3 text-[11px]">
+              <div className="grid grid-cols-2 gap-3 border-y border-slate-200 py-4 text-xs">
                 <div>
                   <span className="text-slate-500 block">Vehicle Registration:</span>
-                  <span className="font-mono font-bold text-slate-900 text-xs">{activePassModal.vehicleNo}</span>
+                  <span className="font-mono font-bold text-slate-900 text-sm">{activePassModal.vehicleNo}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block">Vehicle Type:</span>
@@ -1196,12 +1128,12 @@ export default function GateEntry() {
                   <span className="font-mono font-semibold text-slate-800">{activePassModal.phone}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block">Supplier / Party:</span>
+                  <span className="text-slate-500 block">Supplier / Contracting Party:</span>
                   <span className="font-semibold text-slate-800">{activePassModal.supplier}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block">Challan / PO Ref:</span>
-                  <span className="font-mono font-bold text-emerald-800">{activePassModal.challanNo}</span>
+                  <span className="font-mono font-bold text-indigo-700">{activePassModal.challanNo}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block">Gate In Time:</span>
@@ -1214,28 +1146,28 @@ export default function GateEntry() {
               </div>
 
               {/* Declared Material Summary */}
-              <div className="bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-200">
-                <span className="text-[10px] font-bold uppercase text-emerald-900 block">
+              <div className="bg-indigo-50/70 p-3.5 rounded-xl border border-indigo-100">
+                <span className="text-xs font-bold uppercase text-indigo-900 block">
                   Declared Consignment &amp; Packaging:
                 </span>
-                <p className="text-xs font-semibold text-slate-800 mt-0.5">
-                  {activePassModal.itemsSummary || 'Standard Military Stores Consignment'}
+                <p className="text-sm font-semibold text-slate-800 mt-1">
+                  {activePassModal.itemsSummary || 'Standard Commercial Consignment'}
                 </p>
               </div>
 
-              {/* GRN Tear-Off Instructions */}
-              <div className="border-t border-dashed border-slate-300 pt-2.5 flex items-center justify-between text-[10px] text-slate-500">
-                <span>Authorized Security Guard Sign</span>
+              {/* Tear-Off Instructions */}
+              <div className="border-t border-dashed border-slate-300 pt-3 flex items-center justify-between text-xs text-slate-500">
+                <span>Security Officer Verified</span>
                 <span className="font-mono font-bold text-slate-700">GRN Handover Copy</span>
               </div>
             </div>
 
             {/* Modal Buttons */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setActivePassModal(null)}
-                className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-white cursor-pointer"
+                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-white cursor-pointer"
               >
                 Close
               </button>
@@ -1244,9 +1176,9 @@ export default function GateEntry() {
                 onClick={() => {
                   window.print()
                 }}
-                className="px-5 py-2 bg-[#283822] hover:bg-[#1b2717] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md"
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
-                <Printer className="w-3.5 h-3.5 text-amber-300" />
+                <Printer className="w-4 h-4" />
                 <span>Print Official Gate Pass</span>
               </button>
             </div>

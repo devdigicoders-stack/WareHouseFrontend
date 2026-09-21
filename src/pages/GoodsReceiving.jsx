@@ -1,225 +1,261 @@
-import { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import { FileText, Check, Zap, X } from 'lucide-react'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import {
+  Package,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  X,
+  Plus,
+  Download,
+  Search,
+  Printer,
+  ChevronDown,
+  Check,
+  Building2,
+  FileText,
+  Truck,
+  QrCode,
+  Layers,
+} from 'lucide-react'
+
+// Custom Select Component to prevent black dropdown flicker
+function CustomSelect({ label, value, onChange, options, required, zIndexClass = 'z-20' }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const containerRef = useRef(null)
+
+  useEffect(() => {
+    function handleOutside(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [])
+
+  const selectedOption = options.find((opt) => opt.value === value) || options[0]
+
+  return (
+    <div className={`relative ${zIndexClass}`} ref={containerRef}>
+      {label && (
+        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+          {label} {required && <span className="text-rose-500">*</span>}
+        </label>
+      )}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full bg-white border rounded-xl px-3.5 py-2.5 text-xs text-left flex items-center justify-between transition-all cursor-pointer shadow-2xs ${
+          isOpen
+            ? 'border-indigo-600 ring-2 ring-indigo-500/20 text-slate-900'
+            : 'border-slate-300 text-slate-800 hover:border-slate-400'
+        }`}
+      >
+        <span className="truncate font-medium">{selectedOption?.label || value}</span>
+        <ChevronDown
+          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ml-2 ${
+            isOpen ? 'rotate-180 text-indigo-600' : ''
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl py-1 max-h-56 overflow-y-auto z-50">
+          {options.map((opt) => {
+            const isSelected = opt.value === value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value)
+                  setIsOpen(false)
+                }}
+                className={`w-full px-3.5 py-2 text-xs text-left flex items-center justify-between transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-indigo-50 text-indigo-700 font-bold'
+                    : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <span className="truncate">{opt.label}</span>
+                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const STATUS_OPTIONS = [
+  { value: 'Completed', label: 'Completed (Verified & Cleared)' },
+  { value: 'In Process', label: 'In Process (Quality Inspection)' },
+  { value: 'Pending', label: 'Pending (Unloading Bay Verification)' },
+  { value: 'Rejected', label: 'Rejected (Quality Defect / Hold)' },
+]
+
+const SHADE_OPTIONS = [
+  { value: 'Shade 1 (General Stores)', label: 'Shade 1 (General Hardware & Packaging)' },
+  { value: 'Shade 2 (Food & Grains)', label: 'Shade 2 (Dry Ration & Food Grains)' },
+  { value: 'Shade 3 (Industrial Supplies)', label: 'Shade 3 (Industrial Maintenance & Tools)' },
+  { value: 'Shade 4 (Chemical & Hazardous)', label: 'Shade 4 (Paints, Oils & Chemical Drums)' },
+  { value: 'Shade 5 (Electronics & Spares)', label: 'Shade 5 (Electronics, Cables & Hardware)' },
+  { value: 'Shade 6 (Textiles & Medical)', label: 'Shade 6 (Textiles, PPE & First Aid)' },
+]
 
 export default function GoodsReceiving() {
-  // Toast state
-  const [toastMessage, setToastMessage] = useState(null)
-
-  // Active filter tab
-  const [activeTab, setActiveTab] = useState('all') // 'all', 'pending', 'in_process', 'completed', 'rejected'
-
-  // Search & Date
+  const [activeTab, setActiveTab] = useState('all') // 'all', 'completed', 'in_process', 'pending', 'rejected'
   const [searchQuery, setSearchQuery] = useState('')
-  const [dateRange, setDateRange] = useState('16-09-2026 - 16-09-2026')
-
-  // Modals state
   const [showAddModal, setShowAddModal] = useState(false)
   const [showPrintModal, setShowPrintModal] = useState(false)
-  const [showScannerModal, setShowScannerModal] = useState(false)
-  const [showImportModal, setShowImportModal] = useState(false)
-  const [openActionMenuId, setOpenActionMenuId] = useState(null)
+  const [toastMessage, setToastMessage] = useState(null)
 
-  // Selected GRN for detail/print
-  const [selectedGrn, setSelectedGrn] = useState({
-    id: 1,
-    grnNo: 'GRN-2026-001',
-    dateTime: '16 Sep 2026, 09:15',
-    poNo: 'PO-2026-4587',
-    supplier: 'Bharat Supply Co.',
-    vehicleNo: 'UP32 AB 1256',
-    items: 15,
-    status: 'Completed',
-    statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    receivedBy: 'Nk. R. Singh',
-    totalQty: '350 Units',
-    totalValue: '₹ 2,45,000',
-    remarks: 'Inspected and accepted in Central Depot Bay-4',
-    materials: [
-      { code: 'ORD-7701', name: 'Standard Issue Combat Boots (Size 9)', qty: 150, unit: 'Pairs', batch: 'BTH-2026-081' },
-      { code: 'ORD-7704', name: 'Tactical Rucksacks 65L (Camouflage)', qty: 100, unit: 'Nos', batch: 'BTH-2026-084' },
-      { code: 'ORD-7712', name: 'High Altitude Winter Gloves', qty: 100, unit: 'Pairs', batch: 'BTH-2026-090' },
-    ],
-  })
-
-  // Full 10 GRN records directly matching the user's reference screenshot
+  // Real-time Commercial Warehouse Inward GRN Registry
   const [grnList, setGrnList] = useState([
     {
       id: 1,
       grnNo: 'GRN-2026-001',
-      dateTime: '16 Sep 2026, 09:15',
+      dateTime: '18 Sep 2026, 09:15 AM',
       poNo: 'PO-2026-4587',
-      supplier: 'Bharat Supply Co.',
+      supplier: 'M/s Bharat Supply Corp',
       vehicleNo: 'UP32 AB 1256',
-      items: 15,
-      status: 'Completed',
-      statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      receivedBy: 'Nk. R. Singh',
-      totalQty: '350 Units',
+      itemsCount: 15,
+      totalQty: '350 Bags',
       totalValue: '₹ 2,45,000',
-      remarks: 'Inspected and accepted in Central Depot Bay-4',
+      shade: 'Shade 2 (Food & Grains)',
+      status: 'Completed',
+      receivedBy: 'Ramesh Yadav (Clerk)',
+      remarks: 'Inspected and accepted at Bay-2. Moisture & packing verified.',
+      materials: [
+        { code: 'SKU-RIC-01', name: 'Basmati Rice (Grade 1 Special 25kg)', qty: 150, unit: 'Bags', batch: 'BTH-2026-081' },
+        { code: 'SKU-DAL-02', name: 'Chana Dal (Super Clean 30kg)', qty: 100, unit: 'Bags', batch: 'BTH-2026-084' },
+        { code: 'SKU-OIL-03', name: 'Refined Mustard Oil (15L Tin)', qty: 100, unit: 'Tins', batch: 'BTH-2026-090' },
+      ],
     },
     {
       id: 2,
       grnNo: 'GRN-2026-002',
-      dateTime: '16 Sep 2026, 10:05',
-      poNo: 'IND-2026-1123',
-      supplier: 'Defence Ordnance',
+      dateTime: '18 Sep 2026, 10:05 AM',
+      poNo: 'PO-2026-1123',
+      supplier: 'Prime Foods Logistics Ltd',
       vehicleNo: 'HR55 CD 7890',
-      items: 8,
-      status: 'In Process',
-      statusClass: 'bg-blue-100 text-blue-800 border-blue-200',
-      receivedBy: 'Hav. P. Kumar',
-      totalQty: '180 Units',
+      itemsCount: 8,
+      totalQty: '180 Bags',
       totalValue: '₹ 3,20,000',
-      remarks: 'Under technical ballistic and quality clearance',
+      shade: 'Shade 2 (Food & Grains)',
+      status: 'In Process',
+      receivedBy: 'Suresh Chauhan (Logistics)',
+      remarks: 'Under technical QC sampling and lab moisture testing.',
+      materials: [
+        { code: 'SKU-SGR-01', name: 'Refined Sugar Bulk Pack (50kg)', qty: 180, unit: 'Bags', batch: 'SG-2026-11' },
+      ],
     },
     {
       id: 3,
       grnNo: 'GRN-2026-003',
-      dateTime: '16 Sep 2026, 11:20',
-      poNo: 'PO-2026-3321',
-      supplier: 'Army Stores Ltd.',
+      dateTime: '18 Sep 2026, 11:20 AM',
+      poNo: 'PO-2026-8891',
+      supplier: 'Apex Manufacturing Ltd',
       vehicleNo: 'DL01 EF 4321',
-      items: 24,
-      status: 'Pending',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
-      receivedBy: 'Cpl. A. Yadav',
-      totalQty: '520 Units',
+      itemsCount: 24,
+      totalQty: '500 Boxes',
       totalValue: '₹ 4,10,000',
-      remarks: 'Waiting for gate pass counter verification',
+      shade: 'Shade 3 (Industrial Supplies)',
+      status: 'Completed',
+      receivedBy: 'Pooja Rana (Supervisor)',
+      remarks: 'Complete hardware delivery unloaded and racked in Bay-3.',
+      materials: [
+        { code: 'SKU-HDW-09', name: 'Industrial Hardware & Tools Box', qty: 250, unit: 'Boxes', batch: 'PKG-2026-44' },
+        { code: 'SKU-MET-05', name: 'Galvanized Fasteners & Bolts Pack', qty: 250, unit: 'Boxes', batch: 'FST-2026-19' },
+      ],
     },
     {
       id: 4,
       grnNo: 'GRN-2026-004',
-      dateTime: '15 Sep 2026, 16:45',
-      poNo: 'PO-2026-2289',
-      supplier: 'Kansai Pvt Ltd',
-      vehicleNo: 'UP78 GH 9987',
-      items: 12,
-      status: 'Completed',
-      statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      receivedBy: 'Nk. S. Mehta',
-      totalQty: '210 Units',
-      totalValue: '₹ 1,85,000',
-      remarks: 'All packages intact with official hologram seal',
+      dateTime: '18 Sep 2026, 11:55 AM',
+      poNo: 'PO-2026-6644',
+      supplier: 'Kansai Industrial Paints',
+      vehicleNo: 'UP32 ZZ 1111',
+      itemsCount: 12,
+      totalQty: '60 Drums',
+      totalValue: '₹ 1,80,000',
+      shade: 'Shade 4 (Chemical & Hazardous)',
+      status: 'Pending',
+      receivedBy: 'Rajesh Verma (QC Lead)',
+      remarks: 'Chemical drums awaiting safety seal verification at Bay-4.',
+      materials: [
+        { code: 'SKU-PNT-01', name: 'Synthetic Industrial Enamel 20L', qty: 60, unit: 'Drums', batch: 'CHM-2026-02' },
+      ],
     },
     {
       id: 5,
       grnNo: 'GRN-2026-005',
-      dateTime: '15 Sep 2026, 14:30',
-      poNo: 'IND-2026-9901',
-      supplier: 'National Supply',
+      dateTime: '17 Sep 2026, 04:10 PM',
+      poNo: 'PO-2026-9902',
+      supplier: 'National Packaging Supplies',
       vehicleNo: 'RJ14 JK 6543',
-      items: 30,
+      itemsCount: 5,
+      totalQty: '1000 Cartons',
+      totalValue: '₹ 95,000',
+      shade: 'Shade 1 (General Stores)',
       status: 'Completed',
-      statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      receivedBy: 'Hav. D. Singh',
-      totalQty: '680 Units',
-      totalValue: '₹ 5,40,000',
-      remarks: 'Stored in Section B Racks 04-09',
+      receivedBy: 'Ramesh Yadav (Clerk)',
+      remarks: 'Outer corrugated boxes accepted in full count.',
+      materials: [
+        { code: 'SKU-BOX-07', name: 'Corrugated Packaging Cartons (Bundle)', qty: 1000, unit: 'Bundles', batch: 'BOX-2026-99' },
+      ],
     },
     {
       id: 6,
       grnNo: 'GRN-2026-006',
-      dateTime: '15 Sep 2026, 12:10',
-      poNo: 'PO-2026-7765',
-      supplier: 'Eastern Logistics',
-      vehicleNo: 'UP32 ZZ 1111',
-      items: 10,
+      dateTime: '17 Sep 2026, 02:30 PM',
+      poNo: 'PO-2026-3318',
+      supplier: 'Global Agri Traders Ltd',
+      vehicleNo: 'UP78 GH 9987',
+      itemsCount: 10,
+      totalQty: '200 Bags',
+      totalValue: '₹ 1,40,000',
+      shade: 'Shade 2 (Food & Grains)',
       status: 'Rejected',
-      statusClass: 'bg-red-100 text-red-800 border-red-200',
-      receivedBy: 'Lt. S. Chauhan',
-      totalQty: '95 Units',
-      totalValue: '₹ 85,000',
-      remarks: 'Batch barcode mismatch; damaged transit packaging',
-    },
-    {
-      id: 7,
-      grnNo: 'GRN-2026-007',
-      dateTime: '14 Sep 2026, 15:45',
-      poNo: 'PO-2026-6654',
-      supplier: 'Tech Solutions',
-      vehicleNo: 'BR01 XY 2222',
-      items: 18,
-      status: 'Completed',
-      statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      receivedBy: 'Nk. P. Verma',
-      totalQty: '340 Units',
-      totalValue: '₹ 3,90,000',
-      remarks: 'Verified against OEM batch inspection test report',
-    },
-    {
-      id: 8,
-      grnNo: 'GRN-2026-008',
-      dateTime: '14 Sep 2026, 11:25',
-      poNo: 'IND-2026-4433',
-      supplier: 'Global Supplies',
-      vehicleNo: 'MP09 KL 3333',
-      items: 9,
-      status: 'In Process',
-      statusClass: 'bg-blue-100 text-blue-800 border-blue-200',
-      receivedBy: 'Cpl. R. Khan',
-      totalQty: '160 Units',
-      totalValue: '₹ 1,75,000',
-      remarks: 'Weighbridge slip verified; unloading at Dock 2',
-    },
-    {
-      id: 9,
-      grnNo: 'GRN-2026-009',
-      dateTime: '14 Sep 2026, 10:05',
-      poNo: 'PO-2026-8890',
-      supplier: 'Om Traders',
-      vehicleNo: 'GJ05 MN 4444',
-      items: 21,
-      status: 'Pending',
-      statusClass: 'bg-amber-100 text-amber-800 border-amber-200',
-      receivedBy: 'Hav. M. Ali',
-      totalQty: '410 Units',
-      totalValue: '₹ 2,90,000',
-      remarks: 'Awaiting lab chemical test certificate',
-    },
-    {
-      id: 10,
-      grnNo: 'GRN-2026-010',
-      dateTime: '14 Sep 2026, 09:20',
-      poNo: 'PO-2026-7711',
-      supplier: 'Western Traders',
-      vehicleNo: 'UP81 RT 5555',
-      items: 14,
-      status: 'Completed',
-      statusClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      receivedBy: 'Nk. K. Tiwari',
-      totalQty: '290 Units',
-      totalValue: '₹ 2,15,000',
-      remarks: 'Clean stock transfer to Ordnance Division C',
+      receivedBy: 'Rajesh Verma (QC Lead)',
+      remarks: 'Water damage detected in transit. Rejected on gate inspection.',
+      materials: [
+        { code: 'SKU-DAL-08', name: 'Moong Dal (Washed 30kg)', qty: 200, unit: 'Bags', batch: 'REJ-DAL-01' },
+      ],
     },
   ])
 
-  // New GRN form state
+  // Selected GRN for Print Voucher Modal
+  const [selectedGrn, setSelectedGrn] = useState(grnList[0])
+
+  // New GRN Form State
   const [newGrn, setNewGrn] = useState({
     poNo: '',
     supplier: '',
     vehicleNo: '',
-    items: '',
-    receivedBy: 'Nk. R. Singh',
-    status: 'In Process',
-    remarks: 'Received in good condition at Main Inward Bay',
+    itemsCount: '10',
+    totalQty: '200 Bags',
+    totalValue: '₹ 1,50,000',
+    shade: 'Shade 2 (Food & Grains)',
+    status: 'Completed',
+    receivedBy: 'Anil Sharma (Warehouse Manager)',
+    remarks: 'Received and verified at Inward Receiving Terminal',
   })
 
-  // Toast notification trigger
+  // Toast trigger
   const triggerToast = (msg) => {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(null), 3500)
   }
 
-  // Filtered GRN list
+  // Filtered GRNs
   const filteredGrn = useMemo(() => {
     return grnList.filter((item) => {
       // Tab filter
-      if (activeTab === 'pending' && item.status !== 'Pending') return false
-      if (activeTab === 'in_process' && item.status !== 'In Process') return false
       if (activeTab === 'completed' && item.status !== 'Completed') return false
+      if (activeTab === 'in_process' && item.status !== 'In Process') return false
+      if (activeTab === 'pending' && item.status !== 'Pending') return false
       if (activeTab === 'rejected' && item.status !== 'Rejected') return false
 
       // Search filter
@@ -230,978 +266,614 @@ export default function GoodsReceiving() {
           item.poNo.toLowerCase().includes(q) ||
           item.supplier.toLowerCase().includes(q) ||
           item.vehicleNo.toLowerCase().includes(q) ||
-          item.receivedBy.toLowerCase().includes(q)
+          item.receivedBy.toLowerCase().includes(q) ||
+          item.shade.toLowerCase().includes(q)
         )
       }
       return true
     })
   }, [grnList, activeTab, searchQuery])
 
-  // Create New GRN submit
+  // Create GRN
   const handleCreateGrn = (e) => {
     e.preventDefault()
     if (!newGrn.poNo.trim() || !newGrn.supplier.trim()) {
-      triggerToast('Please provide PO/Indent Number and Supplier Name!')
+      triggerToast('PO Number and Supplier Name are required!')
       return
     }
 
     const nextNum = grnList.length + 1
     const grnNoStr = `GRN-2026-${String(nextNum).padStart(3, '0')}`
-
-    let sClass = 'bg-blue-100 text-blue-800 border-blue-200'
-    if (newGrn.status === 'Completed') sClass = 'bg-emerald-100 text-emerald-800 border-emerald-200'
-    if (newGrn.status === 'Pending') sClass = 'bg-amber-100 text-amber-800 border-amber-200'
-    if (newGrn.status === 'Rejected') sClass = 'bg-red-100 text-red-800 border-red-200'
+    const currentTime = new Date().toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
 
     const newRecord = {
       id: Date.now(),
       grnNo: grnNoStr,
-      dateTime: '16 Sep 2026, 12:45',
+      dateTime: currentTime,
       poNo: newGrn.poNo.trim().toUpperCase(),
       supplier: newGrn.supplier.trim(),
-      vehicleNo: newGrn.vehicleNo.trim().toUpperCase() || 'DL01 AB 9999',
-      items: Number(newGrn.items) || 10,
+      vehicleNo: newGrn.vehicleNo.trim().toUpperCase() || 'UP32 AB 1256',
+      itemsCount: Number(newGrn.itemsCount) || 10,
+      totalQty: newGrn.totalQty.trim() || '200 Units',
+      totalValue: newGrn.totalValue.trim() || '₹ 1,50,000',
+      shade: newGrn.shade,
       status: newGrn.status,
-      statusClass: sClass,
       receivedBy: newGrn.receivedBy,
-      totalQty: `${Number(newGrn.items || 10) * 20} Units`,
-      totalValue: '₹ 1,50,000',
-      remarks: newGrn.remarks || 'Standard receiving recorded.',
+      remarks: newGrn.remarks.trim() || 'Standard goods receiving verified.',
+      materials: [
+        {
+          code: `SKU-${Math.floor(100 + Math.random() * 900)}`,
+          name: 'General Commercial Consignment',
+          qty: Number(newGrn.itemsCount) || 10,
+          unit: 'Units',
+          batch: `BTH-2026-${Math.floor(100 + Math.random() * 900)}`,
+        },
+      ],
     }
 
     setGrnList([newRecord, ...grnList])
     setSelectedGrn(newRecord)
     setShowAddModal(false)
+    setShowPrintModal(true)
     setNewGrn({
       poNo: '',
       supplier: '',
       vehicleNo: '',
-      items: '',
-      receivedBy: 'Nk. R. Singh',
-      status: 'In Process',
-      remarks: 'Received in good condition at Main Inward Bay',
+      itemsCount: '10',
+      totalQty: '200 Bags',
+      totalValue: '₹ 1,50,000',
+      shade: 'Shade 2 (Food & Grains)',
+      status: 'Completed',
+      receivedBy: 'Anil Sharma (Warehouse Manager)',
+      remarks: 'Received and verified at Inward Receiving Terminal',
     })
-    triggerToast(`GRN ${grnNoStr} created successfully for ${newRecord.supplier}!`)
+    triggerToast(`GRN ${grnNoStr} registered successfully!`)
   }
 
   // Quick Status update
   const handleStatusUpdate = (id, newStatus) => {
     setGrnList(
-      grnList.map((g) => {
-        if (g.id === id) {
-          let sClass = 'bg-emerald-100 text-emerald-800 border-emerald-200'
-          if (newStatus === 'In Process') sClass = 'bg-blue-100 text-blue-800 border-blue-200'
-          if (newStatus === 'Pending') sClass = 'bg-amber-100 text-amber-800 border-amber-200'
-          if (newStatus === 'Rejected') sClass = 'bg-red-100 text-red-800 border-red-200'
-          return { ...g, status: newStatus, statusClass: sClass }
-        }
-        return g
-      })
+      grnList.map((g) => (g.id === id ? { ...g, status: newStatus } : g))
     )
-    setOpenActionMenuId(null)
     triggerToast(`GRN status updated to ${newStatus}`)
   }
 
   // Export CSV
   const handleExportCSV = () => {
-    const headers = ['GRN No', 'Date & Time', 'PO/Indent No', 'Supplier / Party', 'Vehicle No', 'Items', 'Status', 'Received By']
+    const headers = [
+      'GRN No',
+      'Date & Time',
+      'PO Number',
+      'Supplier / Party',
+      'Vehicle No',
+      'Assigned Shade',
+      'Items Count',
+      'Total Quantity',
+      'Total Value',
+      'Status',
+      'Received By',
+    ]
     const rows = grnList.map((g) => [
       g.grnNo,
       `"${g.dateTime}"`,
       g.poNo,
       `"${g.supplier}"`,
       g.vehicleNo,
-      g.items,
+      `"${g.shade}"`,
+      g.itemsCount,
+      `"${g.totalQty}"`,
+      `"${g.totalValue}"`,
       g.status,
       `"${g.receivedBy}"`,
     ])
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n')
+    const csvContent =
+      'data:text/csv;charset=utf-8,' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n')
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement('a')
     link.setAttribute('href', encodedUri)
-    link.setAttribute('download', 'Indian_Army_GRN_Register.csv')
+    link.setAttribute('download', 'Warehouse_GRN_Register.csv')
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     triggerToast('GRN register exported to CSV successfully.')
   }
 
-  // 7-day Bar Chart Data
-  const chartDays = [
-    { day: '10 Sep', completed: 8, pending: 4, rejected: 2 },
-    { day: '11 Sep', completed: 11, pending: 5, rejected: 4 },
-    { day: '12 Sep', completed: 14, pending: 7, rejected: 5 },
-    { day: '13 Sep', completed: 16, pending: 6, rejected: 4 },
-    { day: '14 Sep', completed: 18, pending: 8, rejected: 5 },
-    { day: '15 Sep', completed: 19, pending: 9, rejected: 6 },
-    { day: '16 Sep', completed: 17, pending: 8, rejected: 5 },
-  ]
-
-  // Top Suppliers
-  const topSuppliers = [
-    { name: 'Bharat Supply Co.', count: 28, max: 30 },
-    { name: 'Army Stores Ltd.', count: 22, max: 30 },
-    { name: 'National Supply', count: 18, max: 30 },
-    { name: 'Defence Ordnance', count: 15, max: 30 },
-    { name: 'Eastern Logistics', count: 12, max: 30 },
-  ]
+  // Status Badge Styling
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'Completed':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      case 'In Process':
+        return 'bg-blue-50 text-blue-700 border-blue-200'
+      case 'Pending':
+        return 'bg-amber-50 text-amber-700 border-amber-200'
+      case 'Rejected':
+        return 'bg-rose-50 text-rose-700 border-rose-200'
+      default:
+        return 'bg-slate-50 text-slate-700 border-slate-200'
+    }
+  }
 
   return (
-    <div className="space-y-4 pb-12">
-      {/* Toast Notification */}
+    <div className="space-y-6 max-w-[1720px] mx-auto pb-10 select-none">
+      {/* Toast Alert */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-[#162214] border border-amber-400 text-amber-300 px-4 py-2.5 rounded-lg shadow-2xl flex items-center gap-2 text-xs font-medium animate-bounce">
-          <svg className="w-4 h-4 text-amber-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-          </svg>
+        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-fade-in text-sm font-semibold">
+          <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <Check className="w-4 h-4" />
+          </div>
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Top Himalayan Convoy Banner */}
-      <div className="relative rounded-xl overflow-hidden shadow-md border border-slate-200/80 bg-slate-900 h-28 sm:h-32">
-        <img
-          src="/border.png"
-          alt="Central Warehouse Logistics Operations"
-          className="w-full h-full object-cover object-center opacity-90"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/20 to-black/60"></div>
-        <div className="absolute top-3 right-4 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/20">
-          <div className="h-2 w-5 flex flex-col justify-between rounded-xs overflow-hidden">
-            <div className="h-0.5 bg-[#FF9933]"></div>
-            <div className="h-0.5 bg-white"></div>
-            <div className="h-0.5 bg-[#138808]"></div>
-          </div>
-          <span className="text-[10px] font-bold text-white tracking-widest uppercase">
-            NATION FIRST ALWAYS
-          </span>
-        </div>
-      </div>
-
-      {/* Page Header Bar */}
-      <div className="bg-white rounded-xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          {/* Isometric Goods Cube Icon */}
-          <div className="w-12 h-12 rounded-xl bg-[#EBF5EA] border border-[#CDE5CA] flex items-center justify-center text-[#1E3A1E] shadow-xs shrink-0">
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-            </svg>
+      {/* 1. Header Banner - Clean, Modern & Professional */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
+            <Package className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-              <span>Goods Receiving (GRN)</span>
-            </h1>
-            <p className="text-xs text-slate-500 font-medium">
-              Record and manage incoming materials received at the warehouse.
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+                Goods Receiving (GRN)
+              </h1>
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                ● Inward Dock Active
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+              Record, inspect, and verify incoming vendor consignments against Purchase Orders
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="text-xs text-slate-400 flex items-center gap-1.5 font-medium mr-2">
-            <Link to="/dashboard" className="hover:text-slate-700">Home</Link>
-            <span>›</span>
-            <span className="text-slate-500">Inward Operations</span>
-            <span>›</span>
-            <span className="text-slate-800 font-semibold">Goods Receiving (GRN)</span>
-          </div>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer shadow-2xs"
+          >
+            <Download className="w-4 h-4 text-slate-500 shrink-0" />
+            <span>Export CSV</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="bg-[#1F331E] hover:bg-[#2A4428] text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs transition cursor-pointer"
+            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer shadow-xs"
           >
-            <span className="text-base leading-none font-black">+</span>
+            <Plus className="w-4 h-4 shrink-0" />
             <span>Create New GRN</span>
           </button>
         </div>
       </div>
 
-      {/* 5 KPI Stat Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        {/* Card 1: Total GRN Today */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-            </svg>
-          </div>
+      {/* 2. Dynamic KPI Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Total GRN */}
+        <div className="bg-white rounded-2xl p-4.5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold text-slate-500">Total GRN Today</p>
-            <div className="flex items-baseline gap-1.5">
-              <h3 className="text-2xl font-black text-slate-800 leading-tight">12</h3>
-              <span className="text-[10px] font-bold text-emerald-600">↑ 20%</span>
-            </div>
-            <p className="text-[10px] text-slate-400 font-medium">vs. previous day</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Inward Receipts</p>
+            <p className="text-2xl font-extrabold text-slate-900 mt-1">{grnList.length}</p>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">Recorded GRN Receipts</p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+            <Package className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Card 2: Pending GRN */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
+        {/* Completed */}
+        <div className="bg-white rounded-2xl p-4.5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold text-slate-500">Pending GRN</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">4</h3>
-            <p className="text-[10px] text-slate-400 font-medium">Awaiting verification</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Verified &amp; Cleared</p>
+            <p className="text-2xl font-extrabold text-emerald-600 mt-1">
+              {grnList.filter((g) => g.status === 'Completed').length}
+            </p>
+            <p className="text-xs text-emerald-600 font-semibold mt-0.5">Stock Put-Away Ready</p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Card 3: Completed GRN */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-orange-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
+        {/* In Process */}
+        <div className="bg-white rounded-2xl p-4.5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold text-slate-500">Completed GRN</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">8</h3>
-            <p className="text-[10px] text-slate-400 font-medium">Today</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Under Inspection</p>
+            <p className="text-2xl font-extrabold text-blue-600 mt-1">
+              {grnList.filter((g) => g.status === 'In Process').length}
+            </p>
+            <p className="text-xs text-blue-600 font-semibold mt-0.5">QC &amp; Moisture Testing</p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+            <Clock className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Card 4: Rejected GRN */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-red-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
+        {/* Pending & Rejected */}
+        <div className="bg-white rounded-2xl p-4.5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold text-slate-500">Rejected GRN</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">1</h3>
-            <p className="text-[10px] text-slate-400 font-medium">Quality / Mismatch</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pending / Hold</p>
+            <p className="text-2xl font-extrabold text-amber-600 mt-1">
+              {grnList.filter((g) => g.status === 'Pending' || g.status === 'Rejected').length}
+            </p>
+            <p className="text-xs text-amber-600 font-semibold mt-0.5">Awaiting Action</p>
           </div>
-        </div>
-
-        {/* Card 5: Total Suppliers */}
-        <div className="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-slate-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 17H5a2 2 0 01-2-2V7a2 2 0 012-2h10a2 2 0 012 2v2m-6 8h6m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0zm10-6h3.5a1.5 1.5 0 011.2.6L22 14v3a1 1 0 01-1 1h-2" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500">Total Suppliers</p>
-            <h3 className="text-2xl font-black text-slate-800 leading-tight">6</h3>
-            <p className="text-[10px] text-slate-400 font-medium">Today</p>
+          <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-5 h-5" />
           </div>
         </div>
       </div>
 
-      {/* Filter Tabs & Search Controls Bar */}
-      <div className="bg-white rounded-xl p-3 shadow-xs border border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        {/* Left Filter Pill Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+      {/* 3. Filter Navigation & Live Search Bar */}
+      <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto p-1 bg-slate-100 rounded-xl text-xs font-semibold">
           <button
             type="button"
             onClick={() => setActiveTab('all')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+            className={`px-3.5 py-2 rounded-lg transition whitespace-nowrap cursor-pointer ${
               activeTab === 'all'
-                ? 'bg-[#1E3A1E] text-white shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
-            All GRN
+            All GRN Receipts ({grnList.length})
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('pending')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'pending'
-                ? 'bg-[#1E3A1E] text-white shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-            }`}
-          >
-            Pending
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('in_process')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'in_process'
-                ? 'bg-[#1E3A1E] text-white shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-            }`}
-          >
-            In Process
-          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('completed')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+            className={`px-3.5 py-2 rounded-lg transition whitespace-nowrap cursor-pointer ${
               activeTab === 'completed'
-                ? 'bg-[#1E3A1E] text-white shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
-            Completed
+            Completed ({grnList.filter((g) => g.status === 'Completed').length})
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('in_process')}
+            className={`px-3.5 py-2 rounded-lg transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'in_process'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+            }`}
+          >
+            In Process ({grnList.filter((g) => g.status === 'In Process').length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('pending')}
+            className={`px-3.5 py-2 rounded-lg transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'pending'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+            }`}
+          >
+            Pending ({grnList.filter((g) => g.status === 'Pending').length})
+          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('rejected')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+            className={`px-3.5 py-2 rounded-lg transition whitespace-nowrap cursor-pointer ${
               activeTab === 'rejected'
-                ? 'bg-[#1E3A1E] text-white shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
-            Rejected
+            Rejected ({grnList.filter((g) => g.status === 'Rejected').length})
           </button>
         </div>
 
-        {/* Right Search, Date Range & Filter Buttons */}
-        <div className="flex items-center gap-2">
-          {/* Date Range Picker */}
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-mono">
-            <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <input
-              type="text"
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="w-40 bg-transparent text-xs font-medium text-slate-800 focus:outline-none"
-            />
-          </div>
-
-          {/* Search Box */}
-          <div className="relative flex-1 sm:w-64">
-            <svg className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search GRN No., PO No., Supplier..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:bg-white"
-            />
-          </div>
-
-          {/* Filter Button */}
-          <button
-            type="button"
-            onClick={() => triggerToast('Filter modal activated.')}
-            className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-          >
-            <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-            </svg>
-            <span>Filter</span>
-          </button>
+        {/* Live Search */}
+        <div className="relative flex-1 md:max-w-xs">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search GRN, PO, supplier, vehicle, shade..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+          />
         </div>
       </div>
 
-      {/* Main 2-Column Section: GRN Register (Left) + Quick Actions & Today's Summary (Right) */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-        {/* ========================================================================= */}
-        {/* LEFT COLUMN: GRN Table (Span 9 / 12)                                      */}
-        {/* ========================================================================= */}
-        <div className="xl:col-span-9 bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden flex flex-col">
-          <div
-            className="overflow-x-auto no-scrollbar scroll-smooth w-full"
-            style={{
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-              WebkitOverflowScrolling: 'touch',
-            }}
-          >
-            <table
-              className="w-full text-left text-xs divide-y divide-slate-200 border-collapse table-nowrap"
-              style={{ minWidth: '1280px' }}
-            >
-              <thead className="bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+      {/* 4. Full-Width Spacious GRN Table */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <span>Goods Receiving Note (GRN) Inward Register</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                {filteredGrn.length} of {grnList.length}
+              </span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Verified goods receipts with purchase order tracking and warehouse storage allocations
+            </p>
+          </div>
+
+          <div className="text-xs font-semibold text-slate-500">
+            Dock: Main Receiving Terminal
+          </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full text-left text-sm min-w-[1100px]">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-bold">
+                <th className="py-3.5 px-3 w-10 text-center">#</th>
+                <th className="py-3.5 px-4 w-32">GRN Number</th>
+                <th className="py-3.5 px-4 w-40">Date &amp; Time</th>
+                <th className="py-3.5 px-4 min-w-[140px]">PO Reference</th>
+                <th className="py-3.5 px-4 min-w-[190px]">Supplier / Vendor</th>
+                <th className="py-3.5 px-4 min-w-[140px]">Vehicle Reg.</th>
+                <th className="py-3.5 px-4 min-w-[180px]">Assigned Shade</th>
+                <th className="py-3.5 px-4 w-32">Quantity</th>
+                <th className="py-3.5 px-4 text-center w-28">Status</th>
+                <th className="py-3.5 px-5 text-right w-44">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {filteredGrn.length === 0 ? (
                 <tr>
-                  <th className="py-3.5 px-3 w-12 text-center whitespace-nowrap">#</th>
-                  <th className="py-3.5 px-4 min-w-[130px] whitespace-nowrap">GRN No.</th>
-                  <th className="py-3.5 px-4 min-w-[150px] whitespace-nowrap">Date & Time</th>
-                  <th className="py-3.5 px-4 min-w-[140px] whitespace-nowrap">PO/Indent No.</th>
-                  <th className="py-3.5 px-4 min-w-[180px] whitespace-nowrap">Supplier / Party</th>
-                  <th className="py-3.5 px-4 min-w-[135px] whitespace-nowrap">Vehicle No.</th>
-                  <th className="py-3.5 px-3 text-center min-w-[80px] whitespace-nowrap">Items</th>
-                  <th className="py-3.5 px-4 text-center min-w-[120px] whitespace-nowrap">Status</th>
-                  <th className="py-3.5 px-4 min-w-[140px] whitespace-nowrap">Received By</th>
-                  <th className="py-3.5 px-3 text-center w-16 whitespace-nowrap">Action</th>
+                  <td colSpan="10" className="py-10 text-center text-slate-400 text-sm">
+                    No GRN receipts match the selected filter or search criteria.
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredGrn.map((row, idx) => {
-                  const isSelected = selectedGrn?.id === row.id
-                  return (
-                    <tr
-                      key={row.id}
-                      onClick={() => setSelectedGrn(row)}
-                      className={`hover:bg-emerald-50/50 cursor-pointer transition ${
-                        isSelected ? 'bg-emerald-50/70 font-medium' : ''
-                      }`}
-                    >
-                      <td className="py-3.5 px-3 text-center text-slate-400 font-bold text-[11px] whitespace-nowrap">
-                        {idx + 1}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-slate-800 text-[11px] tracking-wide whitespace-nowrap">
-                        {row.grnNo}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-600 text-xs whitespace-nowrap font-medium">
-                        {row.dateTime}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono font-semibold text-slate-700 text-[11px] whitespace-nowrap">
-                        {row.poNo}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-800 font-semibold whitespace-nowrap">
-                        {row.supplier}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono font-medium text-slate-600 text-[11px] whitespace-nowrap">
-                        {row.vehicleNo}
-                      </td>
-                      <td className="py-3.5 px-3 text-center font-bold text-slate-700 whitespace-nowrap">
-                        {row.items}
-                      </td>
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <span className={`inline-block px-3 py-0.5 rounded-full text-[10px] font-bold border ${row.statusClass}`}>
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-700 font-medium whitespace-nowrap">
-                        {row.receivedBy}
-                      </td>
-                      <td className="py-3.5 px-3 text-center relative whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+              ) : (
+                filteredGrn.map((grn, idx) => (
+                  <tr key={grn.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3.5 px-3 text-center text-slate-400 font-mono text-xs font-semibold">
+                      {idx + 1}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-indigo-700 whitespace-nowrap">
+                      {grn.grnNo}
+                    </td>
+                    <td className="py-3.5 px-4 text-xs text-slate-600 whitespace-nowrap">
+                      {grn.dateTime}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900 text-xs whitespace-nowrap">
+                      {grn.poNo}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-700">
+                      <p className="font-semibold text-slate-900 truncate max-w-[190px]">{grn.supplier}</p>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 text-xs whitespace-nowrap shadow-2xs">
+                        {grn.vehicleNo}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-xs font-semibold text-slate-800 whitespace-nowrap">
+                      {grn.shade}
+                    </td>
+                    <td className="py-3.5 px-4 text-xs whitespace-nowrap font-medium text-slate-900">
+                      <span>{grn.totalQty}</span>
+                      <span className="text-slate-400 block text-[11px]">({grn.itemsCount} line items)</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                      <span
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${getStatusBadge(
+                          grn.status
+                        )}`}
+                      >
+                        {grn.status}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {grn.status === 'In Process' && (
+                          <button
+                            type="button"
+                            onClick={() => handleStatusUpdate(grn.id, 'Completed')}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1"
+                            title="Mark Quality Cleared"
+                          >
+                            <Check className="w-3 h-3" />
+                            <span>Verify</span>
+                          </button>
+                        )}
+
                         <button
                           type="button"
-                          onClick={() => setOpenActionMenuId(openActionMenuId === row.id ? null : row.id)}
-                          className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 px-2.5 py-1 rounded-md text-xs font-bold transition cursor-pointer"
-                          title="Options"
+                          onClick={() => {
+                            setSelectedGrn(grn)
+                            setShowPrintModal(true)
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1"
+                          title="Print Official GRN Slip"
                         >
-                          •••
+                          <Printer className="w-3 h-3" />
+                          <span>GRN Slip</span>
                         </button>
-
-                        {/* Action Dropdown Menu */}
-                        {openActionMenuId === row.id && (
-                          <div className="absolute right-3 top-10 w-48 bg-white border border-slate-200 rounded-lg shadow-xl z-20 py-1 text-left text-xs font-medium">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedGrn(row)
-                                setShowPrintModal(true)
-                                setOpenActionMenuId(null)
-                              }}
-                              className="w-full px-3 py-1.5 hover:bg-slate-50 text-slate-700 flex items-center gap-2"
-                            >
-                              <FileText className="w-3.5 h-3.5 text-slate-500" />
-                              <span>View / Print GRN Slip</span>
-                            </button>
-                            {row.status !== 'Completed' && (
-                              <button
-                                type="button"
-                                onClick={() => handleStatusUpdate(row.id, 'Completed')}
-                                className="w-full px-3 py-1.5 hover:bg-emerald-50 text-emerald-700 flex items-center gap-2"
-                              >
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Mark as Completed</span>
-                              </button>
-                            )}
-                            {row.status !== 'In Process' && (
-                              <button
-                                type="button"
-                                onClick={() => handleStatusUpdate(row.id, 'In Process')}
-                                className="w-full px-3 py-1.5 hover:bg-blue-50 text-blue-700 flex items-center gap-2"
-                              >
-                                <Zap className="w-3.5 h-3.5 text-blue-600" />
-                                <span>Set to In Process</span>
-                              </button>
-                            )}
-                            {row.status !== 'Rejected' && (
-                              <button
-                                type="button"
-                                onClick={() => handleStatusUpdate(row.id, 'Rejected')}
-                                className="w-full px-3 py-1.5 hover:bg-red-50 text-red-700 flex items-center gap-2"
-                              >
-                                <X className="w-3.5 h-3.5 text-red-600" />
-                                <span>Reject GRN</span>
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Table Footer Bar */}
-          <div className="px-4 py-2.5 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-            <span className="font-medium">
-              Showing <strong className="text-slate-800 font-semibold">{filteredGrn.length}</strong> of{' '}
-              <strong className="text-slate-800 font-semibold">{grnList.length}</strong> GRN records
-            </span>
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
-              <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-              <span>Scroll horizontally to view all fields</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* RIGHT COLUMN: Quick Actions & Today's Summary (Span 3 / 12)               */}
-        {/* ========================================================================= */}
-        <div className="xl:col-span-3 space-y-4">
-          {/* Card 1: Quick Actions */}
-          <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-200">
-            <div className="flex items-center gap-2 pb-3 mb-3 border-b border-slate-100">
-              <svg className="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              <h2 className="text-xs font-bold text-slate-800">Quick Actions</h2>
-            </div>
-
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => setShowAddModal(true)}
-                className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg py-2.5 px-3 text-left text-xs font-bold text-slate-700 flex items-center gap-2.5 transition cursor-pointer"
-              >
-                <span className="w-4 h-4 rounded bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-xs shrink-0">+</span>
-                <span>Create New GRN</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowScannerModal(true)}
-                className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg py-2.5 px-3 text-left text-xs font-bold text-slate-700 flex items-center gap-2.5 transition cursor-pointer"
-              >
-                <svg className="w-4 h-4 text-slate-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                </svg>
-                <span>Scan QR / Barcode</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowImportModal(true)}
-                className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg py-2.5 px-3 text-left text-xs font-bold text-slate-700 flex items-center gap-2.5 transition cursor-pointer"
-              >
-                <svg className="w-4 h-4 text-slate-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
-                </svg>
-                <span>Import from PO / Indent</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  triggerToast('GRN official template downloaded.')
-                }}
-                className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg py-2.5 px-3 text-left text-xs font-bold text-slate-700 flex items-center gap-2.5 transition cursor-pointer"
-              >
-                <svg className="w-4 h-4 text-slate-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                <span>Download GRN Template</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg py-2.5 px-3 text-left text-xs font-bold text-slate-700 flex items-center gap-2.5 transition cursor-pointer"
-              >
-                <svg className="w-4 h-4 text-slate-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span>Export GRN Report</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Card 2: Today's Summary */}
-          <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-200">
-            <div className="flex items-center gap-2 pb-3 mb-3 border-b border-slate-100">
-              <svg className="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-              </svg>
-              <h2 className="text-xs font-bold text-slate-800">Today's Summary</h2>
-            </div>
-
-            <div className="space-y-3">
-              {/* Item 1: Total Items Received */}
-              <div className="flex items-center gap-3 p-2 bg-slate-50/70 rounded-lg border border-slate-100">
-                <div className="w-10 h-10 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold text-slate-500">Total Items Received</p>
-                  <h3 className="text-lg font-black text-slate-800 leading-tight">186</h3>
-                </div>
-              </div>
-
-              {/* Item 2: Total Quantity */}
-              <div className="flex items-center gap-3 p-2 bg-slate-50/70 rounded-lg border border-slate-100">
-                <div className="w-10 h-10 rounded-lg bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold text-slate-500">Total Quantity</p>
-                  <h3 className="text-lg font-black text-slate-800 leading-tight">2,450 Units</h3>
-                </div>
-              </div>
-
-              {/* Item 3: Total Value (₹) */}
-              <div className="flex items-center gap-3 p-2 bg-slate-50/70 rounded-lg border border-slate-100">
-                <div className="w-10 h-10 rounded-lg bg-orange-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                  <span className="text-lg font-black leading-none">₹</span>
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold text-slate-500">Total Value (₹)</p>
-                  <h3 className="text-lg font-black text-slate-800 leading-tight">18,75,430</h3>
-                </div>
-              </div>
-            </div>
-          </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* BOTTOM SECTION: 3 ANALYTICS & ACTIVITY CARDS                              */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Card 1: GRN Trend (Last 7 Days) */}
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-200">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-              </svg>
-              <h3 className="text-xs font-bold text-slate-800">GRN Trend (Last 7 Days)</h3>
-            </div>
-            <div className="flex items-center gap-2.5 text-[10px] font-semibold text-slate-600">
-              <div className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 bg-emerald-700 rounded-xs"></span>
-                <span>Completed</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 bg-amber-400 rounded-xs"></span>
-                <span>Pending</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 bg-red-500 rounded-xs"></span>
-                <span>Rejected</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Bar Chart Area with Y-Axis */}
-          <div className="h-44 flex items-end gap-2 pt-2 px-1">
-            {/* Y-Axis Labels */}
-            <div className="flex flex-col justify-between h-36 text-[9px] font-mono text-slate-400 pr-1 border-r border-slate-100">
-              <span>20</span>
-              <span>15</span>
-              <span>10</span>
-              <span>5</span>
-              <span>0</span>
-            </div>
-
-            {/* Days Bars Container */}
-            <div className="flex-1 flex items-end justify-between gap-1.5 h-full">
-              {chartDays.map((bar, idx) => {
-                const maxVal = 20
-                const compH = `${(bar.completed / maxVal) * 100}%`
-                const pendH = `${(bar.pending / maxVal) * 100}%`
-                const rejH = `${(bar.rejected / maxVal) * 100}%`
-
-                return (
-                  <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full gap-1">
-                    <div className="w-full flex items-end justify-center gap-0.5 h-34">
-                      {/* Completed (Green) */}
-                      <div
-                        style={{ height: compH }}
-                        className="w-2 sm:w-2.5 bg-emerald-700 rounded-t-xs hover:opacity-90 transition-all"
-                        title={`Completed: ${bar.completed}`}
-                      ></div>
-                      {/* Pending (Amber) */}
-                      <div
-                        style={{ height: pendH }}
-                        className="w-2 sm:w-2.5 bg-amber-400 rounded-t-xs hover:opacity-90 transition-all"
-                        title={`Pending: ${bar.pending}`}
-                      ></div>
-                      {/* Rejected (Red) */}
-                      <div
-                        style={{ height: rejH }}
-                        className="w-2 sm:w-2.5 bg-red-500 rounded-t-xs hover:opacity-90 transition-all"
-                        title={`Rejected: ${bar.rejected}`}
-                      ></div>
-                    </div>
-                    <span className="text-[9px] font-medium text-slate-400 whitespace-nowrap">{bar.day}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Card 2: Top Suppliers (This Month) */}
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-200">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              <h3 className="text-xs font-bold text-slate-800">Top Suppliers (This Month)</h3>
-            </div>
-            <span className="text-[10px] font-bold text-slate-500">GRN Count</span>
-          </div>
-
-          <div className="space-y-3.5 pt-1">
-            {topSuppliers.map((sup, idx) => {
-              const pct = `${(sup.count / sup.max) * 100}%`
-              return (
-                <div key={idx} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs font-semibold">
-                    <span className="text-slate-700 truncate">
-                      {idx + 1}. {sup.name}
-                    </span>
-                    <strong className="text-slate-900 font-mono text-xs">{sup.count}</strong>
-                  </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      style={{ width: pct }}
-                      className="h-full bg-[#1E3A1E] rounded-full transition-all duration-500"
-                    ></div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Card 3: Recent Activities */}
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-slate-200">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <h3 className="text-xs font-bold text-slate-800">Recent Activities</h3>
-            </div>
-            <button
-              type="button"
-              onClick={() => triggerToast('All activity logs view opened.')}
-              className="text-[11px] font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1 cursor-pointer"
-            >
-              <span>View All</span>
-              <span>→</span>
-            </button>
-          </div>
-
-          <div className="space-y-3 text-xs">
-            {/* Activity 1 */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-start gap-2.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0"></span>
-                <div>
-                  <p className="text-slate-800 font-semibold text-[11px] leading-tight">
-                    GRN-2026-001 marked as Completed
-                  </p>
-                  <p className="text-[10px] text-slate-400 font-mono">16 Sep 2026, 09:45</p>
-                </div>
-              </div>
-              <span className="text-[10.5px] font-medium text-slate-500 whitespace-nowrap">by Nk. R. Singh</span>
-            </div>
-
-            {/* Activity 2 */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-start gap-2.5">
-                <span className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0"></span>
-                <div>
-                  <p className="text-slate-800 font-semibold text-[11px] leading-tight">
-                    GRN-2026-002 moved to Quality Check
-                  </p>
-                  <p className="text-[10px] text-slate-400 font-mono">16 Sep 2026, 10:12</p>
-                </div>
-              </div>
-              <span className="text-[10.5px] font-medium text-slate-500 whitespace-nowrap">by Hav. P. Kumar</span>
-            </div>
-
-            {/* Activity 3 */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-start gap-2.5">
-                <span className="w-2 h-2 rounded-full bg-slate-400 mt-1.5 shrink-0"></span>
-                <div>
-                  <p className="text-slate-800 font-semibold text-[11px] leading-tight">
-                    GRN-2026-003 created
-                  </p>
-                  <p className="text-[10px] text-slate-400 font-mono">16 Sep 2026, 11:20</p>
-                </div>
-              </div>
-              <span className="text-[10.5px] font-medium text-slate-500 whitespace-nowrap">by Cpl. A. Yadav</span>
-            </div>
-
-            {/* Activity 4 */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-start gap-2.5">
-                <span className="w-2 h-2 rounded-full bg-red-500 mt-1.5 shrink-0"></span>
-                <div>
-                  <p className="text-slate-800 font-semibold text-[11px] leading-tight">
-                    GRN-2026-006 rejected (Quality issue)
-                  </p>
-                  <p className="text-[10px] text-slate-400 font-mono">15 Sep 2026, 12:45</p>
-                </div>
-              </div>
-              <span className="text-[10.5px] font-medium text-slate-500 whitespace-nowrap">by Lt. S. Chauhan</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* MODAL: CREATE NEW GRN                                                     */}
-      {/* ========================================================================= */}
+      {/* ========================================================= */}
+      {/* CREATE NEW GRN MODAL (CUSTOM PURE REACT SELECTS)          */}
+      {/* ========================================================= */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-5 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b pb-3 border-slate-200">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-[#EBF5EA] text-[#1E3A1E] flex items-center justify-center font-black text-sm">
-                  +
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5 animate-scale-in border border-slate-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b pb-4 border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
+                  <Package className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800">Create Goods Receiving Note (GRN)</h3>
-                  <p className="text-[10px] text-slate-500">Inward Ordnance & Supply Recording</p>
+                  <h3 className="text-base font-bold text-slate-900">Create New GRN Receipt</h3>
+                  <p className="text-xs text-slate-500">Record inward goods receipt voucher against PO</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1 font-bold"
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer transition"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateGrn} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleCreateGrn} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    PO / Indent No. <span className="text-red-500">*</span>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    PO / Indent Reference No. <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. PO-2026-9812"
+                    placeholder="e.g. PO-2026-4587"
                     value={newGrn.poNo}
-                    onChange={(e) => setNewGrn({ ...newGrn, poNo: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:bg-white"
+                    onChange={(e) => setNewGrn({ ...newGrn, poNo: e.target.value.toUpperCase() })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Supplier / Party Name <span className="text-red-500">*</span>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Vehicle Number <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Bharat Electronics Ltd"
-                    value={newGrn.supplier}
-                    onChange={(e) => setNewGrn({ ...newGrn, supplier: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Vehicle Number <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. UP32 AB 1256"
-                    value={newGrn.vehicleNo}
-                    onChange={(e) => setNewGrn({ ...newGrn, vehicleNo: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Number of Items</label>
-                  <input
-                    type="number"
-                    min="1"
-                    placeholder="e.g. 15"
-                    value={newGrn.items}
-                    onChange={(e) => setNewGrn({ ...newGrn, items: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Received By</label>
-                  <select
-                    value={newGrn.receivedBy}
-                    onChange={(e) => setNewGrn({ ...newGrn, receivedBy: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                  >
-                    <option value="Nk. R. Singh">Nk. R. Singh</option>
-                    <option value="Hav. P. Kumar">Hav. P. Kumar</option>
-                    <option value="Cpl. A. Yadav">Cpl. A. Yadav</option>
-                    <option value="Nk. S. Mehta">Nk. S. Mehta</option>
-                    <option value="Hav. D. Singh">Hav. D. Singh</option>
-                    <option value="Lt. S. Chauhan">Lt. S. Chauhan</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Initial Status</label>
-                  <select
-                    value={newGrn.status}
-                    onChange={(e) => setNewGrn({ ...newGrn, status: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                  >
-                    <option value="In Process">In Process</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Rejected">Rejected</option>
-                  </select>
+                  <div className="relative flex rounded-xl overflow-hidden border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 shadow-2xs">
+                    <span className="inline-flex items-center px-3 bg-slate-100 border-r border-slate-200 text-xs font-bold text-indigo-900 select-none">
+                      IND
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      placeholder="UP32 AB 1256"
+                      value={newGrn.vehicleNo}
+                      onChange={(e) =>
+                        setNewGrn({ ...newGrn, vehicleNo: e.target.value.toUpperCase() })
+                      }
+                      className="w-full px-3 py-2 text-xs font-bold uppercase text-slate-900 font-mono outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Remarks & Location Bay</label>
-                <textarea
-                  rows="2"
-                  placeholder="e.g. Unloaded at Inward Bay 3. Inspection seals matched."
-                  value={newGrn.remarks}
-                  onChange={(e) => setNewGrn({ ...newGrn, remarks: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                ></textarea>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Supplier / Vendor Party Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. M/s Bharat Supply Corp, Prime Foods"
+                  value={newGrn.supplier}
+                  onChange={(e) => setNewGrn({ ...newGrn, supplier: e.target.value })}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Total Quantity Received
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 350 Bags"
+                    value={newGrn.totalQty}
+                    onChange={(e) => setNewGrn({ ...newGrn, totalQty: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Line Items Count
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="15"
+                    value={newGrn.itemsCount}
+                    onChange={(e) => setNewGrn({ ...newGrn, itemsCount: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <CustomSelect
+                label="Assigned Storage Shade / Location"
+                value={newGrn.shade}
+                onChange={(val) => setNewGrn({ ...newGrn, shade: val })}
+                options={SHADE_OPTIONS}
+                zIndexClass="z-30"
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <CustomSelect
+                  label="Initial Clearance Status"
+                  value={newGrn.status}
+                  onChange={(val) => setNewGrn({ ...newGrn, status: val })}
+                  options={STATUS_OPTIONS}
+                  zIndexClass="z-20"
+                />
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Receiving Officer
+                  </label>
+                  <input
+                    type="text"
+                    value={newGrn.receivedBy}
+                    onChange={(e) => setNewGrn({ ...newGrn, receivedBy: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Inspection Remarks / Delivery Notes
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Moisture & packaging verified. Unloaded at Bay-2."
+                  value={newGrn.remarks}
+                  onChange={(e) => setNewGrn({ ...newGrn, remarks: e.target.value })}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer"
+                  className="px-4 py-2.5 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50 font-bold cursor-pointer transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#1F331E] hover:bg-[#2A4428] text-white px-5 py-2 rounded-lg font-bold shadow-xs cursor-pointer"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-xs cursor-pointer transition"
                 >
-                  Generate GRN
+                  Create &amp; Print GRN
                 </button>
               </div>
             </form>
@@ -1209,287 +881,151 @@ export default function GoodsReceiving() {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL: OFFICIAL MILITARY GRN VOUCHER / SLIP PRINT                         */}
-      {/* ========================================================================= */}
-      {showPrintModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b pb-3 border-slate-200">
-              <div className="flex items-center gap-2">
-                <img src="/logo.png" alt="Central Warehouse" className="h-9 w-auto object-contain" />
+      {/* ========================================================= */}
+      {/* HIGH RESOLUTION PRINTABLE GRN RECEIPT MODAL               */}
+      {/* ========================================================= */}
+      {showPrintModal && selectedGrn && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-4 animate-scale-in border border-slate-200">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b pb-3 border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
+                  <FileText className="w-5 h-5" />
+                </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800">Official Goods Receipt Note (GRN)</h3>
-                  <p className="text-[10px] text-slate-500">Central Ordnance & Military Provision Depot</p>
+                  <h3 className="text-sm font-bold text-slate-900">Official Goods Receiving Voucher</h3>
+                  <p className="text-[11px] text-slate-500">GRN Delivery &amp; Inspection Clearance</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowPrintModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1 font-bold"
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer transition"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Printable GRN Sheet */}
-            <div className="border-2 border-slate-800 p-5 rounded-xl bg-white space-y-3.5 shadow-md text-xs">
-              {/* Top Banner */}
-              <div className="flex items-center justify-between border-b-2 border-slate-800 pb-3">
-                <div className="flex items-center gap-3">
-                  <img src="/logo.png" alt="Warehouse Emblem" className="h-14 w-auto object-contain" />
-                  <div>
-                    <h4 className="text-sm font-black tracking-wider text-slate-900 font-serif">CENTRAL WAREHOUSE LOGISTICS</h4>
-                    <p className="text-[10px] text-slate-600 font-bold">FMCG SUPPLY CHAIN &amp; MATERIAL WING</p>
-                    <p className="text-[9px] text-slate-500">Central Warehouse Logistics, India</p>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <span className="inline-block bg-[#1B3518] text-white px-3 py-1 rounded text-xs font-mono font-bold">
+            {/* Printable Pass Paper Card */}
+            <div className="border border-slate-300 rounded-2xl bg-white p-5 space-y-4 shadow-sm text-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-indigo-600 tracking-wider block">
+                    WAREHOUSE OPERATIONS
+                  </span>
+                  <h4 className="text-base font-extrabold text-slate-900 tracking-tight">
+                    GOODS RECEIVING NOTE (GRN)
+                  </h4>
+                  <p className="text-xs font-mono font-bold text-slate-700 mt-0.5">
                     {selectedGrn.grnNo}
+                  </p>
+                </div>
+                <div className="w-14 h-14 bg-slate-50 border border-slate-200 rounded-xl p-1 flex flex-col items-center justify-center">
+                  <QrCode className="w-10 h-10 text-slate-800" />
+                </div>
+              </div>
+
+              {/* 2-Column Summary */}
+              <div className="grid grid-cols-2 gap-3 border-b border-slate-100 pb-3">
+                <div>
+                  <span className="text-slate-500 block">Purchase Order:</span>
+                  <span className="font-mono font-bold text-slate-900">{selectedGrn.poNo}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Delivery Vehicle:</span>
+                  <span className="font-mono font-bold text-slate-900">{selectedGrn.vehicleNo}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Supplier / Vendor:</span>
+                  <span className="font-semibold text-slate-800">{selectedGrn.supplier}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Receiving Shade:</span>
+                  <span className="font-semibold text-indigo-700">{selectedGrn.shade}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Receiving Time:</span>
+                  <span className="font-semibold text-slate-800">{selectedGrn.dateTime}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Clearance Status:</span>
+                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${getStatusBadge(selectedGrn.status)}`}>
+                    {selectedGrn.status}
                   </span>
-                  <p className="text-[10px] text-slate-500 mt-1 font-semibold">Status: <strong className="text-slate-800">{selectedGrn.status}</strong></p>
                 </div>
               </div>
 
-              {/* Title */}
-              <div className="text-center py-1 bg-slate-100 rounded border border-slate-200">
-                <h5 className="text-xs font-black tracking-widest text-slate-900 uppercase font-serif">
-                  GOODS RECEIPT NOTE & STORE VOUCHER
-                </h5>
-              </div>
-
-              {/* 2-Column Meta details */}
-              <div className="grid grid-cols-2 gap-3 text-[10.5px] p-2.5 bg-slate-50 rounded border border-slate-200">
-                <div className="space-y-1">
-                  <p><span className="text-slate-500 font-semibold">PO / Indent Ref:</span> <strong className="font-mono text-slate-900">{selectedGrn.poNo}</strong></p>
-                  <p><span className="text-slate-500 font-semibold">Supplier / Party:</span> <strong className="text-slate-900">{selectedGrn.supplier}</strong></p>
-                  <p><span className="text-slate-500 font-semibold">Vehicle Transport No.:</span> <strong className="font-mono text-slate-900">{selectedGrn.vehicleNo}</strong></p>
-                </div>
-                <div className="space-y-1">
-                  <p><span className="text-slate-500 font-semibold">Date of Receipt:</span> <strong className="text-slate-900">{selectedGrn.dateTime}</strong></p>
-                  <p><span className="text-slate-500 font-semibold">Received Incharge:</span> <strong className="text-slate-900">{selectedGrn.receivedBy}</strong></p>
-                  <p><span className="text-slate-500 font-semibold">Total Item Kinds:</span> <strong className="text-slate-900">{selectedGrn.items} Types</strong></p>
-                </div>
-              </div>
-
-              {/* Material Items Table */}
-              <div>
-                <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">Receipt Line Item Manifest</p>
-                <div className="border border-slate-200 rounded overflow-hidden">
-                  <table className="w-full text-left text-[10px] divide-y divide-slate-200">
-                    <thead className="bg-slate-100 font-bold text-slate-700">
-                      <tr>
-                        <th className="p-2 w-8 text-center">#</th>
-                        <th className="p-2">Item Code</th>
-                        <th className="p-2">Item Nomenclature</th>
-                        <th className="p-2">Batch No.</th>
-                        <th className="p-2 text-center">Accepted Qty</th>
-                        <th className="p-2">Unit</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {(selectedGrn.materials || [
-                        { code: 'ORD-7701', name: 'Standard Issue Combat Boots (Size 9)', qty: 150, unit: 'Pairs', batch: 'BTH-2026-081' },
-                        { code: 'ORD-7704', name: 'Tactical Rucksacks 65L (Camouflage)', qty: 100, unit: 'Nos', batch: 'BTH-2026-084' },
-                        { code: 'ORD-7712', name: 'High Altitude Winter Gloves', qty: 100, unit: 'Pairs', batch: 'BTH-2026-090' },
-                      ]).map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50">
-                          <td className="p-2 text-center text-slate-400 font-mono font-bold">{idx + 1}</td>
-                          <td className="p-2 font-mono text-slate-700">{item.code}</td>
-                          <td className="p-2 font-semibold text-slate-900">{item.name}</td>
-                          <td className="p-2 font-mono text-slate-600">{item.batch}</td>
-                          <td className="p-2 text-center font-bold text-slate-900">{item.qty}</td>
-                          <td className="p-2 text-slate-600">{item.unit}</td>
+              {/* Materials Breakdown */}
+              {selectedGrn.materials && selectedGrn.materials.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold uppercase text-slate-700 tracking-wider mb-1.5">
+                    Received Consignment Items
+                  </p>
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                        <tr>
+                          <th className="py-2 px-3">Item Description</th>
+                          <th className="py-2 px-3">Batch</th>
+                          <th className="py-2 px-3 text-right">Quantity</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {selectedGrn.materials.map((m, idx) => (
+                          <tr key={idx}>
+                            <td className="py-2 px-3 font-semibold text-slate-900">{m.name}</td>
+                            <td className="py-2 px-3 font-mono text-slate-600">{m.batch}</td>
+                            <td className="py-2 px-3 text-right font-bold text-slate-900">
+                              {m.qty} <span className="font-normal text-slate-500">{m.unit}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
+              )}
+
+              {/* Remarks */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                <span className="text-slate-500 font-semibold block">Inspector Remarks:</span>
+                <span className="text-slate-800 font-medium">{selectedGrn.remarks}</span>
               </div>
 
-              {/* Remarks Box */}
-              <div className="text-[10px] bg-slate-50 p-2 rounded border border-slate-200 text-slate-700">
-                <strong>Inspector Remarks: </strong> {selectedGrn.remarks || 'Accepted after physical packaging, barcode scan, and quantity check.'}
-              </div>
-
-              {/* Authorized Signatures */}
-              <div className="pt-3 grid grid-cols-3 gap-2 text-center text-[9px] border-t border-slate-200">
-                <div>
-                  <p className="text-slate-400">Received By</p>
-                  <p className="font-bold text-slate-800 mt-2">{selectedGrn.receivedBy}</p>
-                  <p className="text-[8px] text-slate-400">Storeman</p>
+              {/* Signatures */}
+              <div className="pt-4 grid grid-cols-3 gap-3 text-center text-xs border-t border-slate-200">
+                <div className="border-t border-dashed border-slate-300 pt-1.5">
+                  <p className="font-bold text-slate-800">Unloading Clerk</p>
+                  <p className="text-[10px] text-slate-400">Tally Verified</p>
                 </div>
-                <div>
-                  <p className="text-slate-400">Inspected By</p>
-                  <p className="font-bold text-slate-800 mt-2">Major R. Singh</p>
-                  <p className="text-[8px] text-slate-400">Quality Inspector</p>
+                <div className="border-t border-dashed border-slate-300 pt-1.5">
+                  <p className="font-bold text-slate-800">QC Inspector</p>
+                  <p className="text-[10px] text-slate-400">Quality Cleared</p>
                 </div>
-                <div>
-                  <p className="text-slate-400">Cleared & Approved By</p>
-                  <p className="font-bold text-slate-800 mt-2">Col. A. Sharma</p>
-                  <p className="text-[8px] text-slate-400">Depot Officer</p>
-                </div>
-              </div>
-
-              {/* Tricolor Tag */}
-              <div className="pt-2 text-center border-t border-slate-100">
-                <span className="text-[8px] font-extrabold text-slate-700 tracking-widest uppercase">
-                  NATION FIRST | ALWAYS
-                </span>
-                <div className="w-14 h-1 flex rounded-xs overflow-hidden mx-auto mt-0.5">
-                  <div className="w-1/3 bg-[#FF9933]"></div>
-                  <div className="w-1/3 bg-white border-y border-slate-200"></div>
-                  <div className="w-1/3 bg-[#138808]"></div>
+                <div className="border-t border-dashed border-slate-300 pt-1.5">
+                  <p className="font-bold text-slate-800">Store Manager</p>
+                  <p className="text-[10px] text-slate-400">GRN Accepted</p>
                 </div>
               </div>
             </div>
 
-            {/* Modal Actions */}
-            <div className="flex justify-end gap-2 pt-2">
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => setShowPrintModal(false)}
-                className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer transition"
               >
                 Close
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  window.print()
-                  setShowPrintModal(false)
-                }}
-                className="bg-[#1F331E] hover:bg-[#2A4428] text-white px-5 py-2 rounded-lg text-xs font-bold shadow flex items-center gap-2 cursor-pointer"
+                onClick={() => window.print()}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                <span>Print GRN Slip</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL: QR / BARCODE SCANNER                                               */}
-      {/* ========================================================================= */}
-      {showScannerModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-5 space-y-4">
-            <div className="flex items-center justify-between border-b pb-2.5 border-slate-200">
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                </svg>
-                <h3 className="text-sm font-bold text-slate-800">Scan Inward QR / Barcode</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowScannerModal(false)}
-                className="text-slate-400 hover:text-slate-700 font-bold p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Simulated Scanner Viewport */}
-            <div className="relative bg-slate-900 rounded-lg h-56 flex flex-col items-center justify-center overflow-hidden border-2 border-dashed border-emerald-500/50">
-              <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-0.5 bg-red-500 shadow-[0_0_12px_#ef4444] animate-pulse"></div>
-              <div className="w-40 h-40 border-2 border-emerald-400 rounded-md relative flex items-center justify-center">
-                <div className="w-32 h-32 border border-emerald-500/30 rounded flex flex-col items-center justify-center p-2 text-center">
-                  <span className="text-[10px] text-emerald-400 font-mono font-bold tracking-widest uppercase">
-                    AIM AT BARCODE
-                  </span>
-                  <span className="text-[9px] text-slate-400 mt-1">Optical Military Sensor Ready</span>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-slate-500 text-center font-medium">
-              Point camera or handheld laser scanner at the parcel's shipping label.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => {
-                setShowScannerModal(false)
-                triggerToast('Scanned Box: BTH-2026-081 (Combat Boots) - Verified!')
-              }}
-              className="w-full bg-[#1F331E] hover:bg-[#2A4428] text-white py-2 rounded-lg text-xs font-bold shadow transition cursor-pointer"
-            >
-              Simulate Successful Scan
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL: IMPORT FROM PO / INDENT                                            */}
-      {/* ========================================================================= */}
-      {showImportModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4">
-            <div className="flex items-center justify-between border-b pb-2.5 border-slate-200">
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
-                </svg>
-                <h3 className="text-sm font-bold text-slate-800">Import PO / Purchase Indent</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowImportModal(false)}
-                className="text-slate-400 hover:text-slate-700 font-bold p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2.5 text-xs">
-              <p className="text-slate-600 font-medium">Select an approved Defence Purchase Order to auto-populate the GRN:</p>
-              
-              {[
-                { po: 'PO-2026-9812', vendor: 'Bharat Electronics Ltd', items: 25, value: '₹ 8,40,000' },
-                { po: 'IND-2026-5541', vendor: 'Ordnance Clothing Factory', items: 12, value: '₹ 3,95,000' },
-                { po: 'PO-2026-6632', vendor: 'Tata Advanced Systems', items: 8, value: '₹ 14,50,000' },
-              ].map((p, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => {
-                    setNewGrn({
-                      ...newGrn,
-                      poNo: p.po,
-                      supplier: p.vendor,
-                      items: p.items,
-                    })
-                    setShowImportModal(false)
-                    setShowAddModal(true)
-                    triggerToast(`Imported ${p.po} from ${p.vendor}`)
-                  }}
-                  className="p-3 bg-slate-50 hover:bg-emerald-50/70 border border-slate-200 rounded-lg flex items-center justify-between cursor-pointer transition"
-                >
-                  <div>
-                    <span className="font-mono font-bold text-slate-800 text-xs">{p.po}</span>
-                    <p className="text-[11px] text-slate-600 font-medium">{p.vendor}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] font-bold text-emerald-700">{p.items} Items</span>
-                    <p className="text-[10px] text-slate-400 font-mono">{p.value}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => setShowImportModal(false)}
-                className="px-4 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                Close
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Official GRN Slip</span>
               </button>
             </div>
           </div>
