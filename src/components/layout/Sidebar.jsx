@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Power } from 'lucide-react'
+import { Power, X } from 'lucide-react'
 import { useApp } from '../../hooks/useApp'
 
 export default function Sidebar() {
@@ -322,32 +322,51 @@ export default function Sidebar() {
     },
   ]
 
+  const handleNavClick = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      toggleSidebar()
+    }
+  }
+
   return (
     <>
       {/* Mobile Backdrop */}
       {sidebarOpen && (
         <div
           onClick={toggleSidebar}
-          className="fixed inset-0 bg-black/60 z-30 lg:hidden backdrop-blur-xs"
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-xs transition-opacity"
         ></div>
       )}
 
       <aside
         className={`${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-40 w-72 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-200 ease-in-out select-none shadow-2xl lg:shadow-none`}
+        } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-72 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-200 ease-in-out select-none shadow-2xl lg:shadow-none`}
       >
         {/* Top Header with Brand */}
-        <div className="py-5 px-5 flex items-center gap-3.5 border-b border-slate-800 bg-slate-950 shrink-0">
-          <div className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-950/50 shrink-0">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-            </svg>
+        <div className="py-4 px-4 sm:py-5 sm:px-5 flex items-center justify-between border-b border-slate-800 bg-slate-950 shrink-0">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-950/50 shrink-0">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white tracking-wide leading-tight">WAREHOUSE</h2>
+              <p className="text-xs font-semibold text-indigo-400 tracking-wider uppercase mt-0.5">OPERATIONS</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-base font-bold text-white tracking-wide leading-tight">WAREHOUSE</h2>
-            <p className="text-xs font-semibold text-indigo-400 tracking-wider uppercase mt-0.5">OPERATIONS</p>
-          </div>
+
+          {/* Mobile Close Button */}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-800 active:scale-95 border border-slate-700/60 transition cursor-pointer"
+            title="Close navigation drawer"
+            aria-label="Close navigation drawer"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Scrollable Navigation Items */}
@@ -427,6 +446,7 @@ export default function Sidebar() {
                     <Link
                       key={item.id}
                       to={targetPath}
+                      onClick={handleNavClick}
                       className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
                         isActive
                           ? 'bg-indigo-600 text-white font-semibold shadow-sm'

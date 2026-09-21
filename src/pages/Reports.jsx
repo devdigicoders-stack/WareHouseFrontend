@@ -343,7 +343,7 @@ export default function Reports() {
       )}
 
       {/* Page Header Bar */}
-      <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5 min-w-0">
           <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs shrink-0">
             <FileSpreadsheet className="w-5 h-5" />
@@ -390,7 +390,7 @@ export default function Reports() {
       </div>
 
       {/* 4 Dynamic KPI Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
             <TrendingUp className="w-5 h-5" />
@@ -447,7 +447,7 @@ export default function Reports() {
       {/* Reports Master Card */}
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
         {/* Filter Section Header & Inputs */}
-        <div className="p-5 border-b border-slate-100 space-y-4">
+        <div className="p-4 sm:p-5 border-b border-slate-100 space-y-4">
           {/* Top Line: Section Title & Results Count */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div className="flex items-center gap-2.5">
@@ -732,8 +732,8 @@ export default function Reports() {
 
       {/* MODAL 1: SCHEDULE AUTOMATED REPORT */}
       {showScheduleModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-indigo-600" />
@@ -762,7 +762,7 @@ export default function Reports() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
                     Frequency *
@@ -828,8 +828,8 @@ export default function Reports() {
 
       {/* MODAL 2: REPORT PREVIEW */}
       {showPreviewModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
                 <h3 className="text-base font-bold text-slate-800">{showPreviewModal.name}</h3>
@@ -845,7 +845,7 @@ export default function Reports() {
             </div>
 
             <div className="mt-4 space-y-4 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 grid grid-cols-3 gap-2">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
                   <span className="text-[10px] text-slate-400 uppercase">Records</span>
                   <p className="font-bold text-slate-800">{showPreviewModal.recordsCount.toLocaleString()} rows</p>
@@ -862,8 +862,8 @@ export default function Reports() {
 
               <div>
                 <h4 className="font-bold text-slate-800 mb-2">Sample Snapshot Table</h4>
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-xs">
+                <div className="border border-slate-200 rounded-xl overflow-x-auto">
+                  <table className="w-full text-left text-xs min-w-[340px]">
                     <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
                       <tr>
                         <th className="py-2.5 px-3">Item / Description</th>

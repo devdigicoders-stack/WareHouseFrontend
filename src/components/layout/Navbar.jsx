@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { LogOut } from 'lucide-react'
+import { LogOut, Menu } from 'lucide-react'
 import { useApp } from '../../hooks/useApp'
 
 export default function Navbar() {
   const navigate = useNavigate()
-  const { logout, user } = useApp()
+  const { logout, user, toggleSidebar } = useApp()
   const [currentTime, setCurrentTime] = useState(new Date())
 
   useEffect(() => {
@@ -32,12 +32,24 @@ export default function Navbar() {
   }
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between text-slate-800 shrink-0 select-none z-30 sticky top-0">
-      {/* Left: Brand Title */}
-      <div className="flex items-center gap-3">
-        <div>
-          <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            Warehouse Management System
+    <header className="h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between text-slate-800 shrink-0 select-none z-30 sticky top-0">
+      {/* Left: Brand Title & Mobile Hamburger Button */}
+      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        {/* Mobile Hamburger Toggle Button */}
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          className="lg:hidden p-2 sm:p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/90 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 transition cursor-pointer shadow-xs shrink-0 flex items-center justify-center"
+          title="Open Navigation Menu"
+          aria-label="Open Navigation Menu"
+        >
+          <Menu className="w-5 h-5 text-indigo-700" />
+        </button>
+
+        <div className="min-w-0">
+          <h1 className="text-sm sm:text-lg font-bold tracking-tight text-slate-900 truncate flex items-center gap-2">
+            <span className="sm:hidden font-bold">Warehouse MS</span>
+            <span className="hidden sm:inline font-bold">Warehouse Management System</span>
           </h1>
           <p className="text-[11px] text-slate-500 font-medium hidden sm:block">
             Central Logistics & Inventory Operations

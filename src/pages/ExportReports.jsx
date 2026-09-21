@@ -257,7 +257,7 @@ export default function ExportReports() {
       )}
 
       {/* Page Header Bar */}
-      <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5 min-w-0">
           <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-xs shrink-0">
             <Download className="w-5 h-5" />
@@ -302,7 +302,7 @@ export default function ExportReports() {
       </div>
 
       {/* 4 Dynamic KPI Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
             <Layers className="w-5 h-5" />
@@ -361,7 +361,7 @@ export default function ExportReports() {
         {/* Left Column: Module & Column Configuration (7 Cols) */}
         <div className="lg:col-span-7 space-y-5">
           {/* Step 1: Select Operational Module */}
-          <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-5 space-y-3.5">
+          <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-4 sm:p-5 space-y-3.5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center">
@@ -404,7 +404,7 @@ export default function ExportReports() {
           </div>
 
           {/* Step 2: Select Column Attributes */}
-          <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-5 space-y-3.5">
+          <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-4 sm:p-5 space-y-3.5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center">
@@ -454,7 +454,7 @@ export default function ExportReports() {
         {/* Right Column: Export Options & Generate CTA (5 Cols) */}
         <div className="lg:col-span-5 space-y-5">
           {/* Step 3: Format & Export Settings */}
-          <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-5 space-y-4">
+          <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-4 sm:p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center">
@@ -470,7 +470,7 @@ export default function ExportReports() {
               <label className="block text-[11px] font-bold text-slate-700 mb-2">
                 Choose Output Format
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setFileFormat('excel')}
@@ -569,7 +569,7 @@ export default function ExportReports() {
 
       {/* Recent Export Log Table Card */}
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <Clock className="w-4 h-4" />

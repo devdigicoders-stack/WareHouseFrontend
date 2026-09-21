@@ -495,99 +495,99 @@ export default function CurrentStock() {
       )}
 
       {/* Page Header Bar */}
-      <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs shrink-0">
+      <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs shrink-0 mt-0.5 sm:mt-0">
             <Package className="w-5 h-5" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-800 tracking-tight">Current Stock Registry</h1>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight leading-tight">Current Stock Registry</h1>
+            <p className="text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
               Live inventory balances, dual-unit conversion ratios, and lab clearance status across 6 warehouse shades.
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto shrink-0">
           <Link
             to="/location-master"
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
+            className="flex-1 sm:flex-none justify-center inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
           >
-            <Warehouse className="w-3.5 h-3.5 text-slate-500" />
+            <Warehouse className="w-3.5 h-3.5 text-slate-500 shrink-0" />
             <span>2D Bin Matrix</span>
           </Link>
 
           <button
             type="button"
             onClick={handleExportCSV}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
+            className="flex-1 sm:flex-none justify-center inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <Download className="w-3.5 h-3.5 text-slate-500 shrink-0" />
             <span>Export CSV</span>
           </button>
 
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition"
+            className="w-full sm:w-auto justify-center inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>Add Stock Item</span>
           </button>
         </div>
       </div>
 
       {/* 4 Dynamic KPI Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
-            <Package className="w-5 h-5" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 shadow-xs border border-slate-200/80 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3.5">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
+            <Package className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <p className="text-xs font-semibold text-slate-500">Total Base Units</p>
-            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-500 leading-tight">Total Base Units</p>
+            <h3 className="text-base sm:text-xl font-extrabold text-slate-800 tracking-tight leading-tight mt-0.5 whitespace-nowrap">
               {stats.totalBaseUnits.toLocaleString()}
             </h3>
-            <p className="text-[11px] text-indigo-600 font-medium">Pieces, Kg, Ltr &amp; Cartons</p>
+            <p className="text-[10px] sm:text-[11px] text-indigo-600 font-medium mt-0.5 truncate sm:whitespace-normal">Pieces, Kg, Ltr &amp; Cartons</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
-            <Layers className="w-5 h-5" />
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 shadow-xs border border-slate-200/80 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3.5">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
+            <Layers className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <p className="text-xs font-semibold text-slate-500">Packaging Cartons / Packs</p>
-            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-500 leading-tight">Packaging Packs</p>
+            <h3 className="text-base sm:text-xl font-extrabold text-slate-800 tracking-tight leading-tight mt-0.5 whitespace-nowrap">
               {stats.totalPacks.toLocaleString()} Packs
             </h3>
-            <p className="text-[11px] text-emerald-600 font-medium">Physical handling units</p>
+            <p className="text-[10px] sm:text-[11px] text-emerald-600 font-medium mt-0.5 truncate sm:whitespace-normal">Physical handling units</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-5 h-5" />
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 shadow-xs border border-slate-200/80 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3.5">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <p className="text-xs font-semibold text-slate-500">Lab Approved Stock</p>
-            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-500 leading-tight">Lab Approved Stock</p>
+            <h3 className="text-base sm:text-xl font-extrabold text-slate-800 tracking-tight leading-tight mt-0.5 whitespace-nowrap">
               {stats.clearancePct}% Cleared
             </h3>
-            <p className="text-[11px] text-blue-600 font-medium">{stats.labPassedUnits.toLocaleString()} ready for dispatch</p>
+            <p className="text-[10px] sm:text-[11px] text-blue-600 font-medium mt-0.5 truncate sm:whitespace-normal">{stats.labPassedUnits.toLocaleString()} ready for dispatch</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-5 h-5" />
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 shadow-xs border border-slate-200/80 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3.5">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <p className="text-xs font-semibold text-slate-500">Reorder Level Alerts</p>
-            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-500 leading-tight">Reorder Level Alerts</p>
+            <h3 className="text-base sm:text-xl font-extrabold text-slate-800 tracking-tight leading-tight mt-0.5 whitespace-nowrap">
               {stats.lowStockCount} Items
             </h3>
-            <p className="text-[11px] text-amber-600 font-medium">Stock below threshold</p>
+            <p className="text-[10px] sm:text-[11px] text-amber-600 font-medium mt-0.5 truncate sm:whitespace-normal">Stock below threshold</p>
           </div>
         </div>
       </div>
@@ -921,8 +921,8 @@ export default function CurrentStock() {
 
       {/* MODAL 1: ADD STOCK ITEM */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -943,7 +943,7 @@ export default function CurrentStock() {
             </div>
 
             <form onSubmit={handleAddStockSubmit} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">Product Name *</label>
                   <input
@@ -968,7 +968,7 @@ export default function CurrentStock() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">Batch Number *</label>
                   <input
@@ -1074,13 +1074,13 @@ export default function CurrentStock() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-semibold transition cursor-pointer"
+                  className="flex-1 sm:flex-none justify-center px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-semibold transition cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm transition cursor-pointer"
+                  className="flex-1 sm:flex-none justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm transition cursor-pointer text-center"
                 >
                   Save Stock Item
                 </button>
@@ -1092,8 +1092,8 @@ export default function CurrentStock() {
 
       {/* MODAL 2: VIEW DETAILS */}
       {showDetailsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-xs animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4 text-xs animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -1185,8 +1185,8 @@ export default function CurrentStock() {
 
       {/* MODAL 3: PRINT QR TAG */}
       {showQrModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -1228,7 +1228,7 @@ export default function CurrentStock() {
               <button
                 type="button"
                 onClick={() => setShowQrModal(null)}
-                className="px-3.5 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition"
+                className="flex-1 sm:flex-none justify-center px-3.5 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer text-center"
               >
                 Close
               </button>
@@ -1238,9 +1238,9 @@ export default function CurrentStock() {
                   window.print()
                   setShowQrModal(null)
                 }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5"
+                className="flex-1 sm:flex-none justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer text-center"
               >
-                <Printer className="w-3.5 h-3.5" />
+                <Printer className="w-3.5 h-3.5 shrink-0" />
                 <span>Print Sticker</span>
               </button>
             </div>

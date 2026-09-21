@@ -870,8 +870,8 @@ export default function StockSearch() {
 
       {/* MODAL 1: SCANNER SIMULATOR */}
       {showScannerModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 text-center space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -926,8 +926,8 @@ export default function StockSearch() {
 
       {/* MODAL 2: ITEM DETAILS */}
       {showDetailsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-xs animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4 text-xs animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -947,7 +947,7 @@ export default function StockSearch() {
             <div className="space-y-2.5">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Product</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Commodity</p>
                   <p className="font-bold text-slate-900 text-sm">{showDetailsModal.productName}</p>
                   <p className="text-[10px] text-slate-400 font-mono mt-0.5">{showDetailsModal.sku} • {showDetailsModal.category}</p>
                 </div>
@@ -969,7 +969,7 @@ export default function StockSearch() {
 
               <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 space-y-1">
                 <div className="flex justify-between text-xs">
-                  <span className="text-indigo-950 font-bold">Base Unit Stock:</span>
+                  <span className="text-indigo-950 font-bold">Total Available Stock:</span>
                   <span className="font-mono font-black text-indigo-900 text-sm">
                     {showDetailsModal.availableQty.toLocaleString()} {showDetailsModal.baseUnit}
                   </span>
@@ -1003,7 +1003,7 @@ export default function StockSearch() {
                 className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold transition flex items-center gap-1.5"
               >
                 <QrCode className="w-3.5 h-3.5" />
-                <span>QR Sticker</span>
+                <span>QR Tag</span>
               </button>
               <button
                 type="button"
@@ -1019,8 +1019,8 @@ export default function StockSearch() {
 
       {/* MODAL 3: QR LOCATOR TAG */}
       {showQrModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">

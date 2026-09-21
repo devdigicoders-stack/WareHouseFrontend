@@ -362,21 +362,21 @@ export default function GateEntry() {
       )}
 
       {/* 1. Header Hero Banner - Clean & Modern */}
-      <div className="bg-white rounded-2xl p-6 sm:p-7 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-5">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
-            <Truck className="w-6 h-6" />
+      <div className="bg-white rounded-2xl p-4 sm:p-6 lg:p-7 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-5">
+        <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+            <Truck className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-                Gate Entry &amp; Vehicle Clearance
-              </h1>
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                 ● Gate 01 Operational
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+            <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 leading-tight">
+              Gate Entry &amp; Vehicle Clearance
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 leading-relaxed">
               Commercial vehicle check-in, driver authentication, unloading bay allocation &amp; gate pass management
             </p>
           </div>
@@ -384,7 +384,7 @@ export default function GateEntry() {
 
         <Link
           to="/goods-receiving"
-          className="px-4 py-2.5 rounded-xl bg-slate-50 hover:bg-indigo-600 text-slate-700 hover:text-white border border-slate-200 hover:border-indigo-600 text-sm font-bold transition-all flex items-center gap-2 shadow-xs self-start sm:self-auto group"
+          className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-50 hover:bg-indigo-600 text-slate-700 hover:text-white border border-slate-200 hover:border-indigo-600 text-sm font-bold transition-all flex items-center justify-center sm:justify-start gap-2 shadow-xs group shrink-0"
         >
           <span>Proceed to GRN Receiving</span>
           <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
@@ -1064,8 +1064,8 @@ export default function GateEntry() {
       {/* PRINTABLE GATE PASS / INWARD SLIP MODAL (WITH QR CODE)   */}
       {/* ========================================================= */}
       {activePassModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden space-y-0 animate-scale-in">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3 sm:p-4 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 space-y-0 animate-scale-in">
             {/* Slip Header */}
             <div className="bg-slate-900 text-white p-5 border-b border-slate-800">
               <div className="flex items-center justify-between">

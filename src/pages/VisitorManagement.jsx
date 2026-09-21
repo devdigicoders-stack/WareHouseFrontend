@@ -422,21 +422,21 @@ export default function VisitorManagement() {
       )}
 
       {/* 1. Header Banner - Clean, Modern & Professional */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
-            <Users className="w-6 h-6" />
+      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+            <Users className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-                Visitor Management
-              </h1>
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                 ● Visitor Access Active
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+            <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 leading-tight">
+              Visitor Management
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 leading-relaxed">
               Issue visitor badges, monitor on-premise guests, verify credentials, and manage check-out audits
             </p>
           </div>
@@ -588,21 +588,21 @@ export default function VisitorManagement() {
       </div>
 
       {/* 4. Full-Width Spacious Visitor Ledger Table */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 border-b border-slate-100 pb-3">
+          <div className="min-w-0">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 flex flex-wrap items-center gap-2">
               <span>Visitor Entry Ledger &amp; Security Audits</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 shrink-0">
                 {filteredVisitors.length} of {visitors.length}
               </span>
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
               Chronological log of verified visitor credentials and check-in clearances
             </p>
           </div>
 
-          <div className="text-xs font-semibold text-slate-500">
+          <div className="text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg shrink-0 self-start sm:self-auto">
             Terminal: Gate 01 Security Control
           </div>
         </div>
@@ -719,8 +719,8 @@ export default function VisitorManagement() {
       {/* REGISTER NEW VISITOR MODAL (CUSTOM PURE REACT SELECTS)    */}
       {/* ========================================================= */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5 animate-scale-in border border-slate-200">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-4 sm:p-6 space-y-5 animate-scale-in border border-slate-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b pb-4 border-slate-100">
               <div className="flex items-center gap-3">
@@ -860,8 +860,8 @@ export default function VisitorManagement() {
       {/* HIGH RESOLUTION PRINTABLE VISITOR BADGE MODAL             */}
       {/* ========================================================= */}
       {showPrintModal && selectedVisitor && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 animate-scale-in border border-slate-200">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90dvh] overflow-y-auto p-4 sm:p-6 space-y-4 animate-scale-in border border-slate-200">
             {/* Header */}
             <div className="flex items-center justify-between border-b pb-3 border-slate-100">
               <div className="flex items-center gap-2.5">

@@ -273,27 +273,27 @@ export default function GatePass() {
       )}
 
       {/* 1. Header Banner - Clean, Modern & Professional */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
-            <FileText className="w-6 h-6" />
+      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+            <FileText className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-                Gate Pass Management
-              </h1>
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                 ● Active Dispatch Operations
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+            <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 leading-tight">
+              Gate Pass Management
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 leading-relaxed">
               Issue, authenticate, and track vehicle outward gate passes and material consignment dispatches
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl">
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl shrink-0">
           <span>Terminal: Gate 01 Outward</span>
         </div>
       </div>
@@ -352,12 +352,12 @@ export default function GatePass() {
       </div>
 
       {/* 3. Primary Tab Navigation */}
-      <div className="bg-white rounded-2xl p-2.5 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl w-fit text-sm font-semibold">
+      <div className="bg-white rounded-2xl p-2.5 sm:p-3 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl text-sm font-semibold w-full sm:w-fit">
           <button
             type="button"
             onClick={() => setActiveTab('create')}
-            className={`px-5 py-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shrink-0 ${
+            className={`flex-1 sm:flex-none px-4 sm:px-5 py-2.5 rounded-lg transition-all cursor-pointer flex items-center justify-center sm:justify-start gap-2 whitespace-nowrap ${
               activeTab === 'create'
                 ? 'bg-indigo-600 text-white shadow-xs font-bold'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
@@ -370,7 +370,7 @@ export default function GatePass() {
           <button
             type="button"
             onClick={() => setActiveTab('register')}
-            className={`px-5 py-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shrink-0 ${
+            className={`flex-1 sm:flex-none px-4 sm:px-5 py-2.5 rounded-lg transition-all cursor-pointer flex items-center justify-center sm:justify-start gap-2 whitespace-nowrap ${
               activeTab === 'register'
                 ? 'bg-indigo-600 text-white shadow-xs font-bold'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
@@ -391,14 +391,14 @@ export default function GatePass() {
         </div>
 
         {activeTab === 'register' && (
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400 pointer-events-none" />
+          <div className="relative w-full sm:w-auto">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
             <input
               type="text"
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
               placeholder="Search pass, vehicle, driver..."
-              className="pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              className="pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
           </div>
         )}
@@ -743,29 +743,27 @@ export default function GatePass() {
             </div>
 
             {/* Step 4: Notes & Action Buttons */}
-            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 border-t border-slate-100 pt-5">
-              <div className="flex-1 min-w-[240px]">
-                <input
-                  type="text"
-                  placeholder="Optional gate officer remarks or dispatch note..."
-                  value={additionalNotes}
-                  onChange={(e) => setAdditionalNotes(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs bg-white"
-                />
-              </div>
+            <div className="flex flex-col gap-3 border-t border-slate-100 pt-5">
+              <input
+                type="text"
+                placeholder="Optional gate officer remarks or dispatch note..."
+                value={additionalNotes}
+                onChange={(e) => setAdditionalNotes(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs bg-white"
+              />
 
-              <div className="flex items-center justify-end gap-3 shrink-0">
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={handleResetForm}
-                  className="px-5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 text-sm font-bold whitespace-nowrap shrink-0 cursor-pointer shadow-2xs transition-colors flex items-center gap-1.5"
+                  className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 text-sm font-bold cursor-pointer shadow-2xs transition-colors flex items-center justify-center gap-1.5"
                 >
                   <RotateCcw className="w-4 h-4 text-slate-500" />
                   <span>Clear Form</span>
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-bold whitespace-nowrap shrink-0 flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:shadow transition-all"
+                  className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:shadow transition-all"
                 >
                   <Printer className="w-4 h-4 shrink-0" />
                   <span>Generate &amp; Print Pass</span>
@@ -923,8 +921,8 @@ export default function GatePass() {
       {/* PRINTABLE GATE PASS MODAL                                 */}
       {/* ========================================================= */}
       {showPrintModal && selectedPass && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden space-y-0 animate-scale-in">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-xl w-full max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 space-y-0 animate-scale-in">
             {/* Modal Top Bar */}
             <div className="bg-slate-900 text-white p-5 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">

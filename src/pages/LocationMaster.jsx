@@ -22,6 +22,8 @@ import {
   Printer,
   Sparkles,
   Plus,
+  LayoutGrid,
+  AlertCircle,
 } from 'lucide-react'
 
 // Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
@@ -636,34 +638,34 @@ export default function LocationMaster() {
       )}
 
       {/* Page Header Bar */}
-      <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs shrink-0">
+      <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs shrink-0 mt-0.5 sm:mt-0">
             <Warehouse className="w-5 h-5" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-800 tracking-tight">Location Master (6 Warehouse Shades)</h1>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight leading-tight">Location Master (6 Warehouse Shades)</h1>
+            <p className="text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
               Interactive 2D visual bin matrix, 6 dedicated storage shades, and base product inventory mapping.
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto shrink-0">
           <button
             type="button"
             onClick={handleExportCSV}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
+            className="flex-1 sm:flex-none justify-center inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <Download className="w-3.5 h-3.5 text-slate-500 shrink-0" />
             <span>Export CSV</span>
           </button>
           <button
             type="button"
             onClick={() => setShowBulkModal(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
+            className="flex-1 sm:flex-none justify-center inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
+            <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500 shrink-0" />
             <span>Import Bins</span>
           </button>
           <button
@@ -686,9 +688,9 @@ export default function LocationMaster() {
               })
               setShowAddModal(true)
             }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition"
+            className="w-full sm:w-auto justify-center inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>Add Grid Bin</span>
           </button>
         </div>
@@ -698,50 +700,44 @@ export default function LocationMaster() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
-            <Warehouse className="w-5 h-5" />
+            <LayoutGrid className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Dedicated Shades</p>
-            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
-              {stats.totalShades} Active
-            </h3>
-            <p className="text-[11px] text-indigo-600 font-medium">Shades 1 to 6</p>
+            <div className="text-slate-400 text-xs font-medium">Total Grid Bins</div>
+            <h3 className="text-xl font-bold text-slate-800 tracking-tight">{stats.totalBins}</h3>
+            <p className="text-[11px] text-slate-500 font-medium">80 per Shade × 6</p>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
-            <Layers className="w-5 h-5" />
+            <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Total Grid Bins</p>
-            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
-              {stats.totalBins}
-            </h3>
-            <p className="text-[11px] text-emerald-600 font-medium">80 bins / shade (8×10)</p>
+            <div className="text-slate-400 text-xs font-medium">Active Stock Bins</div>
+            <h3 className="text-xl font-bold text-emerald-600 tracking-tight">{stats.occupied}</h3>
+            <p className="text-[11px] text-emerald-600 font-medium">With mapped inventory</p>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shrink-0">
-            <Package className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center shrink-0">
+            <AlertCircle className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Occupied Bins</p>
-            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
-              {stats.occupied}
-            </h3>
-            <p className="text-[11px] text-amber-600 font-medium">{stats.overallUtil}% warehouse fill</p>
+            <div className="text-slate-400 text-xs font-medium">Full Capacity Bins</div>
+            <h3 className="text-xl font-bold text-rose-600 tracking-tight">{stats.full}</h3>
+            <p className="text-[11px] text-rose-600 font-medium">100% capacity reached</p>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-5 h-5" />
+            <Layers className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Available Bins</p>
-            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
+            <div className="text-slate-400 text-xs font-medium">Empty Bins</div>
+            <h3 className="text-xl font-bold text-slate-800 tracking-tight">
               {stats.empty}
             </h3>
             <p className="text-[11px] text-blue-600 font-medium">Ready for put-away</p>
@@ -786,45 +782,45 @@ export default function LocationMaster() {
       </div>
 
       {/* 100% Full-Width Interactive 2D Visual Grid Matrix */}
-      <div className="w-full bg-white rounded-2xl p-5 sm:p-6 shadow-xs border border-slate-200/80 space-y-4">
+      <div className="w-full bg-white rounded-2xl p-4 sm:p-6 shadow-xs border border-slate-200/80 space-y-4">
         {/* Top Header of Shade Section */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 pb-4 border-b border-slate-100">
-          <div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                {currentActiveShade.name}
-              </h2>
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+              {currentActiveShade.name}
+            </h2>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1.5">
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
                 80 Bins (8 Rows × 10 Cols)
               </span>
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                 Zone {currentActiveShade.zone} • {currentActiveShade.category}
               </span>
-              <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+              <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
                 Ratio: 1 {currentActiveShade.packUnit} = {currentActiveShade.unitsPerPack} {currentActiveShade.baseUnit}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
               Click any bin cell in the 2D layout below to inspect commodity batch, packaging ratio, or print QR locator stickers.
             </p>
           </div>
 
           {/* Matrix Legend with Live Dynamic Counts */}
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
-              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 text-xs font-semibold w-full lg:w-auto shrink-0">
+            <span className="flex items-center justify-center sm:justify-start gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 shrink-0" />
               <span>Occupied ({activeShadeStats.occupied})</span>
             </span>
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-800 border border-rose-200">
-              <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" />
+            <span className="flex items-center justify-center sm:justify-start gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-800 border border-rose-200">
+              <span className="w-2.5 h-2.5 rounded-sm bg-rose-500 shrink-0" />
               <span>Full 100% ({activeShadeStats.full})</span>
             </span>
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200">
-              <span className="w-2.5 h-2.5 rounded-sm bg-amber-400" />
+            <span className="flex items-center justify-center sm:justify-start gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200">
+              <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 shrink-0" />
               <span>QC Testing ({activeShadeStats.testing})</span>
             </span>
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 text-slate-700 border border-slate-200">
-              <span className="w-2.5 h-2.5 rounded-sm bg-slate-200 border border-slate-300" />
+            <span className="flex items-center justify-center sm:justify-start gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-50 text-slate-700 border border-slate-200">
+              <span className="w-2.5 h-2.5 rounded-sm bg-slate-200 border border-slate-300 shrink-0" />
               <span>Empty ({activeShadeStats.empty})</span>
             </span>
           </div>
@@ -918,18 +914,18 @@ export default function LocationMaster() {
         {/* Selected Bin Inspector Panel (Full Width) */}
         {selectedCell ? (
           <div className="mt-4 pt-4 border-t border-slate-200/80 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-indigo-50/50 p-3.5 rounded-xl border border-indigo-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-indigo-50/50 p-3.5 sm:p-4 rounded-xl border border-indigo-100">
+              <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+                <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5 sm:mt-0">
                   <QrCode className="w-4 h-4" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-black text-indigo-950">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs sm:text-sm font-mono font-black text-indigo-950 whitespace-nowrap">
                       {selectedCell.code}
                     </span>
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
                         selectedCell.status === 'Occupied'
                           ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
                           : selectedCell.status === 'Full'
@@ -939,34 +935,47 @@ export default function LocationMaster() {
                     >
                       {selectedCell.status}
                     </span>
-                    <span className="text-[11px] text-slate-500">
+                    <span className="hidden sm:inline text-[11px] text-slate-500">
                       {selectedCell.shadeName} (Row {selectedCell.row} • Col {selectedCell.col})
                     </span>
                   </div>
+                  <p className="sm:hidden text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                    {selectedCell.shadeName} (Row {selectedCell.row} • Col {selectedCell.col})
+                  </p>
                 </div>
+                {/* Mobile Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedCell(null)}
+                  className="sm:hidden p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg transition cursor-pointer shrink-0"
+                  title="Close Inspector"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
                 <button
                   type="button"
                   onClick={() => handleOpenPrintQr(selectedCell)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 text-xs transition cursor-pointer shadow-xs"
+                  className="flex-1 sm:flex-none justify-center bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl font-bold flex items-center gap-1.5 text-xs transition cursor-pointer shadow-xs text-center"
                 >
-                  <Printer className="w-3.5 h-3.5" />
+                  <Printer className="w-3.5 h-3.5 shrink-0" />
                   <span>Print QR Sticker</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleOpenEdit(selectedCell)}
-                  className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 text-xs transition cursor-pointer shadow-xs"
+                  className="flex-1 sm:flex-none justify-center bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3.5 py-2 rounded-xl font-semibold flex items-center gap-1.5 text-xs transition cursor-pointer shadow-xs text-center"
                 >
-                  <Edit2 className="w-3.5 h-3.5 text-slate-500" />
+                  <Edit2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                   <span>Edit Bin</span>
                 </button>
+                {/* Desktop Close Button */}
                 <button
                   type="button"
                   onClick={() => setSelectedCell(null)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                  className="hidden sm:block p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg transition cursor-pointer"
                   title="Close Inspector"
                 >
                   <X className="w-4 h-4" />
@@ -1037,7 +1046,7 @@ export default function LocationMaster() {
       {/* 100% Full-Width Master Bins Register Table */}
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
         {/* Table Toolbar */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           <div className="flex items-center gap-2.5">
             <Layers className="w-4 h-4 text-indigo-600" />
             <h2 className="text-sm font-bold text-slate-800">Master Bin Registry</h2>
@@ -1220,8 +1229,8 @@ export default function LocationMaster() {
 
       {/* MODAL 1: Add / Edit Bin Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
@@ -1354,17 +1363,17 @@ export default function LocationMaster() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="flex-1 sm:flex-none justify-center px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition"
+                  className="flex-1 sm:flex-none justify-center bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition cursor-pointer text-center"
                 >
                   Save Bin
                 </button>
@@ -1376,8 +1385,8 @@ export default function LocationMaster() {
 
       {/* MODAL 2: Print Bin QR Modal */}
       {showPrintModal && qrModalBin && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center space-y-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 text-center space-y-4">
             <div className="flex items-center justify-between border-b pb-2.5 border-slate-100">
               <h3 className="text-sm font-bold text-slate-800">Physical Bin QR Locator Tag</h3>
               <button
@@ -1452,8 +1461,8 @@ export default function LocationMaster() {
 
       {/* MODAL 3: Bulk Import Modal */}
       {showBulkModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <h3 className="text-sm font-bold text-slate-800">Bulk Bin Import</h3>
               <button
@@ -1473,11 +1482,11 @@ export default function LocationMaster() {
               <p className="text-[11px] text-slate-500">Columns: ShadeId, Row, Col, Capacity, BaseUnit</p>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setShowBulkModal(false)}
-                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="flex-1 sm:flex-none justify-center px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer text-center"
               >
                 Cancel
               </button>
@@ -1487,7 +1496,7 @@ export default function LocationMaster() {
                   setShowBulkModal(false)
                   triggerToast('Imported 80 bins successfully into Shade 3.')
                 }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition"
+                className="flex-1 sm:flex-none justify-center bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition cursor-pointer text-center"
               >
                 Upload &amp; Sync
               </button>

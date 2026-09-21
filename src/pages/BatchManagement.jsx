@@ -374,32 +374,32 @@ export default function BatchManagement() {
       )}
 
       {/* 1. Header Banner - Clean, Modern & Professional */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
-            <Layers className="w-6 h-6" />
+      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+            <Layers className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-                Batch &amp; Expiry Management
-              </h1>
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                 ● FEFO Dispatch Protocol Active
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+            <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 leading-tight">
+              Batch &amp; Expiry Management
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 leading-relaxed">
               Track manufacturing dates, shelf-life expiry schedules, and location allocations for First-Expiry-First-Out dispatch
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+        <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0">
           <button
             type="button"
             onClick={handleExportCSV}
-            className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer shadow-2xs"
+            className="flex-1 sm:flex-none justify-center px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer shadow-2xs"
           >
             <Download className="w-4 h-4 text-slate-500 shrink-0" />
             <span>Export CSV</span>
@@ -408,7 +408,7 @@ export default function BatchManagement() {
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer shadow-xs"
+            className="flex-1 sm:flex-none justify-center px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer shadow-xs"
           >
             <Plus className="w-4 h-4 shrink-0" />
             <span>Register New Batch</span>
@@ -444,11 +444,11 @@ export default function BatchManagement() {
 
         <div className="bg-white rounded-2xl p-4.5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Expiring Soon (FEFO)</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Expiring Batches</p>
             <p className="text-2xl font-extrabold text-amber-600 mt-1">
               {batches.filter((b) => b.status === 'Expiring Soon').length}
             </p>
-            <p className="text-xs text-amber-600 font-semibold mt-0.5">&lt; 60 Days Priority</p>
+            <p className="text-xs text-amber-600 font-semibold mt-0.5">Priority Dispatch Target</p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
             <Clock className="w-5 h-5" />
@@ -457,11 +457,11 @@ export default function BatchManagement() {
 
         <div className="bg-white rounded-2xl p-4.5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Expired / Quarantine</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Expired / Blocked</p>
             <p className="text-2xl font-extrabold text-rose-600 mt-1">
               {batches.filter((b) => b.status === 'Expired' || b.status === 'On Hold').length}
             </p>
-            <p className="text-xs text-rose-600 font-semibold mt-0.5">Isolated from Dispatch</p>
+            <p className="text-xs text-rose-600 font-semibold mt-0.5">Quarantine / RTV Required</p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
             <AlertTriangle className="w-5 h-5" />
@@ -470,7 +470,7 @@ export default function BatchManagement() {
       </div>
 
       {/* 3. Filter Navigation & Live Search Bar */}
-      <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Filter Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto p-1 bg-slate-100 rounded-xl text-xs font-semibold">
           <button
@@ -535,7 +535,7 @@ export default function BatchManagement() {
         </div>
 
         {/* Live Search */}
-        <div className="relative flex-1 md:max-w-xs">
+        <div className="relative flex-1 sm:max-w-xs">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
           <input
             type="text"
@@ -548,21 +548,21 @@ export default function BatchManagement() {
       </div>
 
       {/* 4. Full-Width Spacious Batches Table */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 border-b border-slate-100 pb-3">
+          <div className="min-w-0">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 flex flex-wrap items-center gap-2">
               <span>Batch Tracking &amp; FEFO Priority Schedule</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 shrink-0">
                 {filteredBatches.length} of {batches.length}
               </span>
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
               Earliest expiry batches prioritised first to minimize warehouse spoilage and shelf degradation
             </p>
           </div>
 
-          <div className="text-xs font-semibold text-slate-500">
+          <div className="text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg shrink-0 self-start sm:self-auto">
             Dispatch Rule: FEFO Strictly Enforced
           </div>
         </div>
@@ -666,8 +666,8 @@ export default function BatchManagement() {
       {/* REGISTER NEW BATCH MODAL (CUSTOM SELECTS, ZERO FLICKER)   */}
       {/* ========================================================= */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5 animate-scale-in border border-slate-200">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-4 sm:p-6 space-y-5 animate-scale-in border border-slate-200">
             {/* Header */}
             <div className="flex items-center justify-between border-b pb-4 border-slate-100">
               <div className="flex items-center gap-3">

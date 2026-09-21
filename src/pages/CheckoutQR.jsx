@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   Check,
   X,
   AlertTriangle,
   CheckCircle2,
-  Warehouse,
   QrCode,
   ShieldCheck,
   ShieldAlert,
@@ -18,7 +17,6 @@ import {
   Trash2,
   Barcode,
   Truck,
-  ArrowRight,
   Clock,
 } from 'lucide-react'
 
@@ -832,8 +830,8 @@ export default function CheckoutQR() {
 
       {/* MODAL 1: MANUAL CODE ENTRY */}
       {showManualModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full max-h-[90dvh] overflow-y-auto p-5 sm:p-6 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-sm font-bold text-slate-800">Manual SKU Entry</h3>
               <button
@@ -896,8 +894,8 @@ export default function CheckoutQR() {
 
       {/* MODAL 2: LAB SAFETY LOCK BLOCK ALERT */}
       {showLabBlockModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-rose-200 max-w-md w-full p-6 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-rose-200 max-w-md w-full max-h-[90dvh] overflow-y-auto p-5 sm:p-6 animate-in fade-in zoom-in-95">
             <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mb-3">
               <ShieldAlert className="w-6 h-6" />
             </div>
@@ -912,7 +910,7 @@ export default function CheckoutQR() {
               <button
                 type="button"
                 onClick={() => setShowLabBlockModal(false)}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition cursor-pointer"
               >
                 Acknowledge &amp; Reject Outward
               </button>
@@ -923,8 +921,8 @@ export default function CheckoutQR() {
 
       {/* MODAL 3: EXPIRED BATCH ALERT */}
       {showExpiryBlockModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-amber-200 max-w-md w-full p-6 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-amber-200 max-w-md w-full max-h-[90dvh] overflow-y-auto p-5 sm:p-6 animate-in fade-in zoom-in-95">
             <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-3">
               <AlertTriangle className="w-6 h-6" />
             </div>
@@ -936,7 +934,7 @@ export default function CheckoutQR() {
               <button
                 type="button"
                 onClick={() => setShowExpiryBlockModal(false)}
-                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition cursor-pointer"
               >
                 Understood &amp; Block
               </button>
@@ -947,8 +945,8 @@ export default function CheckoutQR() {
 
       {/* MODAL 4: FINALIZE CHECKOUT */}
       {showFinalizeModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full max-h-[90dvh] overflow-y-auto p-5 sm:p-6 animate-in fade-in zoom-in-95">
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
               <Truck className="w-6 h-6" />
             </div>
@@ -957,18 +955,18 @@ export default function CheckoutQR() {
               Finalizing will deduct <strong>{totalBaseUnits.toLocaleString()} base units</strong> across{' '}
               <strong>{scannedItemsList.length} SKUs</strong> from the warehouse inventory matrix.
             </p>
-            <div className="mt-5 flex items-center justify-end gap-3">
+            <div className="mt-5 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 sm:gap-3">
               <button
                 type="button"
                 onClick={() => setShowFinalizeModal(false)}
-                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleFinalizeCheckout}
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
               >
                 Confirm &amp; Deduct Stock
               </button>

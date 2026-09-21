@@ -2,7 +2,12 @@ import { useState } from 'react'
 import { AppContext } from './AppContext'
 
 export function AppProvider({ children }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024
+    }
+    return true
+  })
   const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem('wms_auth_user')

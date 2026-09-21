@@ -902,8 +902,8 @@ export default function PutAwayCheckIn() {
 
       {/* MODAL: Printable Physical QR Sticker */}
       {showQrLabelModal && printedLabelData && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center space-y-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 text-center space-y-4">
             <div className="flex items-center justify-between border-b pb-2.5 border-slate-100">
               <h3 className="text-sm font-bold text-slate-800">Confirmed Put-Away QR Tag</h3>
               <button

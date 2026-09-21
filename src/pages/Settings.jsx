@@ -349,9 +349,9 @@ export default function Settings() {
 
         {/* Settings Layout: Left Navigation Menu (Span 3) + Right Content Grid (Span 9) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          {/* Left Navigation Menu (Span 3) */}
+          {/* Left Navigation Menu (Span 3) – horizontal scroll on mobile */}
           <div className="lg:col-span-3">
-            <div className="bg-white rounded-xl border border-slate-200 p-2 shadow-xs space-y-1">
+            <div className="bg-white rounded-xl border border-slate-200 p-2 shadow-xs flex flex-row lg:flex-col overflow-x-auto no-scrollbar gap-1">
               {navItems.map((item) => {
                 const isActive = activeTab === item.id
                 return (
@@ -364,7 +364,7 @@ export default function Settings() {
                         triggerToast(`Switched to: ${item.label}`)
                       }
                     }}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all text-left ${
+                    className={`shrink-0 flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all text-left ${
                       isActive
                         ? 'bg-[#EAF2EA] text-[#1E3A1E] font-bold shadow-xs'
                         : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -403,7 +403,7 @@ export default function Settings() {
                 {/* Form Fields Grid */}
                 <div className="space-y-3 text-xs">
                   {/* Row 1: System Name & Organization */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
                         <span className="w-4 h-4 rounded border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0">
@@ -439,7 +439,7 @@ export default function Settings() {
                   </div>
 
                   {/* Row 2: Timezone & Date Format */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
                         <span className="w-4 h-4 rounded border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0">
@@ -481,7 +481,7 @@ export default function Settings() {
                   </div>
 
                   {/* Row 3: Time Format & Default Language */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
                         <span className="w-4 h-4 rounded border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0">
@@ -1230,8 +1230,8 @@ export default function Settings() {
 
       {/* MODAL: View Backups Modal */}
       {showBackupModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-5 animate-scale-up">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-4 sm:p-5 max-h-[90dvh] overflow-y-auto no-scrollbar animate-scale-up">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-[#1E3A1E] text-emerald-400 flex items-center justify-center font-bold">
@@ -1252,8 +1252,8 @@ export default function Settings() {
             </div>
 
             {/* Table of Backups */}
-            <div className="overflow-hidden rounded-xl border border-slate-200 mb-4">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto rounded-xl border border-slate-200 mb-4">
+              <table className="w-full text-left text-xs min-w-[320px]">
                 <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                   <tr>
                     <th className="px-3 py-2">Backup ID</th>
