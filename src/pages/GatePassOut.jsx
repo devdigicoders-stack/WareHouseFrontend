@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { printSpecificElement } from '../utils/printHelper'
 import {
   FileText,
   ShieldCheck,
@@ -1122,7 +1123,7 @@ export default function GatePassOut() {
             </div>
 
             {/* Printable Voucher Card */}
-            <div className="mt-4 p-5 bg-white border border-slate-300 rounded-xl shadow-xs space-y-4 text-xs font-mono">
+            <div id="printable-gate-pass-out-voucher" className="printable-area mt-4 p-5 bg-white border border-slate-300 rounded-xl shadow-xs space-y-4 text-xs font-mono">
               <div className="text-center border-b border-slate-200 pb-3">
                 <h2 className="text-base font-black tracking-tight text-slate-900">CENTRAL WAREHOUSE LOGISTICS</h2>
                 <p className="text-[11px] text-slate-500">OFFICIAL OUTWARD SECURITY GATE PASS</p>
@@ -1185,7 +1186,7 @@ export default function GatePassOut() {
               <button
                 type="button"
                 onClick={() => {
-                  window.print()
+                  printSpecificElement('#printable-gate-pass-out-voucher', `Gate Pass Out - ${showVoucherModal.gatePassNo}`)
                   triggerToast('Gate Pass sent to printer.')
                 }}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"

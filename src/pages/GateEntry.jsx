@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { printSpecificElement } from '../utils/printHelper'
 import {
   Truck,
   FileText,
@@ -1066,99 +1067,94 @@ export default function GateEntry() {
       {activePassModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3 sm:p-4 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 space-y-0 animate-scale-in">
-            {/* Slip Header */}
-            <div className="bg-slate-900 text-white p-5 border-b border-slate-800">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold">
-                    <Truck className="w-5 h-5" />
+            <div id="printable-gate-entry-pass" className="printable-area">
+              {/* Slip Header */}
+              <div className="bg-slate-900 text-white p-5 rounded-t-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold">
+                      <Truck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-base tracking-wide text-white">
+                        WAREHOUSE OPERATIONS
+                      </h3>
+                      <p className="text-xs text-indigo-300 font-semibold tracking-wider uppercase">
+                        Official Vehicle Inward Gate Pass
+                      </p>
+                    </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Slip Body Content */}
+              <div className="p-6 space-y-4 text-sm bg-white">
+                {/* Token & Simulated QR Code */}
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
                   <div>
-                    <h3 className="font-extrabold text-base tracking-wide text-white">
-                      WAREHOUSE OPERATIONS
-                    </h3>
-                    <p className="text-xs text-indigo-300 font-semibold tracking-wider uppercase">
-                      Official Vehicle Inward Gate Pass
+                    <p className="text-xs uppercase font-bold text-slate-500">Gate Pass Token No.</p>
+                    <p className="text-lg font-extrabold text-indigo-700 font-mono mt-0.5">{activePassModal.id}</p>
+                    <p className="text-xs text-slate-600 font-medium mt-1">
+                      Assigned Bay: <strong className="text-slate-900">{activePassModal.bay || 'Bay 2'}</strong>
                     </p>
                   </div>
+                  <div className="w-18 h-18 bg-white border border-slate-300 rounded-xl p-2 flex flex-col items-center justify-center shadow-xs">
+                    <QrCode className="w-12 h-12 text-slate-800" />
+                    <span className="text-[9px] font-mono font-bold text-slate-500 mt-0.5">GATE-PASS</span>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setActivePassModal(null)}
-                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
 
-            {/* Slip Body Content */}
-            <div className="p-6 space-y-4 text-sm">
-              {/* Token & Simulated QR Code */}
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <div>
-                  <p className="text-xs uppercase font-bold text-slate-500">Gate Pass Token No.</p>
-                  <p className="text-lg font-extrabold text-indigo-700 font-mono mt-0.5">{activePassModal.id}</p>
-                  <p className="text-xs text-slate-600 font-medium mt-1">
-                    Assigned Bay: <strong className="text-slate-900">{activePassModal.bay || 'Bay 2'}</strong>
+                {/* Two Column Key-Value Details */}
+                <div className="grid grid-cols-2 gap-3 border-y border-slate-200 py-4 text-xs">
+                  <div>
+                    <span className="text-slate-500 block">Vehicle Registration:</span>
+                    <span className="font-mono font-bold text-slate-900 text-sm">{activePassModal.vehicleNo}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Vehicle Type:</span>
+                    <span className="font-semibold text-slate-800">{activePassModal.vehicleType}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Driver Name:</span>
+                    <span className="font-bold text-slate-900">{activePassModal.driver}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Driver Contact:</span>
+                    <span className="font-mono font-semibold text-slate-800">{activePassModal.phone}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Supplier / Contracting Party:</span>
+                    <span className="font-semibold text-slate-800">{activePassModal.supplier}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Challan / PO Ref:</span>
+                    <span className="font-mono font-bold text-indigo-700">{activePassModal.challanNo}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Gate In Time:</span>
+                    <span className="font-mono text-slate-700">{activePassModal.inTime}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Current Status:</span>
+                    <span className="font-bold text-amber-700">{activePassModal.status}</span>
+                  </div>
+                </div>
+
+                {/* Declared Material Summary */}
+                <div className="bg-indigo-50/70 p-3.5 rounded-xl border border-indigo-100">
+                  <span className="text-xs font-bold uppercase text-indigo-900 block">
+                    Declared Consignment &amp; Packaging:
+                  </span>
+                  <p className="text-sm font-semibold text-slate-800 mt-1">
+                    {activePassModal.itemsSummary || 'Standard Commercial Consignment'}
                   </p>
                 </div>
-                <div className="w-18 h-18 bg-white border border-slate-300 rounded-xl p-2 flex flex-col items-center justify-center shadow-xs">
-                  <QrCode className="w-12 h-12 text-slate-800" />
-                  <span className="text-[9px] font-mono font-bold text-slate-500 mt-0.5">GATE-PASS</span>
-                </div>
-              </div>
 
-              {/* Two Column Key-Value Details */}
-              <div className="grid grid-cols-2 gap-3 border-y border-slate-200 py-4 text-xs">
-                <div>
-                  <span className="text-slate-500 block">Vehicle Registration:</span>
-                  <span className="font-mono font-bold text-slate-900 text-sm">{activePassModal.vehicleNo}</span>
+                {/* Tear-Off Instructions */}
+                <div className="border-t border-dashed border-slate-300 pt-3 flex items-center justify-between text-xs text-slate-500">
+                  <span>Security Officer Verified</span>
+                  <span className="font-mono font-bold text-slate-700">GRN Handover Copy</span>
                 </div>
-                <div>
-                  <span className="text-slate-500 block">Vehicle Type:</span>
-                  <span className="font-semibold text-slate-800">{activePassModal.vehicleType}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Driver Name:</span>
-                  <span className="font-bold text-slate-900">{activePassModal.driver}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Driver Contact:</span>
-                  <span className="font-mono font-semibold text-slate-800">{activePassModal.phone}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Supplier / Contracting Party:</span>
-                  <span className="font-semibold text-slate-800">{activePassModal.supplier}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Challan / PO Ref:</span>
-                  <span className="font-mono font-bold text-indigo-700">{activePassModal.challanNo}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Gate In Time:</span>
-                  <span className="font-mono text-slate-700">{activePassModal.inTime}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Current Status:</span>
-                  <span className="font-bold text-amber-700">{activePassModal.status}</span>
-                </div>
-              </div>
-
-              {/* Declared Material Summary */}
-              <div className="bg-indigo-50/70 p-3.5 rounded-xl border border-indigo-100">
-                <span className="text-xs font-bold uppercase text-indigo-900 block">
-                  Declared Consignment &amp; Packaging:
-                </span>
-                <p className="text-sm font-semibold text-slate-800 mt-1">
-                  {activePassModal.itemsSummary || 'Standard Commercial Consignment'}
-                </p>
-              </div>
-
-              {/* Tear-Off Instructions */}
-              <div className="border-t border-dashed border-slate-300 pt-3 flex items-center justify-between text-xs text-slate-500">
-                <span>Security Officer Verified</span>
-                <span className="font-mono font-bold text-slate-700">GRN Handover Copy</span>
               </div>
             </div>
 
@@ -1174,7 +1170,7 @@ export default function GateEntry() {
               <button
                 type="button"
                 onClick={() => {
-                  window.print()
+                  printSpecificElement('#printable-gate-entry-pass', `Gate Pass - ${activePassModal.id}`)
                 }}
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm"
               >

@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { printSpecificElement } from '../utils/printHelper'
 import {
   Users,
   UserCheck,
@@ -883,7 +884,7 @@ export default function VisitorManagement() {
             </div>
 
             {/* Printable Pass Paper Card */}
-            <div className="border border-slate-300 rounded-2xl bg-white p-5 space-y-4 shadow-sm">
+            <div id="printable-visitor-badge" className="printable-area border border-slate-300 rounded-2xl bg-white p-5 space-y-4 shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-indigo-600 tracking-wider block">
@@ -953,7 +954,7 @@ export default function VisitorManagement() {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printSpecificElement('#printable-visitor-badge', `Visitor Pass - ${selectedVisitor.passNo}`)}
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition"
               >
                 <Printer className="w-3.5 h-3.5" />

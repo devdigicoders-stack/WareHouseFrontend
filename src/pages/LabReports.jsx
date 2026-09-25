@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { printSpecificElement } from '../utils/printHelper'
 import {
   FileText,
   Plus,
@@ -716,7 +717,9 @@ export default function LabReports() {
                           type="button"
                           onClick={() => {
                             setShowCertModal(row)
-                            setTimeout(() => window.print(), 300)
+                            setTimeout(() => {
+                              printSpecificElement('#printable-lab-report-cert', `CoA Report - ${row.reportNo}`)
+                            }, 300)
                           }}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition"
                           title="Print Quality Certificate"
@@ -918,7 +921,7 @@ export default function LabReports() {
             </div>
 
             {/* Printable Certificate Layout */}
-            <div className="border border-slate-200 rounded-xl p-5 bg-slate-50/50 space-y-4 text-xs font-sans">
+            <div id="printable-lab-report-cert" className="printable-area border border-slate-200 rounded-xl p-5 bg-slate-50/50 space-y-4 text-xs font-sans">
               <div className="flex items-start justify-between border-b pb-3 border-slate-200">
                 <div>
                   <h2 className="text-sm font-black text-slate-900 uppercase">CENTRAL WAREHOUSE LOGISTICS</h2>
@@ -1022,7 +1025,7 @@ export default function LabReports() {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printSpecificElement('#printable-lab-report-cert', `CoA Report - ${showCertModal.reportNo}`)}
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition"
               >
                 <Printer className="w-4 h-4" />

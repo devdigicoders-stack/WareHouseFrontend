@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { printSpecificElement } from '../utils/printHelper'
 import {
   Wand2,
   Check,
@@ -616,7 +617,7 @@ export default function PutAwayCheckIn() {
           </div>
 
           {/* High-Contrast Industrial QR Sticker Canvas */}
-          <div className="border-2 border-slate-900 rounded-2xl p-4 bg-white space-y-3 font-sans shadow-md">
+          <div id="printable-putaway-tag" className="printable-area border-2 border-slate-900 rounded-2xl p-4 bg-white space-y-3 font-sans shadow-md">
             <div className="flex items-start justify-between border-b pb-2 border-slate-900">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
@@ -706,7 +707,7 @@ export default function PutAwayCheckIn() {
 
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => printSpecificElement('#printable-putaway-tag', `PutAway Tag - ${formLocationCode}`)}
             className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5"
           >
             <Printer className="w-4 h-4 text-slate-600" />
@@ -915,7 +916,7 @@ export default function PutAwayCheckIn() {
               </button>
             </div>
 
-            <div className="border-2 border-slate-900 rounded-xl p-4 bg-white space-y-2 text-center">
+            <div id="printable-putaway-modal-tag" className="printable-area border-2 border-slate-900 rounded-xl p-4 bg-white space-y-2 text-center">
               <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">
                 CENTRAL WAREHOUSE • PALLET / CARTON LABEL
               </div>
@@ -965,7 +966,7 @@ export default function PutAwayCheckIn() {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printSpecificElement('#printable-putaway-modal-tag', `PutAway Tag - ${printedLabelData.locationCode}`)}
                 className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5"
               >
                 <Printer className="w-4 h-4" />

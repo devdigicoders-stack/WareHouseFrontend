@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { printSpecificElement } from '../utils/printHelper'
 import {
   ArrowLeftRight,
   Eye,
@@ -681,7 +682,9 @@ export default function StockMovement() {
                           type="button"
                           onClick={() => {
                             setShowDetailModal(row)
-                            setTimeout(() => window.print(), 300)
+                            setTimeout(() => {
+                              printSpecificElement('#printable-movement-voucher', `Movement Voucher - ${row.refNo}`)
+                            }, 300)
                           }}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition"
                           title="Print Movement Slip"
@@ -908,7 +911,7 @@ export default function StockMovement() {
             </div>
 
             {/* Printable Voucher Card */}
-            <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-3.5 text-xs font-sans">
+            <div id="printable-movement-voucher" className="printable-area border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-3.5 text-xs font-sans">
               <div className="flex items-start justify-between border-b pb-2.5 border-slate-200">
                 <div>
                   <h4 className="text-xs font-black uppercase text-slate-900">CENTRAL WAREHOUSE LOGISTICS</h4>
@@ -975,7 +978,7 @@ export default function StockMovement() {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printSpecificElement('#printable-movement-voucher', `Movement Voucher - ${showDetailModal.refNo}`)}
                 className="flex-1 sm:flex-none justify-center inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition cursor-pointer text-center"
               >
                 <Printer className="w-4 h-4 shrink-0" />

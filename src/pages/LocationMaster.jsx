@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { printSpecificElement } from '../utils/printHelper'
 import {
   Warehouse,
   Package,
@@ -1399,7 +1400,7 @@ export default function LocationMaster() {
             </div>
 
             {/* Printable Bin Tag Preview */}
-            <div className="border-2 border-slate-900 rounded-xl p-4 bg-white space-y-2.5 text-center">
+            <div id="printable-location-bin-tag" className="printable-area border-2 border-slate-900 rounded-xl p-4 bg-white space-y-2.5 text-center">
               <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                 CENTRAL WAREHOUSE • LOCATION TAG
               </div>
@@ -1448,7 +1449,7 @@ export default function LocationMaster() {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printSpecificElement('#printable-location-bin-tag', `Location Tag - ${qrModalBin.code}`)}
                 className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5"
               >
                 <Printer className="w-4 h-4" />

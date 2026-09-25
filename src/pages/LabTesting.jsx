@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { printSpecificElement } from '../utils/printHelper'
 import {
   FlaskConical,
   Plus,
@@ -465,7 +466,7 @@ export default function LabTesting() {
           </button>
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => printSpecificElement('#printable-lab-register-table', 'Lab Testing Register Report')}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
           >
             <Printer className="w-3.5 h-3.5 text-slate-500" />
@@ -649,7 +650,7 @@ export default function LabTesting() {
         </div>
 
         {/* 100% Full-Width Table */}
-        <div className="overflow-x-auto w-full">
+        <div id="printable-lab-register-table" className="overflow-x-auto w-full">
           <table className="w-full text-left text-xs divide-y divide-slate-200">
             <thead className="bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
               <tr>
@@ -741,7 +742,9 @@ export default function LabTesting() {
                           type="button"
                           onClick={() => {
                             setShowCertModal(row)
-                            setTimeout(() => window.print(), 300)
+                            setTimeout(() => {
+                              printSpecificElement('#printable-lab-test-cert', `QA Certificate - ${row.sampleId}`)
+                            }, 300)
                           }}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition"
                           title="Print Certificate"
@@ -950,7 +953,7 @@ export default function LabTesting() {
             </div>
 
             {/* Printable Certificate Layout */}
-            <div className="border border-slate-200 rounded-xl p-5 bg-slate-50/50 space-y-4 text-xs font-sans">
+            <div id="printable-lab-test-cert" className="printable-area border border-slate-200 rounded-xl p-5 bg-slate-50/50 space-y-4 text-xs font-sans">
               <div className="flex items-start justify-between border-b pb-3 border-slate-200">
                 <div>
                   <h2 className="text-sm font-black text-slate-900 uppercase">CENTRAL WAREHOUSE QA LAB</h2>
@@ -1052,7 +1055,7 @@ export default function LabTesting() {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printSpecificElement('#printable-lab-test-cert', `QA Certificate - ${showCertModal.sampleId}`)}
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition"
               >
                 <Printer className="w-4 h-4" />

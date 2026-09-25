@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { printSpecificElement } from '../utils/printHelper'
 import {
   Truck,
   Send,
@@ -1332,7 +1333,7 @@ export default function IssueDispatch() {
             </div>
 
             {/* Printable Voucher Card */}
-            <div className="mt-4 p-5 bg-white border border-slate-300 rounded-xl shadow-xs space-y-4 text-xs font-mono">
+            <div id="printable-issue-dispatch-gatepass" className="printable-area mt-4 p-5 bg-white border border-slate-300 rounded-xl shadow-xs space-y-4 text-xs font-mono">
               <div className="text-center border-b border-slate-200 pb-3">
                 <h2 className="text-base font-black tracking-tight text-slate-900">CENTRAL WAREHOUSE LOGISTICS</h2>
                 <p className="text-[11px] text-slate-500">AUTHORIZED OUTWARD GATE PASS</p>
@@ -1387,7 +1388,7 @@ export default function IssueDispatch() {
               <button
                 type="button"
                 onClick={() => {
-                  window.print()
+                  printSpecificElement('#printable-issue-dispatch-gatepass', `Gate Pass - ${showGatePassModal.dispatchNo}`)
                   triggerToast('Gate Pass sent to printer.')
                 }}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"

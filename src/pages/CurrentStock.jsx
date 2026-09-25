@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { printSpecificElement } from '../utils/printHelper'
 import {
   X,
   Package,
@@ -1203,7 +1204,7 @@ export default function CurrentStock() {
               </button>
             </div>
 
-            <div className="border-2 border-dashed border-slate-300 rounded-2xl p-4 bg-slate-50/50 space-y-3 text-center">
+            <div id="printable-current-stock-qr" className="printable-area border-2 border-dashed border-slate-300 rounded-2xl p-4 bg-white space-y-3 text-center">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 border-b border-slate-200 pb-1.5">
                 <span>WAREHOUSE INVENTORY SYSTEM</span>
                 <span className="font-mono text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200">
@@ -1235,7 +1236,7 @@ export default function CurrentStock() {
               <button
                 type="button"
                 onClick={() => {
-                  window.print()
+                  printSpecificElement('#printable-current-stock-qr', `Bin Sticker - ${showQrModal.location}`)
                   setShowQrModal(null)
                 }}
                 className="flex-1 sm:flex-none justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer text-center"

@@ -98,3 +98,82 @@ select, option {
   color: #0f172a !important;
 }
 
+/* ========================================================= */
+/* PRINT STYLES: Print ONLY the designated receipt/modal/card */
+/* ========================================================= */
+@media print {
+  /* Reset height/overflow locks for printing */
+  html,
+  body,
+  #root {
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Hide navigation, sidebar, navbar, footers, toolbars, buttons, close icons, toasts */
+  nav,
+  aside,
+  header,
+  footer,
+  button,
+  .no-print,
+  [data-no-print="true"] {
+    display: none !important;
+  }
+
+  /* If a modal with .printable-modal is open, hide the rest of the page */
+  body:has(.printable-modal) #root > *:not(.printable-modal-container),
+  body:has(.printable-modal) main,
+  body:has(.printable-modal) header,
+  body:has(.printable-modal) aside,
+  body:has(.printable-modal) footer {
+    display: none !important;
+  }
+
+  /* Make printable modal container full page clean without black overlay backdrop */
+  .fixed.inset-0:has(.printable-area),
+  .printable-modal-overlay {
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    min-height: auto !important;
+    box-shadow: none !important;
+  }
+
+  .printable-modal-card {
+    position: static !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  /* Ensure the printable area has crisp borders and white background */
+  .printable-area {
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    padding: 16px !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 780px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}
+

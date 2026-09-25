@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { printSpecificElement } from '../utils/printHelper'
 import {
   Check,
   X,
@@ -948,7 +949,7 @@ export default function GatePass() {
             </div>
 
             {/* Printable Document Sheet */}
-            <div className="p-6 space-y-4 text-sm max-h-[75vh] overflow-y-auto">
+            <div id="printable-outward-gate-pass" className="printable-area p-6 space-y-4 text-sm max-h-[75vh] overflow-y-auto">
               {/* Slip Token & QR */}
               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
@@ -1064,7 +1065,7 @@ export default function GatePass() {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printSpecificElement('#printable-outward-gate-pass', `Gate Pass - ${selectedPass.id}`)}
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
               >
                 <Printer className="w-4 h-4" />

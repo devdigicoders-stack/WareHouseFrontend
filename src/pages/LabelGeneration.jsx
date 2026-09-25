@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { printSpecificElement } from '../utils/printHelper'
 import {
   QrCode,
   Barcode,
@@ -805,7 +806,7 @@ export default function LabelGeneration() {
 
           {/* Realistic High-Contrast Thermal Label Canvas */}
           <div className="border-2 border-dashed border-slate-300 rounded-2xl p-4 bg-slate-50/50 flex items-center justify-center">
-            <div className="w-full max-w-sm bg-white border-2 border-slate-900 rounded-xl p-4 shadow-md space-y-3 font-sans">
+            <div id="printable-thermal-label-preview" className="printable-area w-full max-w-sm bg-white border-2 border-slate-900 rounded-xl p-4 shadow-md space-y-3 font-sans">
               {labelCategory === 'Location Label' ? (
                 /* Location & Rack Bin Sticker Preview */
                 <div className="space-y-3">
@@ -997,7 +998,7 @@ export default function LabelGeneration() {
               type="button"
               onClick={() => {
                 handleQueuePrint()
-                window.print()
+                printSpecificElement('#printable-thermal-label-preview', `Thermal Label (${quantity})`)
               }}
               className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
             >
@@ -1152,8 +1153,11 @@ export default function LabelGeneration() {
                         <button
                           type="button"
                           onClick={() => {
+                            handleLoadToPreview(row)
                             triggerToast(`Printing ${row.quantity} labels for ${row.productName}`)
-                            window.print()
+                            setTimeout(() => {
+                              printSpecificElement('#printable-thermal-label-preview', `Thermal Label - ${row.productName}`)
+                            }, 250)
                           }}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition"
                           title="Print Immediately"
