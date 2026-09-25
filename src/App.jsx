@@ -22,6 +22,7 @@ import StockSearch from './pages/StockSearch'
 import StockAdjustment from './pages/StockAdjustment'
 import DamageRejection from './pages/DamageRejection'
 import HoldStock from './pages/HoldStock'
+import ExpiryManagement from './pages/ExpiryManagement'
 import IssueDispatch from './pages/IssueDispatch'
 import CheckoutQR from './pages/CheckoutQR'
 import GatePassOut from './pages/GatePassOut'
@@ -300,6 +301,30 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <HoldStock />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/expiry-management"
+            element={
+              <ProtectedRoute>
+                <ExpiryManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/expiry-stock"
+            element={
+              <ProtectedRoute>
+                <ExpiryManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory/expiry-management"
+            element={
+              <ProtectedRoute>
+                <ExpiryManagement />
               </ProtectedRoute>
             }
           />
