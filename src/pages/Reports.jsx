@@ -125,7 +125,7 @@ export default function Reports() {
 
   // Schedule Modal Form state
   const [scheduleConfig, setScheduleConfig] = useState({
-    reportName: 'Consolidated Warehouse Stock Valuation',
+    reportName: 'Consolidated Warehouse Stock Summary',
     frequency: 'Daily (08:00 IST)',
     format: 'Excel & CSV',
     recipients: 'warehouse.manager@logistics.com, audit@centralhub.com',
@@ -136,7 +136,7 @@ export default function Reports() {
   const [reportsList, setReportsList] = useState([
     {
       id: 1,
-      name: 'Consolidated Warehouse Stock Valuation',
+      name: 'Consolidated Warehouse Stock Summary',
       code: 'RPT-STK-001',
       category: 'Inventory',
       shadeId: 'SH03',
@@ -147,7 +147,7 @@ export default function Reports() {
       generatedBy: 'Rajesh Sharma',
       recordsCount: 5842,
       status: 'Active',
-      description: 'Comprehensive stock ledger with dual-unit breakdown (Units & Gatta) and valuation.',
+      description: 'Comprehensive stock ledger with dual-unit breakdown (Units & Gatta) and storage metrics.',
     },
     {
       id: 2,
@@ -307,7 +307,7 @@ export default function Reports() {
   // Dropdown Options
   const categoryOptions = [
     { value: 'ALL', label: 'All Report Categories' },
-    { value: 'Inventory', label: 'Inventory & Stock Valuation' },
+    { value: 'Inventory', label: 'Inventory & Stock Summary' },
     { value: 'Inward Operations', label: 'Inward GRN Operations' },
     { value: 'Outward Operations', label: 'Outward Dispatch Operations' },
     { value: 'Quality & Labs', label: 'Quality & Lab Clearances' },
@@ -396,9 +396,9 @@ export default function Reports() {
             <TrendingUp className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-slate-500 truncate">Total Stock Valuation</p>
+            <p className="text-xs font-semibold text-slate-500 truncate">Total Stock Volume</p>
             <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5 truncate">
-              ₹ 12.48 Cr
+              4,82,500 Units
             </h3>
             <p className="text-[11px] text-emerald-600 font-medium truncate">↑ 8% vs last month</p>
           </div>

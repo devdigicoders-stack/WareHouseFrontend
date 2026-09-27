@@ -284,13 +284,13 @@ export default function ExpiryManagement() {
     const monitor90Count = expiryList.filter((x) => x.daysRemaining > 60 && x.daysRemaining <= 90).length
     const healthyCount = expiryList.filter((x) => x.daysRemaining > 90).length
 
-    const atRiskValue = expiryList
+    const atRiskQty = expiryList
       .filter((x) => x.daysRemaining <= 60)
-      .reduce((acc, curr) => acc + curr.totalRiskValue, 0)
+      .reduce((acc, curr) => acc + curr.stockQty, 0)
 
-    const totalExpiredValue = expiryList
+    const totalExpiredQty = expiryList
       .filter((x) => x.daysRemaining <= 0)
-      .reduce((acc, curr) => acc + curr.totalRiskValue, 0)
+      .reduce((acc, curr) => acc + curr.stockQty, 0)
 
     return {
       expiredCount,
@@ -298,8 +298,8 @@ export default function ExpiryManagement() {
       near60Count,
       monitor90Count,
       healthyCount,
-      atRiskValue,
-      totalExpiredValue,
+      atRiskQty,
+      totalExpiredQty,
     }
   }, [expiryList])
 
@@ -513,7 +513,7 @@ export default function ExpiryManagement() {
               {stats.expiredCount}
             </h3>
             <p className="text-[11px] text-rose-600 font-medium">
-              Loss Value: ₹ {stats.totalExpiredValue.toLocaleString()}
+              Loss Qty: {stats.totalExpiredQty.toLocaleString()} Units
             </p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center shrink-0">
@@ -552,9 +552,9 @@ export default function ExpiryManagement() {
         {/* Total At-Risk Inventory Value */}
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500">Total At-Risk Stock Value</p>
+            <p className="text-xs font-semibold text-slate-500">Total At-Risk Stock Units</p>
             <h3 className="text-2xl font-black text-slate-900 leading-tight mt-0.5 font-mono">
-              ₹ {stats.atRiskValue.toLocaleString()}
+              {stats.atRiskQty.toLocaleString()} Units
             </h3>
             <p className="text-[11px] text-slate-500 font-medium">Batches expiring in &le; 60 days</p>
           </div>
@@ -701,7 +701,7 @@ export default function ExpiryManagement() {
                 <th className="py-3.5 px-4 min-w-[110px]">Expiry Date</th>
                 <th className="py-3.5 px-4 text-center min-w-[120px]">Shelf-Life Status</th>
                 <th className="py-3.5 px-4 text-right min-w-[120px]">Stock Quantity</th>
-                <th className="py-3.5 px-4 text-right min-w-[120px]">Risk Value</th>
+                <th className="py-3.5 px-4 text-right min-w-[120px]">FEFO Priority</th>
                 <th className="py-3.5 px-4 text-center min-w-[110px]">Quarantine</th>
                 <th className="py-3.5 px-4 text-center w-28">Actions</th>
               </tr>
@@ -794,12 +794,14 @@ export default function ExpiryManagement() {
                         </div>
                       </td>
 
-                      {/* Total Risk Value */}
-                      <td className="py-3.5 px-4 text-right font-mono font-bold">
-                        <span className={isExpired ? 'text-rose-600' : isCritical ? 'text-amber-700' : 'text-slate-800'}>
-                          ₹ {row.totalRiskValue.toLocaleString()}
+                      {/* FEFO Priority */}
+                      <td className="py-3.5 px-4 text-right">
+                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                          isExpired ? 'bg-rose-100 text-rose-700' : isCritical ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {isExpired ? 'Expired Stock' : isCritical ? 'High Priority' : 'Normal Queue'}
                         </span>
-                        <div className="text-[10px] text-slate-400 font-normal">₹ {row.unitCost} / {row.unit}</div>
+                        <div className="text-[10px] text-slate-400 font-normal">{row.daysRemaining <= 0 ? '0 days remaining' : `${row.daysRemaining} days left`}</div>
                       </td>
 
                       {/* Quarantine Switch */}
@@ -950,8 +952,10 @@ export default function ExpiryManagement() {
                   <span className="font-mono font-bold text-slate-900">{showDetailModal.stockQty} {showDetailModal.unit}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block">Financial Exposure (Risk):</span>
-                  <span className="font-mono font-bold text-rose-700">₹ {showDetailModal.totalRiskValue.toLocaleString()}</span>
+                  <span className="text-slate-500 block">Risk Status:</span>
+                  <span className={`font-mono font-bold ${showDetailModal.daysRemaining <= 0 ? 'text-rose-700' : 'text-amber-700'}`}>
+                    {showDetailModal.daysRemaining <= 0 ? 'EXPIRED (Action Required)' : `${showDetailModal.daysRemaining} Days to Expiry`}
+                  </span>
                 </div>
               </div>
 
