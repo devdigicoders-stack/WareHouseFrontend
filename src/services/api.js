@@ -1,21 +1,19 @@
 import { API_BASE_URL } from '../utils/constants'
 
-// Base fetch wrapper for backend API calls
 export const apiRequest = async (endpoint, options = {}) => {
   try {
+    const token = localStorage.getItem('wms_auth_token')
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
       ...options,
     })
-
-    if (!response.ok) {
-      throw new Error(`API Request Error: ${response.statusText}`)
-    }
-
-    return await response.json()
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.message || 'Request failed')
+    return data
   } catch (error) {
     console.error('API Error:', error)
     throw error

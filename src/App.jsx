@@ -13,6 +13,8 @@ import BatchManagement from './pages/BatchManagement'
 import LabelGeneration from './pages/LabelGeneration'
 import LocationMaster from './pages/LocationMaster'
 import ShadeManagement from './pages/ShadeManagement'
+import RackManagement from './pages/RackManagement'
+
 import PutAwayCheckIn from './pages/PutAwayCheckIn'
 import StockMovement from './pages/StockMovement'
 import LabTesting from './pages/LabTesting'
@@ -46,8 +48,8 @@ function LoginRoute() {
   const { user, setUser } = useApp()
   const navigate = useNavigate()
 
-  const handleLoginSuccess = (userData) => {
-    setUser(userData)
+  const handleLoginSuccess = (userData, token) => {
+    setUser(userData, token)
     navigate('/dashboard', { replace: true })
   }
 
@@ -176,6 +178,23 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/rack-mgmt"
+            element={
+              <ProtectedRoute>
+                <RackManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/rack-management"
+            element={
+              <ProtectedRoute>
+                <RackManagement />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/put-away"
             element={

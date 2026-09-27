@@ -1,14 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { KeyRound, HardDrive, Unlock, CheckCircle2, AlertCircle, Usb, FolderOpen, Shield } from 'lucide-react'
-
-// Single Operator Profile
-const designatedUser = {
-  userId: 'WMS-MGR-001',
-  name: 'Warehouse Manager',
-  role: 'Operations Manager',
-  department: 'Central Warehouse Logistics',
-  terminal: 'WMS-TERMINAL-01',
-}
+import { KeyRound, HardDrive, Unlock, CheckCircle2, AlertCircle, FolderOpen, Shield } from 'lucide-react'
+import { apiRequest } from '../services/api'
 
 export default function LoginPage({ onLoginSuccess }) {
   const [authMode, setAuthMode] = useState('pin')
@@ -21,40 +13,39 @@ export default function LoginPage({ onLoginSuccess }) {
   const inputRefs = useRef([])
 
   // USB / Pendrive state
-  const [usbStatus, setUsbStatus] = useState('idle') // idle | reading | verifying | authenticated | rejected
+  const [usbStatus, setUsbStatus] = useState('idle')
   const [usbError, setUsbError] = useState('')
   const [selectedFileName, setSelectedFileName] = useState('')
   const fileInputRef = useRef(null)
 
-  // Auto-focus first PIN input on mount or tab switch
   useEffect(() => {
-    if (authMode === 'pin') {
-      inputRefs.current[0]?.focus()
-    }
+    if (authMode === 'pin') inputRefs.current[0]?.focus()
   }, [authMode])
 
-  // PIN verification
-  const handlePinSubmit = useCallback((pinToTest) => {
+  // PIN verification — real API call
+  const handlePinSubmit = useCallback(async (pinToTest) => {
     const code = (pinToTest || pin).replace(/\s/g, '')
-    if (code.length < 4) {
+    if (code.length !== 4) {
       setPinError('Please enter a 4-digit PIN')
       return
     }
     setPinLoading(true)
     setPinError('')
-    setTimeout(() => {
-      if (code === '1947') {
-        setPinLoading(false)
-        onLoginSuccess?.({ ...designatedUser, authMethod: 'PIN', loginTime: new Date().toISOString() })
-      } else {
-        setPinLoading(false)
-        setPinError('Invalid PIN. Please try again.')
-        setShake(true)
-        setTimeout(() => setShake(false), 500)
-        setPin('')
-        setTimeout(() => inputRefs.current[0]?.focus(), 100)
-      }
-    }, 700)
+    try {
+      const data = await apiRequest('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ pin: code }),
+      })
+      onLoginSuccess?.(data.user, data.token)
+    } catch (err) {
+      setPinError(err.message || 'Invalid PIN. Please try again.')
+      setShake(true)
+      setTimeout(() => setShake(false), 500)
+      setPin('')
+      setTimeout(() => inputRefs.current[0]?.focus(), 100)
+    } finally {
+      setPinLoading(false)
+    }
   }, [pin, onLoginSuccess])
 
   // Digit change handler for 4-box PIN input
@@ -137,45 +128,30 @@ export default function LoginPage({ onLoginSuccess }) {
 
 
 
-  // USB: Authorized
-  const handleInsertAuthorizedUsb = () => {
-    setUsbError('')
-    setUsbStatus('reading')
-    setTimeout(() => {
-      setUsbStatus('verifying')
-      setTimeout(() => {
-        setUsbStatus('authenticated')
-        setTimeout(() => {
-          onLoginSuccess?.({
-            ...designatedUser,
-            authMethod: 'USB Token',
-            usbToken: 'WMS-SEC-KEY-2026-AUTH-TOKEN',
-            loginTime: new Date().toISOString(),
-          })
-        }, 600)
-      }, 800)
-    }, 700)
-  }
-
-  // USB: Rejected
-  const handleInsertInvalidUsb = () => {
-    setUsbError('')
-    setUsbStatus('reading')
-    setTimeout(() => {
-      setUsbStatus('rejected')
-      setUsbError('Invalid token. Access denied.')
-      setShake(true)
-      setTimeout(() => setShake(false), 500)
-      setTimeout(() => { setUsbStatus('idle'); setUsbError('') }, 3000)
-    }, 900)
-  }
-
-  // File select (simulate USB)
-  const handleFileSelect = (e) => {
+  // USB: File select — read content and verify with backend
+  const handleFileSelect = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     setSelectedFileName(file.name)
-    handleInsertAuthorizedUsb()
+    setUsbError('')
+    setUsbStatus('reading')
+
+    try {
+      const fileContent = await file.text()
+      setUsbStatus('verifying')
+      const data = await apiRequest('/auth/login-usb', {
+        method: 'POST',
+        body: JSON.stringify({ fileContent }),
+      })
+      setUsbStatus('authenticated')
+      setTimeout(() => onLoginSuccess?.(data.user, data.token), 600)
+    } catch (err) {
+      setUsbStatus('rejected')
+      setUsbError(err.message || 'Invalid token. Access denied.')
+      setShake(true)
+      setTimeout(() => setShake(false), 500)
+      setTimeout(() => { setUsbStatus('idle'); setUsbError(''); setSelectedFileName('') }, 3000)
+    }
   }
 
   const switchTab = (mode) => {
@@ -294,22 +270,7 @@ export default function LoginPage({ onLoginSuccess }) {
               )}
             </button>
 
-            {/* Quick fill helper */}
-            <div className="text-center pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setPin('1947')
-                  setPinError('')
-                  handlePinSubmit('1947')
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50/70 hover:bg-indigo-100/80 border border-indigo-200/70 text-indigo-700 text-xs font-semibold transition cursor-pointer"
-              >
-                <span>Default PIN:</span>
-                <span className="font-mono font-black text-indigo-900">1947</span>
-                <span className="text-[10px] text-indigo-500 font-normal">(Tap to auto-fill)</span>
-              </button>
-            </div>
+
           </div>
         )}
 
@@ -376,49 +337,31 @@ export default function LoginPage({ onLoginSuccess }) {
               <button
                 type="button"
                 disabled={['reading', 'verifying', 'authenticated'].includes(usbStatus)}
-                onClick={handleInsertAuthorizedUsb}
+                onClick={() => fileInputRef.current?.click()}
                 className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-sm shadow-indigo-200 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {['reading', 'verifying'].includes(usbStatus) ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Verifying...
+                    {usbStatus === 'reading' ? 'Reading file...' : 'Verifying...'}
                   </>
                 ) : (
                   <>
-                    <Usb className="w-4 h-4" />
-                    Simulate USB Insert
+                    <FolderOpen className="w-4 h-4" />
+                    {selectedFileName || 'Select wms-token.key from USB'}
                   </>
                 )}
               </button>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  disabled={['reading', 'verifying'].includes(usbStatus)}
-                  onClick={handleInsertInvalidUsb}
-                  className="py-2 px-3 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  Test Invalid
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="py-2 px-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer truncate"
-                >
-                  <FolderOpen className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">{selectedFileName || 'Browse File'}</span>
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".key,.auth,.token,.bin"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".key"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <p className="text-center text-[11px] text-slate-400">
+                Pendrive lagao → <span className="font-mono font-semibold text-slate-600">wms-token.key</span> file select karo
+              </p>
             </div>
           </div>
         )}

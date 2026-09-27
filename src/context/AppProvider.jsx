@@ -30,10 +30,11 @@ export function AppProvider({ children }) {
 
   const toggleSidebar = () => setSidebarOpen((prev) => !prev)
 
-  const loginUser = (userData) => {
+  const loginUser = (userData, token) => {
     setUser(userData)
     try {
       localStorage.setItem('wms_auth_user', JSON.stringify(userData))
+      if (token) localStorage.setItem('wms_auth_token', token)
     } catch {
       // ignore
     }
@@ -43,6 +44,7 @@ export function AppProvider({ children }) {
     setUser(null)
     try {
       localStorage.removeItem('wms_auth_user')
+      localStorage.removeItem('wms_auth_token')
     } catch {
       // ignore
     }

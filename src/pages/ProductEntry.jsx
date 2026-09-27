@@ -18,6 +18,7 @@ import {
   Shield,
   RefreshCw,
 } from 'lucide-react'
+import { apiRequest } from '../services/api'
 
 // Custom Select Component to eliminate native OS dropdown black-frame flicker
 function CustomSelect({ label, value, onChange, options, required, zIndexClass = 'z-20' }) {
@@ -132,145 +133,11 @@ export default function ProductEntry() {
   const [editingId, setEditingId] = useState(null)
   const [toastMessage, setToastMessage] = useState(null)
 
-  // Master Products List (Commercial Warehouse Inventory)
-  const [products, setProducts] = useState([
-    {
-      id: 1,
-      name: 'Basmati Rice (Grade 1 Special 25kg)',
-      sku: 'PRD-RIC-001',
-      category: 'Grains & Pulses',
-      brand: 'India Gate',
-      baseUnit: 'Kg',
-      outerPackaging: 'Bag',
-      packSize: 25,
-      currentStock: 1250,
-      reorderLevel: 250,
-      storageZone: 'Shade 2 (Food & Grains)',
-      status: 'Active',
-      barcode: '890103001001',
-      hsnCode: '1006.30',
-      description: 'Premium aged long grain Basmati rice packed in heavy duty 25kg woven bags.',
-    },
-    {
-      id: 2,
-      name: 'Refined Mustard Oil (15L Tin)',
-      sku: 'PRD-OIL-002',
-      category: 'Edible Oils & Liquids',
-      brand: 'Fortune Foods',
-      baseUnit: 'Litre',
-      outerPackaging: 'Tin',
-      packSize: 15,
-      currentStock: 450,
-      reorderLevel: 100,
-      storageZone: 'Shade 2 (Food & Grains)',
-      status: 'Active',
-      barcode: '890103001002',
-      hsnCode: '1514.91',
-      description: 'First-press refined mustard cooking oil in 15-litre food-grade sealed tin.',
-    },
-    {
-      id: 3,
-      name: 'Arhar / Toor Dal (Grade A 30kg)',
-      sku: 'PRD-DAL-003',
-      category: 'Grains & Pulses',
-      brand: 'Tata Sampann',
-      baseUnit: 'Kg',
-      outerPackaging: 'Bag',
-      packSize: 30,
-      currentStock: 900,
-      reorderLevel: 150,
-      storageZone: 'Shade 2 (Food & Grains)',
-      status: 'Active',
-      barcode: '890103001003',
-      hsnCode: '0713.60',
-      description: 'Unpolished protein-rich Toor dal in standard 30kg commercial packaging.',
-    },
-    {
-      id: 4,
-      name: 'Industrial First Aid Safety Kit',
-      sku: 'PRD-MED-004',
-      category: 'Safety & First Aid',
-      brand: 'Sanjivani Healthcare',
-      baseUnit: 'Pieces',
-      outerPackaging: 'Box',
-      packSize: 1,
-      currentStock: 85,
-      reorderLevel: 20,
-      storageZone: 'Shade 6 (Textiles & Medical)',
-      status: 'Active',
-      barcode: '890103001004',
-      hsnCode: '3006.50',
-      description: 'Comprehensive workplace safety kit with bandages, burn gel, and antiseptics.',
-    },
-    {
-      id: 5,
-      name: 'Industrial Lubricant 15W-40 (20L)',
-      sku: 'PRD-LUB-005',
-      category: 'Maintenance & Spares',
-      brand: 'Castrol Industrial',
-      baseUnit: 'Litre',
-      outerPackaging: 'Drum / Barrel',
-      packSize: 20,
-      currentStock: 40,
-      reorderLevel: 80,
-      storageZone: 'Shade 4 (Chemical & Hazardous)',
-      status: 'Low Stock',
-      barcode: '890103001005',
-      hsnCode: '2710.19',
-      description: 'Heavy duty commercial forklift and fleet engine lubricant in 20L barrels.',
-    },
-    {
-      id: 6,
-      name: 'Heavy Duty Waterproof Tarpaulin',
-      sku: 'PRD-TAR-006',
-      category: 'Packaging & Materials',
-      brand: 'Silpaulin Premium',
-      baseUnit: 'Pieces',
-      outerPackaging: 'Bundle',
-      packSize: 5,
-      currentStock: 150,
-      reorderLevel: 30,
-      storageZone: 'Shade 1 (General Stores)',
-      status: 'Active',
-      barcode: '890103001006',
-      hsnCode: '6306.12',
-      description: '24x18 ft multi-layered cross laminated waterproof cargo protective sheets.',
-    },
-    {
-      id: 7,
-      name: 'Corrugated 5-Ply Packaging Cartons',
-      sku: 'PRD-BOX-007',
-      category: 'Packaging & Materials',
-      brand: 'PackWell Boxes',
-      baseUnit: 'Pieces',
-      outerPackaging: 'Bundle',
-      packSize: 50,
-      currentStock: 1200,
-      reorderLevel: 200,
-      storageZone: 'Shade 1 (General Stores)',
-      status: 'Active',
-      barcode: '890103001007',
-      hsnCode: '4819.10',
-      description: '5-ply export quality shipping boxes for outer consignment dispatch packaging.',
-    },
-    {
-      id: 8,
-      name: 'Industrial Surface Disinfectant 5L',
-      sku: 'PRD-CHM-008',
-      category: 'Hygiene & Chemicals',
-      brand: 'Lizol Pro Solutions',
-      baseUnit: 'Pieces',
-      outerPackaging: 'Box',
-      packSize: 4,
-      currentStock: 15,
-      reorderLevel: 30,
-      storageZone: 'Shade 4 (Chemical & Hazardous)',
-      status: 'Low Stock',
-      barcode: '890103001008',
-      hsnCode: '3808.94',
-      description: 'Surface cleaner and disinfectant solution in 5-litre HDPE containers.',
-    },
-  ])
+  const [products, setProducts] = useState([])
+
+  useEffect(() => {
+    apiRequest('/product').then(setProducts).catch(() => {})
+  }, [])
 
   // Form State
   const initialForm = {
@@ -323,9 +190,8 @@ export default function ProductEntry() {
     setShowModal(true)
   }
 
-  // Open Edit Modal
   const handleOpenEdit = (prod) => {
-    setEditingId(prod.id)
+    setEditingId(prod._id)
     setFormData({
       name: prod.name,
       sku: prod.sku,
@@ -344,67 +210,51 @@ export default function ProductEntry() {
     setShowModal(true)
   }
 
-  // Save Product (Create / Update)
-  const handleSaveProduct = (e) => {
+  const handleSaveProduct = async (e) => {
     e.preventDefault()
-    if (!formData.name.trim()) {
-      triggerToast('Product name is required!')
-      return
-    }
+    if (!formData.name.trim()) { triggerToast('Product name is required!'); return }
 
     const stock = Number(formData.currentStock) || 0
     const reorder = Number(formData.reorderLevel) || 50
     const status = stock <= 0 ? 'Out of Stock' : stock <= reorder ? 'Low Stock' : 'Active'
+    const payload = {
+      ...formData,
+      name: formData.name.trim(),
+      sku: formData.sku.trim(),
+      brand: formData.brand.trim() || 'Standard Commercial',
+      packSize: Number(formData.packSize) || 1,
+      currentStock: stock,
+      reorderLevel: reorder,
+      status,
+    }
 
-    if (editingId) {
-      setProducts(
-        products.map((p) =>
-          p.id === editingId
-            ? {
-                ...p,
-                ...formData,
-                name: formData.name.trim(),
-                sku: formData.sku.trim(),
-                brand: formData.brand.trim() || 'Standard Commercial',
-                packSize: Number(formData.packSize) || 1,
-                currentStock: stock,
-                reorderLevel: reorder,
-                status,
-              }
-            : p
-        )
-      )
-      triggerToast(`Product "${formData.name}" updated successfully!`)
-    } else {
-      const newProduct = {
-        id: Date.now(),
-        ...formData,
-        name: formData.name.trim(),
-        sku: formData.sku.trim() || `PRD-SKU-${Math.floor(100 + Math.random() * 900)}`,
-        brand: formData.brand.trim() || 'Standard Commercial',
-        packSize: Number(formData.packSize) || 1,
-        currentStock: stock,
-        reorderLevel: reorder,
-        status,
-        barcode: formData.barcode.trim() || `89010300${Math.floor(1000 + Math.random() * 9000)}`,
-        hsnCode: formData.hsnCode.trim() || '1006.30',
+    try {
+      if (editingId) {
+        const updated = await apiRequest(`/product/${editingId}`, { method: 'PUT', body: JSON.stringify(payload) })
+        setProducts((p) => p.map((x) => x._id === editingId ? updated : x))
+        triggerToast(`Product "${updated.name}" updated successfully!`)
+      } else {
+        const created = await apiRequest('/product', { method: 'POST', body: JSON.stringify(payload) })
+        setProducts((p) => [created, ...p])
+        triggerToast(`Product "${created.name}" added to master catalog!`)
       }
-      setProducts([newProduct, ...products])
-      triggerToast(`Product "${newProduct.name}" added to master catalog!`)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to save product')
     }
 
     setShowModal(false)
     setFormData(initialForm)
   }
 
-  // Delete Product
-  const handleDeleteProduct = (id, name) => {
-    if (products.length === 1) {
-      triggerToast('At least one product must remain in the catalog!')
-      return
+  const handleDeleteProduct = async (id, name) => {
+    if (products.length === 1) { triggerToast('At least one product must remain!'); return }
+    try {
+      await apiRequest(`/product/${id}`, { method: 'DELETE' })
+      setProducts((p) => p.filter((x) => x._id !== id))
+      triggerToast(`Product "${name}" removed.`)
+    } catch {
+      triggerToast('Failed to delete product')
     }
-    setProducts(products.filter((p) => p.id !== id))
-    triggerToast(`Product "${name}" removed.`)
   }
 
   // Export CSV
@@ -707,7 +557,7 @@ export default function ProductEntry() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDeleteProduct(p.id, p.name)}
+                          onClick={() => handleDeleteProduct(p._id, p.name)}
                           className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-600 text-slate-500 hover:text-white border border-slate-200 hover:border-rose-600 transition cursor-pointer shadow-2xs"
                           title="Delete Product"
                         >
