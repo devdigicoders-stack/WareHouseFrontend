@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { KeyRound, HardDrive, Unlock, CheckCircle2, AlertCircle, FolderOpen, Shield } from 'lucide-react'
+import { KeyRound, HardDrive, Usb, Unlock, CheckCircle2, AlertCircle, FolderOpen, Shield } from 'lucide-react'
 import { apiRequest } from '../services/api'
 
 export default function LoginPage({ onLoginSuccess }) {
