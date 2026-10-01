@@ -25,6 +25,7 @@ import {
   QrCode,
   Warehouse,
 } from 'lucide-react'
+import { fetchDispatches, createDispatch, updateDispatchStatus, fetchProducts, fetchPartners } from '../services/api'
 
 // Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -126,254 +127,99 @@ export default function IssueDispatch() {
 
   // New Issue / Dispatch Form State
   const [newDispatch, setNewDispatch] = useState({
-    customerUnit: 'Metro Hypermarket Central Hub',
-    poIndentNo: 'PO-2026-119',
-    shadeId: 'SH03',
-    location: 'SH03-R02-C04',
-    productName: 'Parle-G Glucose Biscuits (50g)',
-    sku: 'FMCG-BIS-01',
-    batchNo: 'BT-2026-FMCG-01',
-    baseUnit: 'Pieces',
-    packUnit: 'Gatta',
-    unitsPerPack: 6,
-    packsCount: 150,
+    customerUnit: 'Reliance Retail Mega Hub',
+    poIndentNo: 'SO-2026-9041',
+    shadeId: 'SH01',
+    location: 'SH01-RK01-R1-C1',
+    productName: 'Basmati Rice (Grade 1 Special 25kg)',
+    sku: 'PRD-RIC-001',
+    batchNo: 'BAT-2026-RIC-01',
+    expiryDate: '2026-11-15',
+    baseUnit: 'Kg',
+    packUnit: 'Bags',
+    unitsPerPack: 25,
+    packsCount: 20,
     dispatchType: 'Outward Sale',
-    vehicleNo: 'DL-01-EA-4412',
-    driverName: 'Ramesh Kumar',
-    contactNo: '+91 98110 44812',
-    dispatchOfficer: 'Rajesh Sharma (Warehouse Manager)',
-    expectedDelivery: '20 Sep 2026',
-    remarks: 'Scheduled retail replenishment for Gurugram central distribution hub.',
+    vehicleNo: 'DL-1L-AA-5544',
+    driverName: 'Mohd. Imran',
+    contactNo: '+91 98711 22334',
+    dispatchOfficer: 'Warehouse Manager',
+    expectedDelivery: 'Today',
+    remarks: 'Scheduled retail replenishment for Noida mega hub.',
   })
 
-  // 8 Rich Outward Dispatch Records
-  const [dispatches, setDispatches] = useState([
-    {
-      id: 1,
-      dispatchNo: 'DISP-2026-324',
-      date: '16 Sep 2026',
-      poIndentNo: 'PO-2026-118',
-      customerUnit: 'Metro Hypermarket Central Hub',
-      shadeId: 'SH03',
-      location: 'SH03-R02-C04',
-      productName: 'Parle-G Glucose Biscuits (50g)',
-      sku: 'FMCG-BIS-01',
-      itemsCount: 3,
-      totalQty: 1850,
-      baseUnit: 'Pieces',
-      packCount: 240,
-      packUnit: 'Gatta',
-      dispatchType: 'Outward Sale',
-      status: 'In Transit',
-      labStatus: 'Passed',
-      expectedDelivery: '18 Sep 2026',
-      vehicleNo: 'DL-01-EA-4412',
-      driverName: 'Ramesh Kumar',
-      officer: 'Rajesh Sharma',
-      remarks: 'Scheduled replenishment for North Delhi retail hubs.',
-      itemsList: [
-        { name: 'Parle-G Glucose Biscuits (50g)', sku: 'FMCG-BIS-01', location: 'SH03-R02-C04', qty: 1200, baseUnit: 'Pieces', packQty: 200, packUnit: 'Gatta', batch: 'BT-2026-FMCG-01', labCert: 'LAB-2026-FMCG-088' },
-        { name: 'Fortune Refined Mustard Oil', sku: 'OIL-REF-01', location: 'SH02-R01-C03', qty: 450, baseUnit: 'Ltr', packQty: 30, packUnit: 'Tins (15L)', batch: 'BT-2026-OIL-02', labCert: 'LAB-2026-OIL-012' },
-        { name: 'Tata Salt Crystal Iodized (1kg)', sku: 'FMCG-SLT-01', location: 'SH03-R01-C02', qty: 200, baseUnit: 'Packets', packQty: 10, packUnit: 'Bags', batch: 'BT-2026-FMCG-06', labCert: 'LAB-2026-FMCG-090' },
-      ],
-    },
-    {
-      id: 2,
-      dispatchNo: 'DISP-2026-323',
-      date: '16 Sep 2026',
-      poIndentNo: 'IND-2026-045',
-      customerUnit: 'Reliance Retail Distribution Centre',
-      shadeId: 'SH01',
-      location: 'SH01-R02-C05',
-      productName: 'Sharbati Golden Wheat Grain',
-      sku: 'GRN-WHT-01',
-      itemsCount: 2,
-      totalQty: 2900,
-      baseUnit: 'Kg',
-      packCount: 70,
-      packUnit: 'Bags (50kg)',
-      dispatchType: 'Inter-Warehouse Transfer',
-      status: 'Dispatched',
-      labStatus: 'Passed',
-      expectedDelivery: '17 Sep 2026',
-      vehicleNo: 'UP-32-DK-9021',
-      driverName: 'Suresh Yadav',
-      officer: 'Amit Patel',
-      remarks: 'Transferred under Inter-State branch stock reallocation.',
-      itemsList: [
-        { name: 'Sharbati Golden Wheat Grain', sku: 'GRN-WHT-01', location: 'SH01-R02-C05', qty: 2500, baseUnit: 'Kg', packQty: 50, packUnit: 'Bags (50kg)', batch: 'BT-2026-WHT-04', labCert: 'LAB-2026-GRN-019' },
-        { name: 'Master 5-Ply Corrugated Cartons', sku: 'PKG-CRT-01', location: 'SH04-R03-C02', qty: 400, baseUnit: 'Boxes', packQty: 20, packUnit: 'Bundles', batch: 'BT-2026-PKG-03', labCert: 'CERT-NOT-REQ' },
-      ],
-    },
-    {
-      id: 3,
-      dispatchNo: 'DISP-2026-322',
-      date: '15 Sep 2026',
-      poIndentNo: 'PO-2026-117',
-      customerUnit: 'DMart Logistics Park',
-      shadeId: 'SH03',
-      location: 'SH03-R02-C05',
-      productName: 'Good Day Butter Cookies (75g)',
-      sku: 'FMCG-BIS-02',
-      itemsCount: 2,
-      totalQty: 2400,
-      baseUnit: 'Pieces',
-      packCount: 140,
-      packUnit: 'Gatta',
-      dispatchType: 'Outward Sale',
-      status: 'Delivered',
-      labStatus: 'Passed',
-      expectedDelivery: '16 Sep 2026',
-      vehicleNo: 'MH-12-TR-7721',
-      driverName: 'Manoj Patel',
-      officer: 'Rajesh Sharma',
-      remarks: 'Consignment cleared at DMart inbound dock successfully.',
-      itemsList: [
-        { name: 'Good Day Butter Cookies (75g)', sku: 'FMCG-BIS-02', location: 'SH03-R02-C05', qty: 2100, baseUnit: 'Pieces', packQty: 100, packUnit: 'Gatta', batch: 'BT-2026-FMCG-02', labCert: 'LAB-2026-FMCG-091' },
-        { name: 'Disinfectant Surface Cleaner (5L)', sku: 'CHM-DIS-01', location: 'SH05-R01-C01', qty: 300, baseUnit: 'Ltr', packQty: 40, packUnit: 'Cans (5L)', batch: 'BT-2026-CHM-05', labCert: 'LAB-2026-CHM-008' },
-      ],
-    },
-    {
-      id: 4,
-      dispatchNo: 'DISP-2026-321',
-      date: '15 Sep 2026',
-      poIndentNo: 'IND-2026-044',
-      customerUnit: 'BigBasket Fulfillment Centre',
-      shadeId: 'SH02',
-      location: 'SH02-R01-C03',
-      productName: 'Fortune Refined Mustard Oil',
-      sku: 'OIL-REF-01',
-      itemsCount: 2,
-      totalQty: 1300,
-      baseUnit: 'Ltr',
-      packCount: 60,
-      packUnit: 'Tins (15L)',
-      dispatchType: 'Outward Sale',
-      status: 'Pending',
-      labStatus: 'Passed',
-      expectedDelivery: '17 Sep 2026',
-      vehicleNo: 'KA-04-BB-4402',
-      driverName: 'Deepak Verma',
-      officer: 'Priya Patel',
-      remarks: 'Awaiting transport fleet vehicle staging at Bay 3.',
-      itemsList: [
-        { name: 'Fortune Refined Mustard Oil', sku: 'OIL-REF-01', location: 'SH02-R01-C03', qty: 600, baseUnit: 'Ltr', packQty: 40, packUnit: 'Tins (15L)', batch: 'BT-2026-OIL-02', labCert: 'LAB-2026-OIL-012' },
-        { name: 'Chana Dal Extra Bold (50kg)', sku: 'PUL-CHN-01', location: 'SH01-R06-C03', qty: 700, baseUnit: 'Kg', packQty: 20, packUnit: 'Bags (50kg)', batch: 'BT-2026-PUL-07', labCert: 'LAB-2026-PUL-015' },
-      ],
-    },
-    {
-      id: 5,
-      dispatchNo: 'DISP-2026-320',
-      date: '14 Sep 2026',
-      poIndentNo: 'PO-2026-116',
-      customerUnit: 'Blinkit Rapid Staging Hub',
-      shadeId: 'SH03',
-      location: 'SH03-R02-C04',
-      productName: 'Parle-G Glucose Biscuits (50g)',
-      sku: 'FMCG-BIS-01',
-      itemsCount: 2,
-      totalQty: 950,
-      baseUnit: 'Pieces',
-      packCount: 110,
-      packUnit: 'Gatta',
-      dispatchType: 'Outward Sale',
-      status: 'Dispatched',
-      labStatus: 'Passed',
-      expectedDelivery: '15 Sep 2026',
-      vehicleNo: 'HR-26-BK-3390',
-      driverName: 'Vikram Singh',
-      officer: 'Amit Patel',
-      remarks: 'Express dispatch for quick-commerce replenishment.',
-      itemsList: [
-        { name: 'Parle-G Glucose Biscuits (50g)', sku: 'FMCG-BIS-01', location: 'SH03-R02-C04', qty: 600, baseUnit: 'Pieces', packQty: 100, packUnit: 'Gatta', batch: 'BT-2026-FMCG-01', labCert: 'LAB-2026-FMCG-088' },
-        { name: 'Refined Soybean Oil (15L)', sku: 'OIL-SOY-01', location: 'SH02-R03-C06', qty: 350, baseUnit: 'Ltr', packQty: 10, packUnit: 'Tins', batch: 'BT-2026-OIL-10', labCert: 'LAB-2026-OIL-014' },
-      ],
-    },
-    {
-      id: 6,
-      dispatchNo: 'DISP-2026-319',
-      date: '14 Sep 2026',
-      poIndentNo: 'IND-2026-043',
-      customerUnit: 'Spencers Wholesale Depot',
-      shadeId: 'SH04',
-      location: 'SH04-R03-C02',
-      productName: 'Master 5-Ply Corrugated Cartons',
-      sku: 'PKG-CRT-01',
-      itemsCount: 2,
-      totalQty: 1780,
-      baseUnit: 'Cartons',
-      packCount: 75,
-      packUnit: 'Bundles',
-      dispatchType: 'Outward Sale',
-      status: 'Delivered',
-      labStatus: 'Passed',
-      expectedDelivery: '15 Sep 2026',
-      vehicleNo: 'WB-02-SP-5589',
-      driverName: 'Anil Roy',
-      officer: 'Rajesh Sharma',
-      remarks: 'Delivered on schedule with complete transit gate pass voucher.',
-      itemsList: [
-        { name: 'Master 5-Ply Corrugated Cartons', sku: 'PKG-CRT-01', location: 'SH04-R03-C02', qty: 1500, baseUnit: 'Boxes', packQty: 60, packUnit: 'Bundles', batch: 'BT-2026-PKG-03', labCert: 'CERT-NOT-REQ' },
-        { name: 'Industrial Floor Disinfectant', sku: 'CHM-DIS-01', location: 'SH05-R01-C01', qty: 280, baseUnit: 'Ltr', packQty: 15, packUnit: 'Cans', batch: 'BT-2026-CHM-05', labCert: 'LAB-2026-CHM-008' },
-      ],
-    },
-    {
-      id: 7,
-      dispatchNo: 'DISP-2026-318',
-      date: '13 Sep 2026',
-      poIndentNo: 'PO-2026-115',
-      customerUnit: 'Amazon Pantry Staging Bay',
-      shadeId: 'SH03',
-      location: 'SH03-R01-C06',
-      productName: 'Tata Tea Gold (500g)',
-      sku: 'FMCG-TEA-02',
-      itemsCount: 2,
-      totalQty: 1240,
-      baseUnit: 'Pieces',
-      packCount: 120,
-      packUnit: 'Gatta',
-      dispatchType: 'Outward Sale',
-      status: 'In Transit',
-      labStatus: 'Passed',
-      expectedDelivery: '17 Sep 2026',
-      vehicleNo: 'DL-04-AZ-6620',
-      driverName: 'Pradeep Shinde',
-      officer: 'Priya Patel',
-      remarks: 'Route via Eastern Peripheral Expressway with live vehicle tracking.',
-      itemsList: [
-        { name: 'Tata Tea Gold (500g)', sku: 'FMCG-TEA-02', location: 'SH03-R01-C06', qty: 840, baseUnit: 'Pieces', packQty: 70, packUnit: 'Gatta', batch: 'BT-2026-TEA-09', labCert: 'LAB-2026-TEA-044' },
-        { name: 'Aashirvaad Select Sharbati Atta', sku: 'GRN-ATA-02', location: 'SH01-R03-C02', qty: 400, baseUnit: 'Kg', packQty: 50, packUnit: 'Bags (10kg)', batch: 'BT-2026-ATA-03', labCert: 'LAB-2026-GRN-020' },
-      ],
-    },
-    {
-      id: 8,
-      dispatchNo: 'DISP-2026-317',
-      date: '13 Sep 2026',
-      poIndentNo: 'IND-2026-042',
-      customerUnit: 'Flipkart Grocery Hub',
-      shadeId: 'SH01',
-      location: 'SH01-R04-C02',
-      productName: 'Moong Dal Mogar Yellow',
-      sku: 'PUL-MNG-01',
-      itemsCount: 2,
-      totalQty: 3200,
-      baseUnit: 'Kg',
-      packCount: 80,
-      packUnit: 'Bags (50kg)',
-      dispatchType: 'Inter-Warehouse Transfer',
-      status: 'Delivered',
-      labStatus: 'Passed',
-      expectedDelivery: '14 Sep 2026',
-      vehicleNo: 'HR-55-FK-1109',
-      driverName: 'Harish Rawat',
-      officer: 'Amit Patel',
-      remarks: 'Reconciliation completed. Physical bags tallied 100% with gate register.',
-      itemsList: [
-        { name: 'Moong Dal Mogar Yellow', sku: 'PUL-MNG-01', location: 'SH01-R04-C02', qty: 2500, baseUnit: 'Kg', packQty: 50, packUnit: 'Bags (50kg)', batch: 'BT-2026-PUL-02', labCert: 'LAB-2026-PUL-011' },
-        { name: 'Sunflower Light Edible Oil', sku: 'OIL-SNF-01', location: 'SH02-R02-C04', qty: 700, baseUnit: 'Ltr', packQty: 30, packUnit: 'Tins (15L)', batch: 'BT-2026-OIL-09', labCert: 'LAB-2026-OIL-016' },
-      ],
-    },
-  ])
+  // Outward Dispatch Records State
+  const [dispatches, setDispatches] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadDispatches() {
+      try {
+        const data = await fetchDispatches()
+        if (Array.isArray(data) && data.length > 0) {
+          setDispatches(data.map((d, idx) => ({
+            id: d._id || idx + 1,
+            dispatchNo: d.dispatchNo || `DSP-2026-000${idx + 1}`,
+            date: d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Today',
+            poIndentNo: d.orderNo || 'SO-2026-9041',
+            customerUnit: d.customerName || 'Reliance Retail Mega Hub',
+            shadeId: 'SH01',
+            location: d.items?.[0]?.locationCode || 'SH01-RK01-R1-C1',
+            productName: d.items?.[0]?.productName || 'Basmati Rice Special',
+            sku: d.items?.[0]?.sku || 'PRD-RIC-001',
+            itemsCount: d.items?.length || 1,
+            totalQty: d.totalBaseQty || 500,
+            baseUnit: d.baseUnit || 'Kg',
+            packCount: d.totalPackages || 20,
+            packUnit: 'Bags',
+            dispatchType: 'Outward Sale',
+            status: d.status || 'QR Verified / Ready',
+            labStatus: 'Passed',
+            expectedDelivery: 'Today',
+            vehicleNo: d.vehicleNo || 'DL-1L-AA-5544',
+            driverName: d.driverName || 'Mohd. Imran',
+            officer: d.dispatchedBy || 'Warehouse Manager',
+            remarks: d.remarks || 'Standard Dispatch',
+            itemsList: d.items || [],
+          })))
+        }
+      } catch (err) {
+        console.error('Error fetching dispatches:', err)
+        setDispatches([
+          {
+            id: 1,
+            dispatchNo: 'DISP-2026-0001',
+            date: 'Today, Just now',
+            poIndentNo: 'SO-2026-9041',
+            customerUnit: 'Reliance Retail Mega Hub',
+            shadeId: 'SH01',
+            location: 'SH01-RK01-R1-C1',
+            productName: 'Basmati Rice (Grade 1 Special 25kg)',
+            sku: 'PRD-RIC-001',
+            itemsCount: 1,
+            totalQty: 500,
+            baseUnit: 'Kg',
+            packCount: 20,
+            packUnit: 'Bags',
+            dispatchType: 'Outward Sale',
+            status: 'QR Verified / Ready',
+            labStatus: 'Passed',
+            expectedDelivery: 'Today',
+            vehicleNo: 'DL-1L-AA-5544',
+            driverName: 'Mohd. Imran',
+            officer: 'Warehouse Manager',
+            remarks: 'Scheduled retail replenishment for Noida mega hub.',
+            itemsList: [
+              { name: 'Basmati Rice (Grade 1 Special 25kg)', sku: 'PRD-RIC-001', location: 'SH01-RK01-R1-C1', qty: 500, baseUnit: 'Kg', packQty: 20, packUnit: 'Bags', batch: 'BAT-2026-RIC-01', labCert: 'COA-2026-00101' }
+            ]
+          }
+        ])
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadDispatches()
+  }, [])
 
   // Filtered Dispatches
   const filteredDispatches = useMemo(() => {
@@ -413,69 +259,126 @@ export default function IssueDispatch() {
   }, [dispatches])
 
   // Handle Save New Dispatch
-  const handleCreateDispatch = (e) => {
+  const handleCreateDispatch = async (e) => {
     e.preventDefault()
     const computedBase = (Number(newDispatch.packsCount) || 0) * (Number(newDispatch.unitsPerPack) || 1)
     const newNo = `DISP-2026-${325 + dispatches.length}`
-    const locCode = `${newDispatch.shadeId}-R01-C01`
+    const locCode = `${newDispatch.shadeId}-RK01-R1-C1`
 
-    const newRecord = {
-      id: Date.now(),
-      dispatchNo: newNo,
-      date: 'Today, Just now',
-      poIndentNo: newDispatch.poIndentNo,
-      customerUnit: newDispatch.customerUnit,
-      shadeId: newDispatch.shadeId,
-      location: locCode,
-      productName: newDispatch.productName,
-      sku: newDispatch.sku,
-      itemsCount: 1,
-      totalQty: computedBase,
-      baseUnit: newDispatch.baseUnit,
-      packCount: Number(newDispatch.packsCount) || 1,
-      packUnit: newDispatch.packUnit,
-      dispatchType: newDispatch.dispatchType,
-      status: 'Pending',
-      labStatus: 'Passed',
-      expectedDelivery: newDispatch.expectedDelivery,
+    const payload = {
+      orderNo: newDispatch.poIndentNo,
+      customerName: newDispatch.customerUnit,
+      destination: 'Central Mega Hub Logistics',
       vehicleNo: newDispatch.vehicleNo,
       driverName: newDispatch.driverName,
-      officer: newDispatch.dispatchOfficer,
+      driverContact: newDispatch.contactNo,
+      totalPackages: Number(newDispatch.packsCount) || 1,
+      totalBaseQty: computedBase,
+      baseUnit: newDispatch.baseUnit,
+      dispatchedBy: newDispatch.dispatchOfficer,
       remarks: newDispatch.remarks,
-      itemsList: [
+      items: [
         {
-          name: newDispatch.productName,
+          productName: newDispatch.productName,
           sku: newDispatch.sku,
-          location: locCode,
-          qty: computedBase,
-          baseUnit: newDispatch.baseUnit,
-          packQty: Number(newDispatch.packsCount) || 1,
-          packUnit: newDispatch.packUnit,
-          batch: newDispatch.batchNo,
-          labCert: 'LAB-2026-CLEAR-01',
-        },
-      ],
+          batchNo: newDispatch.batchNo,
+          locationCode: locCode,
+          packagingUnit: newDispatch.packUnit,
+          packSize: Number(newDispatch.unitsPerPack) || 1,
+          requestedQty: Number(newDispatch.packsCount) || 1,
+          pickedQty: Number(newDispatch.packsCount) || 1,
+          verified: true
+        }
+      ]
     }
 
-    setDispatches([newRecord, ...dispatches])
+    try {
+      const saved = await createDispatch(payload)
+      const newRecord = {
+        id: saved._id || Date.now(),
+        dispatchNo: saved.dispatchNo || newNo,
+        date: 'Today, Just now',
+        poIndentNo: newDispatch.poIndentNo,
+        customerUnit: newDispatch.customerUnit,
+        shadeId: newDispatch.shadeId,
+        location: locCode,
+        productName: newDispatch.productName,
+        sku: newDispatch.sku,
+        itemsCount: 1,
+        totalQty: computedBase,
+        baseUnit: newDispatch.baseUnit,
+        packCount: Number(newDispatch.packsCount) || 1,
+        packUnit: newDispatch.packUnit,
+        dispatchType: newDispatch.dispatchType,
+        status: 'Draft / Picklist',
+        labStatus: 'Passed',
+        expectedDelivery: newDispatch.expectedDelivery,
+        vehicleNo: newDispatch.vehicleNo,
+        driverName: newDispatch.driverName,
+        officer: newDispatch.dispatchOfficer,
+        remarks: newDispatch.remarks,
+        itemsList: payload.items,
+      }
+      setDispatches([newRecord, ...dispatches])
+      triggerToast(`Dispatch ${newRecord.dispatchNo} created successfully (${computedBase} ${newRecord.baseUnit}).`)
+    } catch (err) {
+      console.error('API create dispatch fallback to local:', err)
+      const newRecord = {
+        id: Date.now(),
+        dispatchNo: newNo,
+        date: 'Today, Just now',
+        poIndentNo: newDispatch.poIndentNo,
+        customerUnit: newDispatch.customerUnit,
+        shadeId: newDispatch.shadeId,
+        location: locCode,
+        productName: newDispatch.productName,
+        sku: newDispatch.sku,
+        itemsCount: 1,
+        totalQty: computedBase,
+        baseUnit: newDispatch.baseUnit,
+        packCount: Number(newDispatch.packsCount) || 1,
+        packUnit: newDispatch.packUnit,
+        dispatchType: newDispatch.dispatchType,
+        status: 'Draft / Picklist',
+        labStatus: 'Passed',
+        expectedDelivery: newDispatch.expectedDelivery,
+        vehicleNo: newDispatch.vehicleNo,
+        driverName: newDispatch.driverName,
+        officer: newDispatch.dispatchOfficer,
+        remarks: newDispatch.remarks,
+        itemsList: payload.items,
+      }
+      setDispatches([newRecord, ...dispatches])
+      triggerToast(`Dispatch ${newNo} saved locally (${computedBase} ${newRecord.baseUnit}).`)
+    }
+
     setShowNewDispatchModal(false)
-    triggerToast(`Dispatch ${newNo} created successfully (${computedBase} ${newRecord.baseUnit}).`)
   }
 
   // Handle Advance Status
-  const handleAdvanceStatus = (id) => {
+  const handleAdvanceStatus = async (id) => {
+    const item = dispatches.find((d) => d.id === id)
+    if (!item) return
+
+    let nextStatus = 'Dispatched'
+    if (item.status === 'Draft / Picklist' || item.status === 'Pending') nextStatus = 'QR Verified / Ready'
+    else if (item.status === 'QR Verified / Ready') nextStatus = 'Dispatched'
+    else if (item.status === 'Dispatched') nextStatus = 'Gate Out / Cleared'
+    else nextStatus = 'Gate Out / Cleared'
+
     setDispatches(
-      dispatches.map((d) => {
-        if (d.id !== id) return d
-        let nextStatus = 'Dispatched'
-        if (d.status === 'Pending') nextStatus = 'Dispatched'
-        else if (d.status === 'Dispatched') nextStatus = 'In Transit'
-        else if (d.status === 'In Transit') nextStatus = 'Delivered'
-        else nextStatus = 'Delivered'
-        return { ...d, status: nextStatus }
-      })
+      dispatches.map((d) => (d.id === id ? { ...d, status: nextStatus } : d))
     )
-    triggerToast('Dispatch status updated successfully.')
+
+    try {
+      if (typeof id === 'string' && id.length === 24) {
+        await updateDispatchStatus(id, nextStatus)
+      }
+    } catch (err) {
+      console.error('Error updating dispatch status:', err)
+    }
+
+    triggerToast(`Dispatch status advanced to ${nextStatus}.`)
   }
 
   // Export CSV
@@ -1136,6 +1039,35 @@ export default function IssueDispatch() {
                     required
                     value={newDispatch.unitsPerPack}
                     onChange={(e) => setNewDispatch({ ...newDispatch, unitsPerPack: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                    Batch / Lot Number *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newDispatch.batchNo}
+                    onChange={(e) => setNewDispatch({ ...newDispatch, batchNo: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                    <span>Batch Expiry Date *</span>
+                    <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      FEFO Priority Pick
+                    </span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={newDispatch.expiryDate}
+                    onChange={(e) => setNewDispatch({ ...newDispatch, expiryDate: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>

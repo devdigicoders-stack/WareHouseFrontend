@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Calendar,
   Tag,
@@ -15,7 +16,9 @@ import {
   CheckCircle2,
   ShieldAlert,
   Boxes,
+  QrCode,
 } from 'lucide-react'
+import { apiRequest } from '../services/api'
 
 // Custom Select Component to eliminate native OS dropdown black-frame flicker
 function CustomSelect({ label, value, onChange, options, required, zIndexClass = 'z-20' }) {
@@ -121,112 +124,82 @@ export default function BatchManagement() {
   const [toastMessage, setToastMessage] = useState(null)
 
   // Real-time Commercial Warehouse Batch Registry (FEFO Tracking)
-  const [batches, setBatches] = useState([
-    {
-      id: 1,
-      batchNo: 'BTH-2026-081',
-      productName: 'Basmati Rice (Grade 1 Special)',
-      sku: 'PRD-RIC-001',
-      mfgDate: '15 Jan 2026',
-      expiryDate: '15 Jan 2028',
-      daysLeft: 480,
-      qty: 1200,
-      unit: 'Bags',
-      location: 'Shade 2 • Bay B • Rack 01',
-      status: 'Active',
-    },
-    {
-      id: 2,
-      batchNo: 'BTH-2026-084',
-      productName: 'Refined Mustard Oil (15L Tin)',
-      sku: 'PRD-OIL-002',
-      mfgDate: '10 Feb 2026',
-      expiryDate: '10 Nov 2026',
-      daysLeft: 50,
-      qty: 450,
-      unit: 'Tins',
-      location: 'Shade 2 • Bay B • Rack 03',
-      status: 'Expiring Soon',
-    },
-    {
-      id: 3,
-      batchNo: 'BTH-2026-090',
-      productName: 'Arhar / Toor Dal (Grade A)',
-      sku: 'PRD-DAL-003',
-      mfgDate: '01 Mar 2026',
-      expiryDate: '01 Mar 2028',
-      daysLeft: 525,
-      qty: 900,
-      unit: 'Bags',
-      location: 'Shade 2 • Bay B • Rack 01',
-      status: 'Active',
-    },
-    {
-      id: 4,
-      batchNo: 'BTH-2026-024',
-      productName: 'Standard Glucose Biscuit Packs',
-      sku: 'PRD-BIS-004',
-      mfgDate: '05 Jan 2026',
-      expiryDate: '25 Oct 2026',
-      daysLeft: 34,
-      qty: 350,
-      unit: 'Cartons',
-      location: 'Shade 2 • Bay B • Rack 02',
-      status: 'Expiring Soon',
-    },
-    {
-      id: 5,
-      batchNo: 'BTH-2026-052',
-      productName: 'Industrial First Aid Safety Kit',
-      sku: 'PRD-MED-005',
-      mfgDate: '12 Jan 2026',
-      expiryDate: '12 Jan 2029',
-      daysLeft: 840,
-      qty: 85,
-      unit: 'Boxes',
-      location: 'Shade 6 • Bay F • Rack 02',
-      status: 'Active',
-    },
-    {
-      id: 6,
-      batchNo: 'BTH-2025-014',
-      productName: 'Industrial Surface Disinfectant 5L',
-      sku: 'PRD-CHM-008',
-      mfgDate: '18 Aug 2025',
-      expiryDate: '18 Aug 2026',
-      daysLeft: -34,
-      qty: 60,
-      unit: 'Cans',
-      location: 'Shade 4 • Bay D • Rack 01',
-      status: 'Expired',
-    },
-    {
-      id: 7,
-      batchNo: 'BTH-2026-068',
-      productName: 'Industrial Lubricant 15W-40',
-      sku: 'PRD-LUB-006',
-      mfgDate: '01 May 2026',
-      expiryDate: '01 May 2029',
-      daysLeft: 950,
-      qty: 120,
-      unit: 'Drums',
-      location: 'Shade 4 • Bay D • Rack 01',
-      status: 'Active',
-    },
-    {
-      id: 8,
-      batchNo: 'BTH-2026-099',
-      productName: 'Heavy Duty Waterproof Tarpaulin',
-      sku: 'PRD-TAR-007',
-      mfgDate: '22 Mar 2026',
-      expiryDate: '22 Mar 2031',
-      daysLeft: 1640,
-      qty: 150,
-      unit: 'Bundles',
-      location: 'Shade 1 • Bay A • Rack 02',
-      status: 'Active',
-    },
-  ])
+  const [batches, setBatches] = useState([])
+  const [products, setProducts] = useState([])
+
+  useEffect(() => {
+    Promise.allSettled([
+      apiRequest('/grn'),
+      apiRequest('/product'),
+    ]).then(([grnRes, prodRes]) => {
+      let loadedBatches = []
+      if (grnRes.status === 'fulfilled' && Array.isArray(grnRes.value)) {
+        grnRes.value.forEach((g) => {
+          if (g.materials && g.materials.length > 0) {
+            g.materials.forEach((m) => {
+              const expDateStr = m.expiryDate || '2028-12-31'
+              const expTime = new Date(expDateStr).getTime()
+              const nowTime = new Date().getTime()
+              const daysRemaining = Math.round((expTime - nowTime) / (1000 * 3600 * 24))
+              const status = daysRemaining < 0 ? 'Expired' : daysRemaining <= 60 ? 'Expiring Soon' : 'Active'
+
+              loadedBatches.push({
+                id: g._id || Math.random(),
+                batchNo: m.batchNo || `BTH-${g.grnNo?.slice(-4) || '2026'}`,
+                productName: m.productName,
+                sku: m.sku || 'SKU-GEN-01',
+                mfgDate: m.mfgDate || new Date(g.createdAt || Date.now()).toLocaleDateString('en-IN'),
+                expiryDate: expDateStr,
+                daysLeft: isNaN(daysRemaining) ? 365 : daysRemaining,
+                qty: m.packageQty || 100,
+                unit: m.packagingUnit || 'Units',
+                location: g.shade || 'General Shade',
+                status,
+              })
+            })
+          }
+        })
+      }
+
+      if (loadedBatches.length > 0) {
+        setBatches(loadedBatches)
+      } else {
+        // Default initial items
+        setBatches([
+          {
+            id: 1,
+            batchNo: 'BTH-2026-081',
+            productName: 'Basmati Rice (Grade 1 Special 25kg)',
+            sku: 'PRD-RIC-001',
+            mfgDate: '15 Jan 2026',
+            expiryDate: '15 Jan 2028',
+            daysLeft: 480,
+            qty: 1200,
+            unit: 'Bags',
+            location: 'Shade 2 (Food & Grains)',
+            status: 'Active',
+          },
+          {
+            id: 2,
+            batchNo: 'BTH-2026-084',
+            productName: 'Refined Mustard Oil (15L Tin)',
+            sku: 'PRD-OIL-002',
+            mfgDate: '10 Feb 2026',
+            expiryDate: '10 Nov 2026',
+            daysLeft: 50,
+            qty: 450,
+            unit: 'Tins',
+            location: 'Shade 2 (Food & Grains)',
+            status: 'Expiring Soon',
+          },
+        ])
+      }
+
+      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
+        setProducts(prodRes.value)
+      }
+    }).catch(() => {})
+  }, [])
 
   // New Batch Form State
   const initialNewBatch = {
@@ -635,6 +608,15 @@ export default function BatchManagement() {
                     </td>
                     <td className="py-3.5 px-5 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
+                        <Link
+                          to={`/label-qr?batch=${encodeURIComponent(b.batchNo)}&sku=${encodeURIComponent(b.sku)}&qty=${b.qty}`}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1"
+                          title="Generate & Print QR Code Stickers"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span>Print QR</span>
+                        </Link>
+
                         {b.status === 'Expiring Soon' && (
                           <button
                             type="button"

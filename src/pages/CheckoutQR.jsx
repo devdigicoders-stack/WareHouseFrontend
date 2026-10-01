@@ -578,6 +578,20 @@ export default function CheckoutQR() {
               </div>
             </div>
 
+            {/* FEFO Priority Warning Ribbon */}
+            <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                <div>
+                  <span className="font-bold text-amber-900">FEFO Priority Alert: </span>
+                  <span className="text-amber-800 font-medium">Batch is near expiry ({scannedItem.expiryDate}) — Priority clearance pick!</span>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-900 px-2.5 py-1 rounded-md shrink-0">
+                Pick First
+              </span>
+            </div>
+
             {/* Item Key Properties Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/70">

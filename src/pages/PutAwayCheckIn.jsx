@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import QRCode from 'qrcode'
 import { printSpecificElement } from '../utils/printHelper'
 import {
   Wand2,
@@ -24,6 +25,7 @@ import {
   MapPin,
   Plus,
 } from 'lucide-react'
+import { apiRequest } from '../services/api'
 
 // Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -99,154 +101,141 @@ export default function PutAwayCheckIn() {
   const [currentPage, setCurrentPage] = useState(1)
   const perPage = 6
 
-  // 6 Dedicated Shades Reference
-  const SHADES = useMemo(() => [
-    { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses', category: 'Grains & Pulses', defaultPack: 'Bags (50kg)', baseUnit: 'Kg', ratio: 50 },
-    { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids', category: 'Edible Oils', defaultPack: 'Tins (15L)', baseUnit: 'Ltr', ratio: 15 },
-    { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG', category: 'Packaged FMCG', defaultPack: 'Gatta / Carton', baseUnit: 'Pieces', ratio: 6 },
-    { id: 'SH04', name: 'Shade 4: Packaging Cartons & Bags', category: 'Packaging Materials', defaultPack: 'Bundles (50 Pcs)', baseUnit: 'Nos', ratio: 50 },
-    { id: 'SH05', name: 'Shade 5: Chemicals & Hygiene', category: 'Chemicals & Hygiene', defaultPack: 'Cans (5L)', baseUnit: 'Ltr', ratio: 5 },
-    { id: 'SH06', name: 'Shade 6: Spares & General Hardware', category: 'Spares & General', defaultPack: 'Crates', baseUnit: 'Units', ratio: 1 },
-  ], [])
+  const [shadesList, setShadesList] = useState([])
+  const [racksList, setRacksList] = useState([])
+  const [queueItems, setQueueItems] = useState([])
+  const [modalQrUrl, setModalQrUrl] = useState('')
 
   // Form State
-  const [formGRN, setFormGRN] = useState('GRN-2026-001')
-  const [formProduct, setFormProduct] = useState('Parle-G Glucose Biscuits (50g)')
-  const [formBatch, setFormBatch] = useState('BT-2026-FMCG-01')
-  const [formPackUnit, setFormPackUnit] = useState('Gatta / Carton')
-  const [formBaseUnit, setFormBaseUnit] = useState('Pieces')
-  const [formUnitsPerPack, setFormUnitsPerPack] = useState(6)
+  const [formGRN, setFormGRN] = useState('')
+  const [formProduct, setFormProduct] = useState('')
+  const [formBatch, setFormBatch] = useState('')
+  const [formPackUnit, setFormPackUnit] = useState('Bags')
+  const [formBaseUnit, setFormBaseUnit] = useState('Kg')
+  const [formUnitsPerPack, setFormUnitsPerPack] = useState(25)
   const [formPacksCount, setFormPacksCount] = useState(100)
-  const [formSelectedShade, setFormSelectedShade] = useState('SH03')
-  const [formSelectedRow, setFormSelectedRow] = useState('R02')
-  const [formSelectedCol, setFormSelectedCol] = useState('C04')
+  const [formSelectedShade, setFormSelectedShade] = useState('SH01')
+  const [formSelectedRow, setFormSelectedRow] = useState('R1')
+  const [formSelectedCol, setFormSelectedCol] = useState('C1')
   const [formRemarks, setFormRemarks] = useState('Checked in from unloading dock in pristine sealed condition.')
 
-  // Derived Base Quantity
-  const baseQuantityComputed = useMemo(() => {
-    return (Number(formPacksCount) || 0) * (Number(formUnitsPerPack) || 1)
-  }, [formPacksCount, formUnitsPerPack])
+  // Fetch real data on mount
+  useEffect(() => {
+    Promise.allSettled([
+      apiRequest('/grn'),
+      apiRequest('/shade'),
+      apiRequest('/rack'),
+    ]).then(([grnRes, shadeRes, rackRes]) => {
+      if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value)) {
+        setShadesList(shadeRes.value)
+        if (shadeRes.value.length > 0) setFormSelectedShade(shadeRes.value[0].code)
+      }
+      if (rackRes.status === 'fulfilled' && Array.isArray(rackRes.value)) {
+        setRacksList(rackRes.value)
+      }
+      if (grnRes.status === 'fulfilled' && Array.isArray(grnRes.value) && grnRes.value.length > 0) {
+        const mapped = []
+        grnRes.value.forEach((g) => {
+          if (g.materials && g.materials.length > 0) {
+            g.materials.forEach((m, idx) => {
+              mapped.push({
+                id: `${g._id}-${idx}`,
+                grnNo: g.grnNo,
+                productName: m.productName,
+                sku: m.sku || 'SKU-01',
+                batchNo: m.batchNo || `BTH-${g.grnNo?.slice(-4) || '2026'}`,
+                packUnit: m.packagingUnit || 'Bags',
+                packsCount: m.packageQty || 50,
+                unitsPerPack: m.packSize || 25,
+                quantity: m.totalBaseQty || (m.packageQty * m.packSize) || 1250,
+                uom: m.baseUnit || 'Kg',
+                shadeId: g.shade || 'SH01',
+                recommendedLocation: `${g.shade ? g.shade.split(' ')[0] : 'SH01'}-R1-C1`,
+                receivedOn: new Date(g.createdAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+                priority: 'High',
+                status: 'Pending',
+                labStatus: 'Quality Cleared',
+              })
+            })
+          }
+        })
+        if (mapped.length > 0) {
+          setQueueItems(mapped)
+          setFormGRN(mapped[0].grnNo)
+          setFormProduct(mapped[0].productName)
+          setFormBatch(mapped[0].batchNo)
+          setFormPackUnit(mapped[0].packUnit)
+          setFormBaseUnit(mapped[0].uom)
+          setFormUnitsPerPack(mapped[0].unitsPerPack)
+          setFormPacksCount(mapped[0].packsCount)
+        }
+      } else {
+        // Default initial demo queue
+        setQueueItems([
+          {
+            id: 1,
+            grnNo: 'GRN-2026-0001',
+            productName: 'Basmati Rice Superior (25kg)',
+            sku: 'PRD-RIC-001',
+            batchNo: 'BTH-2026-081',
+            packUnit: 'Bags',
+            packsCount: 100,
+            unitsPerPack: 25,
+            quantity: 2500,
+            uom: 'Kg',
+            shadeId: 'SH01',
+            recommendedLocation: 'SH01-RK01-R1-C1',
+            receivedOn: '21 Sep 2026',
+            priority: 'High',
+            status: 'Pending',
+            labStatus: 'Quality Cleared',
+          },
+        ])
+      }
+    }).catch(() => {})
+  }, [])
 
-  // Derived Target Location Code
-  const formLocationCode = useMemo(() => {
-    return `${formSelectedShade}-${formSelectedRow}-${formSelectedCol}`
-  }, [formSelectedShade, formSelectedRow, formSelectedCol])
+  // 6 Dedicated Shades Reference
+  const SHADES = useMemo(() => {
+    if (shadesList.length > 0) {
+      return shadesList.map((s) => ({
+        id: s.code,
+        name: `${s.code}: ${s.name}`,
+        category: s.type || 'Storage',
+        defaultPack: 'Standard',
+        baseUnit: 'Units',
+        ratio: 1,
+      }))
+    }
+    return [
+      { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses', category: 'Grains & Pulses', defaultPack: 'Bags (50kg)', baseUnit: 'Kg', ratio: 50 },
+      { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids', category: 'Edible Oils', defaultPack: 'Tins (15L)', baseUnit: 'Ltr', ratio: 15 },
+      { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG', category: 'Packaged FMCG', defaultPack: 'Gatta / Carton', baseUnit: 'Pieces', ratio: 6 },
+    ]
+  }, [shadesList])
 
-  // Modals
   const [showQrLabelModal, setShowQrLabelModal] = useState(false)
   const [printedLabelData, setPrintedLabelData] = useState(null)
+  const [liveQrDataUrl, setLiveQrDataUrl] = useState('')
 
-  // Put-Away Staging Queue Table Data
-  const [queueItems, setQueueItems] = useState([
-    {
-      id: 1,
-      grnNo: 'GRN-2026-001',
-      productName: 'Parle-G Glucose Biscuits (50g)',
-      sku: 'PRD-FMCG-001',
-      batchNo: 'BT-2026-001',
-      packUnit: 'Gatta',
-      packsCount: 100,
-      unitsPerPack: 6,
-      quantity: 600,
-      uom: 'Pieces',
-      shadeId: 'SH03',
-      recommendedLocation: 'SH03-R02-C04',
-      receivedOn: '21 Sep 2026',
-      priority: 'High',
-      status: 'Pending',
-      labStatus: 'Pending Lab Test',
-    },
-    {
-      id: 2,
-      grnNo: 'GRN-2026-001',
-      productName: 'Good Day Butter Cookies (75g)',
-      sku: 'PRD-FMCG-002',
-      batchNo: 'BT-2026-002',
-      packUnit: 'Gatta',
-      packsCount: 50,
-      unitsPerPack: 12,
-      quantity: 600,
-      uom: 'Pieces',
-      shadeId: 'SH03',
-      recommendedLocation: 'SH03-R02-C05',
-      receivedOn: '21 Sep 2026',
-      priority: 'Medium',
-      status: 'Pending',
-      labStatus: 'Pending Lab Test',
-    },
-    {
-      id: 3,
-      grnNo: 'GRN-2026-002',
-      productName: 'Sharbati Wheat Grain (Grade A)',
-      sku: 'PRD-GRN-001',
-      batchNo: 'BT-2026-003',
-      packUnit: 'Bags',
-      packsCount: 30,
-      unitsPerPack: 50,
-      quantity: 1500,
-      uom: 'Kg',
-      shadeId: 'SH01',
-      recommendedLocation: 'SH01-R01-C02',
-      receivedOn: '20 Sep 2026',
-      priority: 'High',
-      status: 'Pending',
-      labStatus: 'Pending Lab Test',
-    },
-    {
-      id: 4,
-      grnNo: 'GRN-2026-002',
-      productName: 'Refined Mustard Oil (15L Tin)',
-      sku: 'PRD-OIL-002',
-      batchNo: 'BT-2026-004',
-      packUnit: 'Tins',
-      packsCount: 20,
-      unitsPerPack: 15,
-      quantity: 300,
-      uom: 'Ltr',
-      shadeId: 'SH02',
-      recommendedLocation: 'SH02-R01-C03',
-      receivedOn: '20 Sep 2026',
-      priority: 'Medium',
-      status: 'Pending',
-      labStatus: 'Pending Lab Test',
-    },
-    {
-      id: 5,
-      grnNo: 'GRN-2026-003',
-      productName: 'Maggi 2-Minute Noodles (70g)',
-      sku: 'PRD-FMCG-003',
-      batchNo: 'BT-2026-005',
-      packUnit: 'Carton',
-      packsCount: 25,
-      unitsPerPack: 24,
-      quantity: 600,
-      uom: 'Packets',
-      shadeId: 'SH03',
-      recommendedLocation: 'SH03-R03-C01',
-      receivedOn: '19 Sep 2026',
-      priority: 'Low',
-      status: 'Completed',
-      labStatus: 'Passed',
-    },
-    {
-      id: 6,
-      grnNo: 'GRN-2026-004',
-      productName: 'Corrugated Shipping Cartons (5-Ply)',
-      sku: 'PRD-BOX-007',
-      batchNo: 'BT-2026-006',
-      packUnit: 'Bundles',
-      packsCount: 20,
-      unitsPerPack: 50,
-      quantity: 1000,
-      uom: 'Nos',
-      shadeId: 'SH04',
-      recommendedLocation: 'SH04-R01-C01',
-      receivedOn: '19 Sep 2026',
-      priority: 'Low',
-      status: 'Completed',
-      labStatus: 'Passed (No Lab Needed)',
-    },
-  ])
+  const formLocationCode = `${formSelectedShade}-${formSelectedRow}-${formSelectedCol}`
+  const baseQuantityComputed = (Number(formPacksCount) || 0) * (Number(formUnitsPerPack) || 0)
+
+  // Generate live QR Code Data URL whenever form inputs change
+  useEffect(() => {
+    const payload = JSON.stringify({
+      type: 'WMS_PUTAWAY',
+      grn: formGRN,
+      sku: formProduct,
+      batch: formBatch,
+      location: formLocationCode,
+      qty: `${baseQuantityComputed} ${formBaseUnit}`,
+      time: new Date().toISOString(),
+    })
+    QRCode.toDataURL(payload, { width: 180, margin: 1 })
+      .then((url) => setLiveQrDataUrl(url))
+      .catch(() => {})
+  }, [formGRN, formProduct, formBatch, formLocationCode, baseQuantityComputed, formBaseUnit])
 
   // Filtered Queue
   const filteredQueue = useMemo(() => {
@@ -302,16 +291,32 @@ export default function PutAwayCheckIn() {
   }
 
   // Confirm Put-Away & Check-In
-  const handleConfirmPutAway = (e) => {
+  const handleConfirmPutAway = async (e) => {
     e.preventDefault()
     if (!formGRN || !formProduct || !formLocationCode) {
       triggerToast('Please complete all required fields.')
       return
     }
 
+    try {
+      // Allocate cell in MongoDB backend
+      await apiRequest('/rack/allocate-cell', {
+        method: 'POST',
+        body: JSON.stringify({
+          cellCode: formLocationCode,
+          productName: formProduct,
+          batchNo: formBatch,
+          quantity: baseQuantityComputed,
+          uom: formBaseUnit,
+        }),
+      }).catch(() => {})
+    } catch (err) {
+      console.warn('Backend cell allocation notice:', err)
+    }
+
     setQueueItems((prev) =>
       prev.map((i) =>
-        i.batchNo === formBatch
+        i.batchNo === formBatch || i.grnNo === formGRN
           ? {
               ...i,
               status: 'Completed',
@@ -334,9 +339,24 @@ export default function PutAwayCheckIn() {
       shadeName: SHADES.find((s) => s.id === formSelectedShade)?.name || formSelectedShade,
       row: formSelectedRow,
       col: formSelectedCol,
-      labStatus: 'Pending Lab Test',
+      labStatus: 'Quality Cleared',
       checkInTime: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
     }
+
+    // Generate real QR for modal
+    const modalPayload = JSON.stringify({
+      type: 'WMS_PUTAWAY_CONFIRMATION',
+      grn: formGRN,
+      item: formProduct,
+      batch: formBatch,
+      location: formLocationCode,
+      qty: `${baseQuantityComputed} ${formBaseUnit}`,
+      allocatedAt: new Date().toISOString(),
+    })
+    try {
+      const url = await QRCode.toDataURL(modalPayload, { width: 220, margin: 1 })
+      setModalQrUrl(url)
+    } catch (err) {}
 
     setPrintedLabelData(labelData)
     setShowQrLabelModal(true)
@@ -667,40 +687,21 @@ export default function PutAwayCheckIn() {
             </div>
 
             <div className="flex items-center justify-between gap-3 pt-1">
-              <div className="w-16 h-16 bg-white border border-slate-300 p-1 rounded-lg shrink-0">
-                <svg viewBox="0 0 100 100" className="w-full h-full text-slate-900" fill="currentColor">
-                  <rect x="0" y="0" width="30" height="30" />
-                  <rect x="5" y="5" width="20" height="20" fill="white" />
-                  <rect x="9" y="9" width="12" height="12" />
-                  <rect x="70" y="0" width="30" height="30" />
-                  <rect x="75" y="5" width="20" height="20" fill="white" />
-                  <rect x="79" y="9" width="12" height="12" />
-                  <rect x="0" y="70" width="30" height="30" />
-                  <rect x="5" y="75" width="20" height="20" fill="white" />
-                  <rect x="9" y="79" width="12" height="12" />
-                  <rect x="36" y="8" width="6" height="14" />
-                  <rect x="46" y="12" width="14" height="6" />
-                  <rect x="40" y="24" width="8" height="8" />
-                  <rect x="54" y="26" width="8" height="8" />
-                  <rect x="38" y="38" width="24" height="24" />
-                  <rect x="42" y="42" width="16" height="16" fill="white" />
-                  <rect x="46" y="46" width="8" height="8" />
-                  <rect x="74" y="38" width="8" height="14" />
-                  <rect x="38" y="70" width="12" height="8" />
-                  <rect x="54" y="74" width="14" height="6" />
-                  <rect x="72" y="72" width="8" height="18" />
-                </svg>
+              <div className="w-20 h-20 bg-white border border-slate-300 p-1 rounded-lg shrink-0 flex items-center justify-center">
+                {liveQrDataUrl ? (
+                  <img src={liveQrDataUrl} alt="PutAway QR" className="w-full h-full object-contain" />
+                ) : (
+                  <QrCode className="w-8 h-8 text-slate-300 animate-pulse" />
+                )}
               </div>
 
               <div className="flex-1 text-center">
-                <div className="flex justify-center items-end h-8 gap-0.5 max-w-[180px] mx-auto">
-                  {[2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 4, 2, 1, 3, 1, 2, 3, 1, 4, 2, 1, 3, 1, 2, 3, 2, 1, 4, 1, 2].map((w, i) => (
-                    <div key={i} style={{ width: `${w * 1.5}px` }} className="h-full bg-slate-900"></div>
-                  ))}
+                <div className="bg-slate-100 py-1 px-2 rounded border border-slate-200">
+                  <div className="text-[9px] text-slate-500 font-semibold uppercase">Scan for Put-Away</div>
+                  <div className="font-mono text-[10px] tracking-wider text-slate-900 font-bold mt-0.5 break-all">
+                    {formLocationCode}-{formBatch || 'LOT'}
+                  </div>
                 </div>
-                <span className="font-mono text-[9px] tracking-wider text-slate-900 font-bold mt-1 block">
-                  {formLocationCode}-{formBatch}
-                </span>
               </div>
             </div>
           </div>
@@ -923,29 +924,12 @@ export default function PutAwayCheckIn() {
               <div className="text-xl font-black font-mono tracking-widest text-slate-900 py-1 bg-slate-50 rounded border border-dashed border-slate-300">
                 {printedLabelData.locationCode}
               </div>
-              <div className="w-28 h-28 mx-auto border border-slate-300 p-1 rounded-lg flex items-center justify-center">
-                <svg viewBox="0 0 100 100" className="w-full h-full text-slate-900" fill="currentColor">
-                  <rect x="0" y="0" width="30" height="30" />
-                  <rect x="5" y="5" width="20" height="20" fill="white" />
-                  <rect x="9" y="9" width="12" height="12" />
-                  <rect x="70" y="0" width="30" height="30" />
-                  <rect x="75" y="5" width="20" height="20" fill="white" />
-                  <rect x="79" y="9" width="12" height="12" />
-                  <rect x="0" y="70" width="30" height="30" />
-                  <rect x="5" y="75" width="20" height="20" fill="white" />
-                  <rect x="9" y="79" width="12" height="12" />
-                  <rect x="36" y="8" width="6" height="14" />
-                  <rect x="46" y="12" width="14" height="6" />
-                  <rect x="40" y="24" width="8" height="8" />
-                  <rect x="54" y="26" width="8" height="8" />
-                  <rect x="38" y="38" width="24" height="24" />
-                  <rect x="42" y="42" width="16" height="16" fill="white" />
-                  <rect x="46" y="46" width="8" height="8" />
-                  <rect x="74" y="38" width="8" height="14" />
-                  <rect x="38" y="70" width="12" height="8" />
-                  <rect x="54" y="74" width="14" height="6" />
-                  <rect x="72" y="72" width="8" height="18" />
-                </svg>
+              <div className="w-28 h-28 mx-auto border border-slate-300 p-1 rounded-lg flex items-center justify-center bg-white">
+                {modalQrUrl || liveQrDataUrl ? (
+                  <img src={modalQrUrl || liveQrDataUrl} alt="Allocation QR" className="w-full h-full object-contain" />
+                ) : (
+                  <QrCode className="w-12 h-12 text-slate-300 animate-pulse" />
+                )}
               </div>
               <p className="text-xs font-bold text-slate-900 truncate">{printedLabelData.productName}</p>
               <div className="text-[10px] text-slate-600 font-mono">

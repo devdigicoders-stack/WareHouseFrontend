@@ -17,7 +17,10 @@ import {
   Truck,
   QrCode,
   Layers,
+  Trash2,
+  Boxes,
 } from 'lucide-react'
+import { apiRequest } from '../services/api'
 
 // Custom Select Component to prevent black dropdown flicker
 function CustomSelect({ label, value, onChange, options, required, zIndexClass = 'z-20' }) {
@@ -96,15 +99,6 @@ const STATUS_OPTIONS = [
   { value: 'Rejected', label: 'Rejected (Quality Defect / Hold)' },
 ]
 
-const SHADE_OPTIONS = [
-  { value: 'Shade 1 (General Stores)', label: 'Shade 1 (General Hardware & Packaging)' },
-  { value: 'Shade 2 (Food & Grains)', label: 'Shade 2 (Dry Ration & Food Grains)' },
-  { value: 'Shade 3 (Industrial Supplies)', label: 'Shade 3 (Industrial Maintenance & Tools)' },
-  { value: 'Shade 4 (Chemical & Hazardous)', label: 'Shade 4 (Paints, Oils & Chemical Drums)' },
-  { value: 'Shade 5 (Electronics & Spares)', label: 'Shade 5 (Electronics, Cables & Hardware)' },
-  { value: 'Shade 6 (Textiles & Medical)', label: 'Shade 6 (Textiles, PPE & First Aid)' },
-]
-
 export default function GoodsReceiving() {
   const [activeTab, setActiveTab] = useState('all') // 'all', 'completed', 'in_process', 'pending', 'rejected'
   const [searchQuery, setSearchQuery] = useState('')
@@ -113,129 +107,85 @@ export default function GoodsReceiving() {
   const [toastMessage, setToastMessage] = useState(null)
 
   // Real-time Commercial Warehouse Inward GRN Registry
-  const [grnList, setGrnList] = useState([
-    {
-      id: 1,
-      grnNo: 'GRN-2026-001',
-      dateTime: '18 Sep 2026, 09:15 AM',
-      poNo: 'PO-2026-4587',
-      supplier: 'M/s Bharat Supply Corp',
-      vehicleNo: 'UP32 AB 1256',
-      itemsCount: 15,
-      totalQty: '350 Bags',
-      shade: 'Shade 2 (Food & Grains)',
-      status: 'Completed',
-      receivedBy: 'Ramesh Yadav (Clerk)',
-      remarks: 'Inspected and accepted at Bay-2. Moisture & packing verified.',
-      materials: [
-        { code: 'SKU-RIC-01', name: 'Basmati Rice (Grade 1 Special 25kg)', qty: 150, unit: 'Bags', batch: 'BTH-2026-081' },
-        { code: 'SKU-DAL-02', name: 'Chana Dal (Super Clean 30kg)', qty: 100, unit: 'Bags', batch: 'BTH-2026-084' },
-        { code: 'SKU-OIL-03', name: 'Refined Mustard Oil (15L Tin)', qty: 100, unit: 'Tins', batch: 'BTH-2026-090' },
-      ],
-    },
-    {
-      id: 2,
-      grnNo: 'GRN-2026-002',
-      dateTime: '18 Sep 2026, 10:05 AM',
-      poNo: 'PO-2026-1123',
-      supplier: 'Prime Foods Logistics Ltd',
-      vehicleNo: 'HR55 CD 7890',
-      itemsCount: 8,
-      totalQty: '180 Bags',
-      shade: 'Shade 2 (Food & Grains)',
-      status: 'In Process',
-      receivedBy: 'Suresh Chauhan (Logistics)',
-      remarks: 'Under technical QC sampling and lab moisture testing.',
-      materials: [
-        { code: 'SKU-SGR-01', name: 'Refined Sugar Bulk Pack (50kg)', qty: 180, unit: 'Bags', batch: 'SG-2026-11' },
-      ],
-    },
-    {
-      id: 3,
-      grnNo: 'GRN-2026-003',
-      dateTime: '18 Sep 2026, 11:20 AM',
-      poNo: 'PO-2026-8891',
-      supplier: 'Apex Manufacturing Ltd',
-      vehicleNo: 'DL01 EF 4321',
-      itemsCount: 24,
-      totalQty: '500 Boxes',
-      shade: 'Shade 3 (Industrial Supplies)',
-      status: 'Completed',
-      receivedBy: 'Pooja Rana (Supervisor)',
-      remarks: 'Complete hardware delivery unloaded and racked in Bay-3.',
-      materials: [
-        { code: 'SKU-HDW-09', name: 'Industrial Hardware & Tools Box', qty: 250, unit: 'Boxes', batch: 'PKG-2026-44' },
-        { code: 'SKU-MET-05', name: 'Galvanized Fasteners & Bolts Pack', qty: 250, unit: 'Boxes', batch: 'FST-2026-19' },
-      ],
-    },
-    {
-      id: 4,
-      grnNo: 'GRN-2026-004',
-      dateTime: '18 Sep 2026, 11:55 AM',
-      poNo: 'PO-2026-6644',
-      supplier: 'Kansai Industrial Paints',
-      vehicleNo: 'UP32 ZZ 1111',
-      itemsCount: 12,
-      totalQty: '60 Drums',
-      shade: 'Shade 4 (Chemical & Hazardous)',
-      status: 'Pending',
-      receivedBy: 'Rajesh Verma (QC Lead)',
-      remarks: 'Chemical drums awaiting safety seal verification at Bay-4.',
-      materials: [
-        { code: 'SKU-PNT-01', name: 'Synthetic Industrial Enamel 20L', qty: 60, unit: 'Drums', batch: 'CHM-2026-02' },
-      ],
-    },
-    {
-      id: 5,
-      grnNo: 'GRN-2026-005',
-      dateTime: '17 Sep 2026, 04:10 PM',
-      poNo: 'PO-2026-9902',
-      supplier: 'National Packaging Supplies',
-      vehicleNo: 'RJ14 JK 6543',
-      itemsCount: 5,
-      totalQty: '1000 Cartons',
-      shade: 'Shade 1 (General Stores)',
-      status: 'Completed',
-      receivedBy: 'Ramesh Yadav (Clerk)',
-      remarks: 'Outer corrugated boxes accepted in full count.',
-      materials: [
-        { code: 'SKU-BOX-07', name: 'Corrugated Packaging Cartons (Bundle)', qty: 1000, unit: 'Bundles', batch: 'BOX-2026-99' },
-      ],
-    },
-    {
-      id: 6,
-      grnNo: 'GRN-2026-006',
-      dateTime: '17 Sep 2026, 02:30 PM',
-      poNo: 'PO-2026-3318',
-      supplier: 'Global Agri Traders Ltd',
-      vehicleNo: 'UP78 GH 9987',
-      itemsCount: 10,
-      totalQty: '200 Bags',
-      shade: 'Shade 2 (Food & Grains)',
-      status: 'Rejected',
-      receivedBy: 'Rajesh Verma (QC Lead)',
-      remarks: 'Water damage detected in transit. Rejected on gate inspection.',
-      materials: [
-        { code: 'SKU-DAL-08', name: 'Moong Dal (Washed 30kg)', qty: 200, unit: 'Bags', batch: 'REJ-DAL-01' },
-      ],
-    },
-  ])
+  const [grnList, setGrnList] = useState([])
+  const [products, setProducts] = useState([])
+  const [shades, setShades] = useState([])
+  const [gateEntries, setGateEntries] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  // Selected GRN for Print Voucher Modal
-  const [selectedGrn, setSelectedGrn] = useState(grnList[0])
+  const [selectedGrn, setSelectedGrn] = useState(null)
+
+  // Fetch initial data
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      const [grnRes, prodRes, shadeRes, gateRes] = await Promise.allSettled([
+        apiRequest('/grn'),
+        apiRequest('/product'),
+        apiRequest('/shade'),
+        apiRequest('/gate-entry'),
+      ])
+
+      if (grnRes.status === 'fulfilled' && Array.isArray(grnRes.value)) {
+        setGrnList(grnRes.value)
+        if (grnRes.value.length > 0 && !selectedGrn) {
+          setSelectedGrn(grnRes.value[0])
+        }
+      }
+      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
+        setProducts(prodRes.value)
+      }
+      if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value)) {
+        setShades(shadeRes.value)
+      }
+      if (gateRes.status === 'fulfilled' && Array.isArray(gateRes.value)) {
+        setGateEntries(gateRes.value)
+      }
+    } catch {
+      triggerToast('Error loading GRN records')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  // Dynamic Shades options
+  const shadeOptions = useMemo(() => {
+    if (shades && shades.length > 0) {
+      return shades.map((s) => ({
+        value: `${s.code} (${s.name})`,
+        label: `${s.code} - ${s.name} (${s.type || 'Warehouse'})`,
+      }))
+    }
+    return [
+      { value: 'Shade 1 (General Stores)', label: 'Shade 1 (General Hardware & Packaging)' },
+      { value: 'Shade 2 (Food & Grains)', label: 'Shade 2 (Dry Ration & Food Grains)' },
+      { value: 'Shade 3 (Industrial Supplies)', label: 'Shade 3 (Industrial Maintenance & Tools)' },
+      { value: 'Shade 4 (Chemical & Hazardous)', label: 'Shade 4 (Paints, Oils & Chemical Drums)' },
+      { value: 'Shade 5 (Electronics & Spares)', label: 'Shade 5 (Electronics, Cables & Hardware)' },
+      { value: 'Shade 6 (Textiles & Medical)', label: 'Shade 6 (Textiles, PPE & First Aid)' },
+    ]
+  }, [shades])
 
   // New GRN Form State
-  const [newGrn, setNewGrn] = useState({
+  const initialNewGrn = {
     poNo: '',
     supplier: '',
     vehicleNo: '',
-    itemsCount: '10',
-    totalQty: '200 Bags',
-    shade: 'Shade 2 (Food & Grains)',
+    shade: shadeOptions[0]?.value || 'Shade 1 (General Stores)',
     status: 'Completed',
-    receivedBy: 'Anil Sharma (Warehouse Manager)',
+    receivedBy: 'Warehouse Manager',
     remarks: 'Received and verified at Inward Receiving Terminal',
-  })
+    selectedProductId: '',
+    itemQty: '100',
+    itemBatch: '',
+    itemMfgDate: '',
+    itemExpiryDate: '',
+  }
+  const [newGrn, setNewGrn] = useState(initialNewGrn)
 
   // Toast trigger
   const triggerToast = (msg) => {
@@ -256,85 +206,131 @@ export default function GoodsReceiving() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
         return (
-          item.grnNo.toLowerCase().includes(q) ||
-          item.poNo.toLowerCase().includes(q) ||
-          item.supplier.toLowerCase().includes(q) ||
-          item.vehicleNo.toLowerCase().includes(q) ||
-          item.receivedBy.toLowerCase().includes(q) ||
-          item.shade.toLowerCase().includes(q)
+          (item.grnNo && item.grnNo.toLowerCase().includes(q)) ||
+          (item.poNo && item.poNo.toLowerCase().includes(q)) ||
+          (item.supplier && item.supplier.toLowerCase().includes(q)) ||
+          (item.vehicleNo && item.vehicleNo.toLowerCase().includes(q)) ||
+          (item.receivedBy && item.receivedBy.toLowerCase().includes(q)) ||
+          (item.shade && item.shade.toLowerCase().includes(q))
         )
       }
       return true
     })
   }, [grnList, activeTab, searchQuery])
 
+  // Auto-fill from Gate Entry
+  const handleSelectGateEntry = (gatePassNo) => {
+    const entry = gateEntries.find((g) => g.passNumber === gatePassNo)
+    if (entry) {
+      setNewGrn((prev) => ({
+        ...prev,
+        vehicleNo: entry.vehicleNumber || prev.vehicleNo,
+        supplier: entry.supplier || prev.supplier,
+        poNo: entry.challanNo || prev.poNo,
+      }))
+      triggerToast(`Auto-filled vehicle & supplier from Gate Pass ${entry.passNumber}`)
+    }
+  }
+
   // Create GRN
-  const handleCreateGrn = (e) => {
+  const handleCreateGrn = async (e) => {
     e.preventDefault()
-    if (!newGrn.poNo.trim() || !newGrn.supplier.trim()) {
-      triggerToast('PO Number and Supplier Name are required!')
+    if (!newGrn.poNo.trim() || !newGrn.supplier.trim() || !newGrn.vehicleNo.trim()) {
+      triggerToast('PO Number, Supplier Name and Vehicle Number are required!')
       return
     }
 
-    const nextNum = grnList.length + 1
-    const grnNoStr = `GRN-2026-${String(nextNum).padStart(3, '0')}`
-    const currentTime = new Date().toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    })
+    const selectedProd = products.find((p) => p._id === newGrn.selectedProductId)
+    const qtyNum = Number(newGrn.itemQty) || 1
+    const packRatio = selectedProd?.packSize || 1
+    const totalBase = qtyNum * packRatio
 
-    const newRecord = {
-      id: Date.now(),
-      grnNo: grnNoStr,
-      dateTime: currentTime,
+    const materialItem = selectedProd
+      ? {
+          productId: selectedProd._id,
+          productName: selectedProd.name,
+          sku: selectedProd.sku,
+          packageQty: qtyNum,
+          packagingUnit: selectedProd.outerPackaging || 'Bags',
+          packSize: packRatio,
+          totalBaseQty: totalBase,
+          baseUnit: selectedProd.baseUnit || 'Kg',
+          batchNo: newGrn.itemBatch.trim() || `BTH-${Date.now().toString().slice(-4)}`,
+          mfgDate: newGrn.itemMfgDate || '',
+          expiryDate: newGrn.itemExpiryDate || '',
+        }
+      : {
+          productName: 'General Consignment Material',
+          sku: `SKU-${Math.floor(100 + Math.random() * 900)}`,
+          packageQty: qtyNum,
+          packagingUnit: 'Units',
+          packSize: 1,
+          totalBaseQty: qtyNum,
+          baseUnit: 'Units',
+          batchNo: newGrn.itemBatch.trim() || `BTH-${Date.now().toString().slice(-4)}`,
+          mfgDate: newGrn.itemMfgDate || '',
+          expiryDate: newGrn.itemExpiryDate || '',
+        }
+
+    const totalQtyStr = selectedProd
+      ? `${qtyNum} ${selectedProd.outerPackaging} (${totalBase} ${selectedProd.baseUnit})`
+      : `${qtyNum} Units`
+
+    const payload = {
       poNo: newGrn.poNo.trim().toUpperCase(),
       supplier: newGrn.supplier.trim(),
-      vehicleNo: newGrn.vehicleNo.trim().toUpperCase() || 'UP32 AB 1256',
-      itemsCount: Number(newGrn.itemsCount) || 10,
-      totalQty: newGrn.totalQty.trim() || '200 Units',
+      vehicleNo: newGrn.vehicleNo.trim().toUpperCase(),
       shade: newGrn.shade,
+      itemsCount: 1,
+      totalQty: totalQtyStr,
       status: newGrn.status,
-      receivedBy: newGrn.receivedBy,
-      remarks: newGrn.remarks.trim() || 'Standard goods receiving verified.',
-      materials: [
-        {
-          code: `SKU-${Math.floor(100 + Math.random() * 900)}`,
-          name: 'General Commercial Consignment',
-          qty: Number(newGrn.itemsCount) || 10,
-          unit: 'Units',
-          batch: `BTH-2026-${Math.floor(100 + Math.random() * 900)}`,
-        },
-      ],
+      receivedBy: newGrn.receivedBy.trim() || 'Warehouse Officer',
+      remarks: newGrn.remarks.trim() || 'Received and verified at Inward Receiving Terminal',
+      materials: [materialItem],
     }
 
-    setGrnList([newRecord, ...grnList])
-    setSelectedGrn(newRecord)
-    setShowAddModal(false)
-    setShowPrintModal(true)
-    setNewGrn({
-      poNo: '',
-      supplier: '',
-      vehicleNo: '',
-      itemsCount: '10',
-      totalQty: '200 Bags',
-      shade: 'Shade 2 (Food & Grains)',
-      status: 'Completed',
-      receivedBy: 'Anil Sharma (Warehouse Manager)',
-      remarks: 'Received and verified at Inward Receiving Terminal',
-    })
-    triggerToast(`GRN ${grnNoStr} registered successfully!`)
+    try {
+      const created = await apiRequest('/grn', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+      setGrnList((prev) => [created, ...prev])
+      setSelectedGrn(created)
+      setShowAddModal(false)
+      setShowPrintModal(true)
+      setNewGrn(initialNewGrn)
+      triggerToast(`GRN ${created.grnNo} registered & stock updated!`)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to create GRN')
+    }
   }
 
   // Quick Status update
-  const handleStatusUpdate = (id, newStatus) => {
-    setGrnList(
-      grnList.map((g) => (g.id === id ? { ...g, status: newStatus } : g))
-    )
-    triggerToast(`GRN status updated to ${newStatus}`)
+  const handleStatusUpdate = async (id, newStatus) => {
+    try {
+      const updated = await apiRequest(`/grn/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: newStatus }),
+      })
+      setGrnList((prev) => prev.map((g) => (g._id === id ? updated : g)))
+      if (selectedGrn?._id === id) {
+        setSelectedGrn(updated)
+      }
+      triggerToast(`GRN status updated to ${newStatus}`)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to update status')
+    }
+  }
+
+  // Delete GRN
+  const handleDeleteGrn = async (id, grnNo) => {
+    try {
+      await apiRequest(`/grn/${id}`, { method: 'DELETE' })
+      setGrnList((prev) => prev.filter((g) => g._id !== id))
+      triggerToast(`GRN ${grnNo} deleted.`)
+    } catch {
+      triggerToast('Failed to delete GRN')
+    }
   }
 
   // Export CSV
@@ -346,19 +342,17 @@ export default function GoodsReceiving() {
       'Supplier / Party',
       'Vehicle No',
       'Assigned Shade',
-      'Items Count',
       'Total Quantity',
       'Status',
       'Received By',
     ]
     const rows = grnList.map((g) => [
       g.grnNo,
-      `"${g.dateTime}"`,
-      g.poNo,
+      `"${new Date(g.createdAt || g.dateTime || Date.now()).toLocaleString()}"`,
+      `"${g.poNo}"`,
       `"${g.supplier}"`,
-      g.vehicleNo,
+      `"${g.vehicleNo}"`,
       `"${g.shade}"`,
-      g.itemsCount,
       `"${g.totalQty}"`,
       g.status,
       `"${g.receivedBy}"`,
@@ -404,7 +398,7 @@ export default function GoodsReceiving() {
         </div>
       )}
 
-      {/* 1. Header Banner - Clean, Modern & Professional */}
+      {/* 1. Header Banner */}
       <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs mt-0.5">
@@ -413,14 +407,14 @@ export default function GoodsReceiving() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                ● Inward Dock Active
+                ● Live Database Sync
               </span>
             </div>
             <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 leading-tight">
-              Goods Receiving (GRN)
+              Goods Receiving Note (GRN) Master
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 leading-relaxed">
-              Record, inspect, and verify incoming vendor consignments against Purchase Orders
+              Record, inspect, and verify incoming vendor consignments with automatic stock update into physical warehouse shades
             </p>
           </div>
         </div>
@@ -454,7 +448,7 @@ export default function GoodsReceiving() {
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Inward Receipts</p>
             <p className="text-2xl font-extrabold text-slate-900 mt-1">{grnList.length}</p>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">Recorded GRN Receipts</p>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">Stored in MongoDB</p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
             <Package className="w-5 h-5" />
@@ -464,11 +458,11 @@ export default function GoodsReceiving() {
         {/* Completed */}
         <div className="bg-white rounded-2xl p-4.5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Verified &amp; Cleared</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Verified &amp; Stock Added</p>
             <p className="text-2xl font-extrabold text-emerald-600 mt-1">
               {grnList.filter((g) => g.status === 'Completed').length}
             </p>
-            <p className="text-xs text-emerald-600 font-semibold mt-0.5">Stock Put-Away Ready</p>
+            <p className="text-xs text-emerald-600 font-semibold mt-0.5">Stock Ready for Racking</p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
             <CheckCircle2 className="w-5 h-5" />
@@ -478,11 +472,11 @@ export default function GoodsReceiving() {
         {/* In Process */}
         <div className="bg-white rounded-2xl p-4.5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Under Inspection</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Under QC Inspection</p>
             <p className="text-2xl font-extrabold text-blue-600 mt-1">
               {grnList.filter((g) => g.status === 'In Process').length}
             </p>
-            <p className="text-xs text-blue-600 font-semibold mt-0.5">QC &amp; Moisture Testing</p>
+            <p className="text-xs text-blue-600 font-semibold mt-0.5">Testing &amp; Sampling</p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
             <Clock className="w-5 h-5" />
@@ -492,11 +486,11 @@ export default function GoodsReceiving() {
         {/* Pending & Rejected */}
         <div className="bg-white rounded-2xl p-4.5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pending / Hold</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pending / Rejected</p>
             <p className="text-2xl font-extrabold text-amber-600 mt-1">
               {grnList.filter((g) => g.status === 'Pending' || g.status === 'Rejected').length}
             </p>
-            <p className="text-xs text-amber-600 font-semibold mt-0.5">Awaiting Action</p>
+            <p className="text-xs text-amber-600 font-semibold mt-0.5">Hold or Rejected Items</p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
             <AlertTriangle className="w-5 h-5" />
@@ -598,7 +592,7 @@ export default function GoodsReceiving() {
           </div>
 
           <div className="text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg shrink-0 self-start sm:self-auto">
-            Dock: Main Receiving Terminal
+            Dock: Central Inward Receiving
           </div>
         </div>
 
@@ -613,13 +607,19 @@ export default function GoodsReceiving() {
                 <th className="py-3.5 px-4 min-w-[190px]">Supplier / Vendor</th>
                 <th className="py-3.5 px-4 min-w-[140px]">Vehicle Reg.</th>
                 <th className="py-3.5 px-4 min-w-[180px]">Assigned Shade</th>
-                <th className="py-3.5 px-4 w-32">Quantity</th>
+                <th className="py-3.5 px-4 w-36">Quantity Received</th>
                 <th className="py-3.5 px-4 text-center w-28">Status</th>
                 <th className="py-3.5 px-5 text-right w-44">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {filteredGrn.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="10" className="py-10 text-center text-slate-400 text-sm">
+                    Loading GRN records from server...
+                  </td>
+                </tr>
+              ) : filteredGrn.length === 0 ? (
                 <tr>
                   <td colSpan="10" className="py-10 text-center text-slate-400 text-sm">
                     No GRN receipts match the selected filter or search criteria.
@@ -627,7 +627,7 @@ export default function GoodsReceiving() {
                 </tr>
               ) : (
                 filteredGrn.map((grn, idx) => (
-                  <tr key={grn.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr key={grn._id || grn.id || idx} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-3 text-center text-slate-400 font-mono text-xs font-semibold">
                       {idx + 1}
                     </td>
@@ -635,7 +635,13 @@ export default function GoodsReceiving() {
                       {grn.grnNo}
                     </td>
                     <td className="py-3.5 px-4 text-xs text-slate-600 whitespace-nowrap">
-                      {grn.dateTime}
+                      {new Date(grn.createdAt || grn.dateTime || Date.now()).toLocaleString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-900 text-xs whitespace-nowrap">
                       {grn.poNo}
@@ -652,8 +658,12 @@ export default function GoodsReceiving() {
                       {grn.shade}
                     </td>
                     <td className="py-3.5 px-4 text-xs whitespace-nowrap font-medium text-slate-900">
-                      <span>{grn.totalQty}</span>
-                      <span className="text-slate-400 block text-[11px]">({grn.itemsCount} line items)</span>
+                      <span>{grn.totalQty || `${grn.itemsCount} Items`}</span>
+                      {grn.materials && grn.materials.length > 0 && (
+                        <span className="text-slate-400 block text-[11px] truncate max-w-[160px]">
+                          {grn.materials[0].productName || grn.materials[0].name}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
                       <span
@@ -669,9 +679,9 @@ export default function GoodsReceiving() {
                         {grn.status === 'In Process' && (
                           <button
                             type="button"
-                            onClick={() => handleStatusUpdate(grn.id, 'Completed')}
+                            onClick={() => handleStatusUpdate(grn._id, 'Completed')}
                             className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1"
-                            title="Mark Quality Cleared"
+                            title="Mark Quality Cleared & Add Stock"
                           >
                             <Check className="w-3 h-3" />
                             <span>Verify</span>
@@ -688,7 +698,16 @@ export default function GoodsReceiving() {
                           title="Print Official GRN Slip"
                         >
                           <Printer className="w-3 h-3" />
-                          <span>GRN Slip</span>
+                          <span>Slip</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGrn(grn._id, grn.grnNo)}
+                          className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-600 text-slate-400 hover:text-white border border-slate-200 hover:border-rose-600 transition cursor-pointer shadow-2xs"
+                          title="Delete GRN"
+                        >
+                          <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
                     </td>
@@ -701,11 +720,11 @@ export default function GoodsReceiving() {
       </div>
 
       {/* ========================================================= */}
-      {/* CREATE NEW GRN MODAL (CUSTOM PURE REACT SELECTS)          */}
+      {/* CREATE NEW GRN MODAL                                      */}
       {/* ========================================================= */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-4 sm:p-6 space-y-5 animate-scale-in border border-slate-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[90dvh] overflow-y-auto p-4 sm:p-6 space-y-5 animate-scale-in border border-slate-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b pb-4 border-slate-100">
               <div className="flex items-center gap-3">
@@ -714,7 +733,7 @@ export default function GoodsReceiving() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Create New GRN Receipt</h3>
-                  <p className="text-xs text-slate-500">Record inward goods receipt voucher against PO</p>
+                  <p className="text-xs text-slate-500">Record inward goods receipt voucher against PO and update inventory</p>
                 </div>
               </div>
               <button
@@ -725,6 +744,30 @@ export default function GoodsReceiving() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Quick autofill from Gate Pass */}
+            {gateEntries.length > 0 && (
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                  <Truck className="w-3.5 h-3.5 text-indigo-600" />
+                  Auto-fill from Active Gate Pass:
+                </span>
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) handleSelectGateEntry(e.target.value)
+                  }}
+                  className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800 font-medium"
+                  defaultValue=""
+                >
+                  <option value="">-- Choose Gate Pass --</option>
+                  {gateEntries.map((ge) => (
+                    <option key={ge._id} value={ge.passNumber}>
+                      {ge.passNumber} - {ge.vehicleNumber} ({ge.supplier})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <form onSubmit={handleCreateGrn} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -778,40 +821,102 @@ export default function GoodsReceiving() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Total Quantity Received
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 350 Bags"
-                    value={newGrn.totalQty}
-                    onChange={(e) => setNewGrn({ ...newGrn, totalQty: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
+              {/* Product Selection from Product Catalog */}
+              <div className="p-3.5 rounded-xl bg-indigo-50/60 border border-indigo-100 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Boxes className="w-4 h-4 text-indigo-600" />
+                  <span className="text-xs font-bold text-indigo-950">
+                    Select Product from Catalog (Auto Stock Sync)
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Line Items Count
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    placeholder="15"
-                    value={newGrn.itemsCount}
-                    onChange={(e) => setNewGrn({ ...newGrn, itemsCount: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Product Name / SKU
+                    </label>
+                    <select
+                      value={newGrn.selectedProductId}
+                      onChange={(e) => {
+                        const pid = e.target.value
+                        const prod = products.find((p) => p._id === pid)
+                        setNewGrn((prev) => ({
+                          ...prev,
+                          selectedProductId: pid,
+                          shade: prod?.storageZone || prev.shade,
+                        }))
+                      }}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    >
+                      <option value="">-- Choose from Registered Products --</option>
+                      {products.map((p) => (
+                        <option key={p._id} value={p._id}>
+                          {p.name} ({p.sku}) — {p.outerPackaging} of {p.packSize} {p.baseUnit}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Quantity Received (Packaging Units)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="100"
+                      value={newGrn.itemQty}
+                      onChange={(e) => setNewGrn({ ...newGrn, itemQty: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Batch / Lot No.
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. BTH-2026-081"
+                      value={newGrn.itemBatch}
+                      onChange={(e) => setNewGrn({ ...newGrn, itemBatch: e.target.value.toUpperCase() })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Mfg Date
+                    </label>
+                    <input
+                      type="date"
+                      value={newGrn.itemMfgDate}
+                      onChange={(e) => setNewGrn({ ...newGrn, itemMfgDate: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Expiry Date
+                    </label>
+                    <input
+                      type="date"
+                      value={newGrn.itemExpiryDate}
+                      onChange={(e) => setNewGrn({ ...newGrn, itemExpiryDate: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 
               <CustomSelect
-                label="Assigned Storage Shade / Location"
+                label="Assigned Storage Shade / Building"
                 value={newGrn.shade}
                 onChange={(val) => setNewGrn({ ...newGrn, shade: val })}
-                options={SHADE_OPTIONS}
+                options={shadeOptions}
                 zIndexClass="z-30"
               />
 
@@ -936,7 +1041,15 @@ export default function GoodsReceiving() {
                 </div>
                 <div>
                   <span className="text-slate-500 block">Receiving Time:</span>
-                  <span className="font-semibold text-slate-800">{selectedGrn.dateTime}</span>
+                  <span className="font-semibold text-slate-800">
+                    {new Date(selectedGrn.createdAt || selectedGrn.dateTime || Date.now()).toLocaleString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
                 </div>
                 <div>
                   <span className="text-slate-500 block">Clearance Status:</span>
@@ -964,10 +1077,11 @@ export default function GoodsReceiving() {
                       <tbody className="divide-y divide-slate-100 bg-white">
                         {selectedGrn.materials.map((m, idx) => (
                           <tr key={idx}>
-                            <td className="py-2 px-3 font-semibold text-slate-900">{m.name}</td>
-                            <td className="py-2 px-3 font-mono text-slate-600">{m.batch}</td>
+                            <td className="py-2 px-3 font-semibold text-slate-900">{m.productName || m.name}</td>
+                            <td className="py-2 px-3 font-mono text-slate-600">{m.batchNo || m.batch || '—'}</td>
                             <td className="py-2 px-3 text-right font-bold text-slate-900">
-                              {m.qty} <span className="font-normal text-slate-500">{m.unit}</span>
+                              {m.packageQty || m.qty} <span className="font-normal text-slate-500">{m.packagingUnit || m.unit}</span>
+                              {m.totalBaseQty ? ` (${m.totalBaseQty} ${m.baseUnit})` : ''}
                             </td>
                           </tr>
                         ))}

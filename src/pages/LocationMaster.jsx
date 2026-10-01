@@ -1,5 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import QRCode from 'qrcode'
+import { printSpecificElement } from '../utils/printHelper'
 import {
   Warehouse, Package, Layers, MapPin, Search, X, Upload, Download,
   FileSpreadsheet, Edit2, QrCode, CheckCircle2, AlertTriangle, Clock,
@@ -235,6 +237,35 @@ export default function LocationMaster() {
       currentStock: cell.currentStock || 0,
     })
     setShowEditCellModal(true)
+  }
+
+  // State & Handler for Location Bin QR Code Modal
+  const [qrDataUrl, setQrDataUrl] = useState('')
+  const [qrCellTarget, setQrCellTarget] = useState(null)
+
+  const handleOpenQrModal = async (cell) => {
+    setQrCellTarget(cell)
+    const payload = JSON.stringify({
+      type: 'WMS_BIN_LOCATION',
+      cellCode: cell.code,
+      shade: cell.shadeCode,
+      rack: cell.rackNumber,
+      row: cell.row,
+      col: cell.col,
+      status: cell.status,
+      product: cell.productName || 'Available',
+      batch: cell.batchNo || 'N/A',
+      stock: cell.currentStock || 0,
+      timestamp: new Date().toISOString(),
+    })
+    try {
+      const url = await QRCode.toDataURL(payload, { width: 220, margin: 1 })
+      setQrDataUrl(url)
+      setShowQrModal(true)
+    } catch (err) {
+      console.error(err)
+      triggerToast('Failed to generate QR Code', 'error')
+    }
   }
 
   // Save updated cell state to MongoDB via PATCH API
@@ -675,14 +706,24 @@ export default function LocationMaster() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleInspectCell(row)}
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition cursor-pointer"
-                        title="Edit Cell Allocation"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenQrModal(row)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition cursor-pointer"
+                          title="Print / View Location QR"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInspectCell(row)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition cursor-pointer"
+                          title="Edit Cell Allocation"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -803,6 +844,69 @@ export default function LocationMaster() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Printable Bin / Cell Location QR Modal */}
+      {showQrModal && qrCellTarget && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 space-y-4 text-center">
+            <div className="flex items-center justify-between border-b pb-2.5 border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800">Physical Rack / Bin QR Label</h3>
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div id="printable-location-bin-tag" className="printable-area border-2 border-slate-900 rounded-xl p-4 bg-white space-y-2 text-center">
+              <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+                CENTRAL WAREHOUSE • LOCATION BIN TAG
+              </div>
+              <div className="text-xl font-black font-mono tracking-widest text-slate-900 py-1 bg-slate-50 rounded border border-dashed border-slate-300">
+                {qrCellTarget.code}
+              </div>
+
+              <div className="w-32 h-32 mx-auto border border-slate-200 p-1 rounded-lg flex items-center justify-center bg-white shadow-xs">
+                {qrDataUrl ? (
+                  <img src={qrDataUrl} alt="Location QR" className="w-full h-full object-contain" />
+                ) : (
+                  <QrCode className="w-12 h-12 text-slate-300 animate-pulse" />
+                )}
+              </div>
+
+              <div className="text-[11px] font-mono text-slate-700 space-y-0.5">
+                <div><strong>Shade:</strong> {qrCellTarget.shadeCode} | <strong>Rack:</strong> {qrCellTarget.rackNumber}</div>
+                <div><strong>Bin:</strong> Row {qrCellTarget.row} • Col {qrCellTarget.col}</div>
+                <div className="text-indigo-700 font-bold truncate"><strong>Item:</strong> {qrCellTarget.productName || 'Empty'}</div>
+              </div>
+
+              <div className="text-[9px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
+                Status: {qrCellTarget.status} ({qrCellTarget.currentStock || 0} Qty)
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => printSpecificElement('#printable-location-bin-tag', `Location Bin Tag - ${qrCellTarget.code}`)}
+                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print Tag</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

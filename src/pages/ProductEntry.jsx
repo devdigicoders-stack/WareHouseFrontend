@@ -134,10 +134,26 @@ export default function ProductEntry() {
   const [toastMessage, setToastMessage] = useState(null)
 
   const [products, setProducts] = useState([])
+  const [shades, setShades] = useState([])
 
   useEffect(() => {
     apiRequest('/product').then(setProducts).catch(() => {})
+    apiRequest('/shade').then((res) => {
+      if (Array.isArray(res) && res.length > 0) {
+        setShades(res)
+      }
+    }).catch(() => {})
   }, [])
+
+  const storageZoneOptions = useMemo(() => {
+    if (shades && shades.length > 0) {
+      return shades.map((s) => ({
+        value: `${s.code} (${s.name})`,
+        label: `${s.code} - ${s.name} (${s.type || 'Warehouse'})`,
+      }))
+    }
+    return STORAGE_ZONE_OPTIONS
+  }, [shades])
 
   // Form State
   const initialForm = {
@@ -148,7 +164,7 @@ export default function ProductEntry() {
     baseUnit: 'Kg',
     outerPackaging: 'Bag',
     packSize: '25',
-    storageZone: 'Shade 2 (Food & Grains)',
+    storageZone: shades.length > 0 ? `${shades[0].code} (${shades[0].name})` : 'Shade 1 (General Stores)',
     reorderLevel: '50',
     currentStock: '100',
     barcode: '',
@@ -247,7 +263,6 @@ export default function ProductEntry() {
   }
 
   const handleDeleteProduct = async (id, name) => {
-    if (products.length === 1) { triggerToast('At least one product must remain!'); return }
     try {
       await apiRequest(`/product/${id}`, { method: 'DELETE' })
       setProducts((p) => p.filter((x) => x._id !== id))
@@ -510,7 +525,7 @@ export default function ProductEntry() {
                 </tr>
               ) : (
                 filteredProducts.map((p, idx) => (
-                  <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr key={p._id || p.id || idx} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-3 text-center text-slate-400 font-mono text-xs font-semibold">
                       {idx + 1}
                     </td>
@@ -693,7 +708,7 @@ export default function ProductEntry() {
                     label="Assigned Storage Shade"
                     value={formData.storageZone}
                     onChange={(val) => setFormData({ ...formData, storageZone: val })}
-                    options={STORAGE_ZONE_OPTIONS}
+                    options={storageZoneOptions}
                     zIndexClass="z-20"
                   />
                 </div>
