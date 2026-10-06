@@ -387,6 +387,24 @@ export default function GoodsReceiving() {
       return
     }
 
+    // Validate Mandatory Mfg Date & Expiry Date for each item
+    for (let i = 0; i < newGrn.materials.length; i++) {
+      const item = newGrn.materials[i]
+      const itemNum = i + 1
+      if (!item.mfgDate) {
+        triggerToast(`Manufacturing Date is required for Item #${itemNum} (${item.productName || 'Consignment'})!`)
+        return
+      }
+      if (!item.expiryDate) {
+        triggerToast(`Expiry Date is required for Item #${itemNum} (${item.productName || 'Consignment'})!`)
+        return
+      }
+      if (new Date(item.expiryDate) < new Date(item.mfgDate)) {
+        triggerToast(`Expiry Date cannot be earlier than Manufacturing Date for Item #${itemNum}!`)
+        return
+      }
+    }
+
     const materialsPayload = newGrn.materials.map((m, idx) => {
       const prod = products.find((p) => p._id === m.productId || p.sku === m.sku)
       const qtyNum = Math.max(1, Number(m.packageQty) || 1)
@@ -1099,14 +1117,15 @@ export default function GoodsReceiving() {
                         </div>
                       </div>
 
-                      {/* Manufacturing Date & Expiry Date Inputs (Batch field removed) */}
+                      {/* Mandatory Manufacturing Date & Expiry Date Inputs (Batch field removed) */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 border-t border-slate-100">
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
-                            Manufacturing Date (Mfg Date)
+                          <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                            Manufacturing Date (Mfg Date) <span className="text-rose-500">*</span>
                           </label>
                           <input
                             type="date"
+                            required
                             value={m.mfgDate}
                             onChange={(e) => handleGrnItemChange(m.id, 'mfgDate', e.target.value)}
                             className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
@@ -1114,11 +1133,13 @@ export default function GoodsReceiving() {
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
-                            Expiry Date
+                          <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                            Expiry Date <span className="text-rose-500">*</span>
                           </label>
                           <input
                             type="date"
+                            required
+                            min={m.mfgDate || undefined}
                             value={m.expiryDate}
                             onChange={(e) => handleGrnItemChange(m.id, 'expiryDate', e.target.value)}
                             className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
