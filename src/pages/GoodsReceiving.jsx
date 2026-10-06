@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import QRCode from 'qrcode'
 import { printSpecificElement } from '../utils/printHelper'
 import {
   Package,
