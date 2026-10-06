@@ -42,13 +42,13 @@ export default function Dashboard() {
     loadDashboardData()
   }, [])
 
-  // 6 KPI Metric Cards based on real data
+  // 6 KPI Metric Cards based purely on real data
   const kpiStats = [
     {
       id: 'gate',
       label: "Today's Gate Entries",
-      value: summary?.todayGateIn !== undefined ? String(summary.todayGateIn) : (recentGate.length ? String(recentGate.length) : '1'),
-      trend: `${summary?.totalGateEntries || recentGate.length || 1} Total Inward`,
+      value: summary?.todayGateIn !== undefined ? String(summary.todayGateIn) : (recentGate.length ? String(recentGate.length) : '0'),
+      trend: `${summary?.totalGateEntries || recentGate.length || 0} Total Inward`,
       trendPositive: true,
       color: 'bg-emerald-600',
       path: '/gate-entry',
@@ -61,8 +61,8 @@ export default function Dashboard() {
     {
       id: 'grn',
       label: 'GRN Received',
-      value: summary?.totalGRNs !== undefined ? String(summary.totalGRNs) : (recentGRN.length ? String(recentGRN.length) : '1'),
-      trend: '100% Inward Cleared',
+      value: summary?.totalGRNs !== undefined ? String(summary.totalGRNs) : (recentGRN.length ? String(recentGRN.length) : '0'),
+      trend: `${summary?.todayGRN || 0} Inward Today`,
       trendPositive: true,
       color: 'bg-amber-500',
       path: '/grn',
@@ -75,8 +75,8 @@ export default function Dashboard() {
     {
       id: 'stock',
       label: 'Total Stock (Units)',
-      value: summary?.totalStockUnits ? Number(summary.totalStockUnits).toLocaleString('en-IN') : '3,800',
-      trend: `${summary?.totalSKUs || 4} Active SKUs`,
+      value: summary?.totalStockUnits !== undefined ? Number(summary.totalStockUnits).toLocaleString('en-IN') : '0',
+      trend: `${summary?.totalSKUs || 0} Active SKUs`,
       trendPositive: true,
       color: 'bg-emerald-700',
       path: '/current-stock',
@@ -89,7 +89,7 @@ export default function Dashboard() {
     {
       id: 'lab',
       label: 'QC & Lab Tests',
-      value: summary?.totalQCTests !== undefined ? String(summary.totalQCTests) : '1',
+      value: summary?.totalQCTests !== undefined ? String(summary.totalQCTests) : '0',
       trend: `${summary?.passedQCRate || 100}% Passed`,
       trendPositive: true,
       color: 'bg-blue-600',
@@ -103,8 +103,8 @@ export default function Dashboard() {
     {
       id: 'approved',
       label: 'Rack Occupancy',
-      value: summary?.occupancyRate ? `${summary.occupancyRate}%` : '240 Cells Ready',
-      trend: `${summary?.occupiedCells || 0} / ${summary?.totalCells || 240} Slots`,
+      value: summary?.occupancyRate !== undefined ? `${summary.occupancyRate}%` : '0%',
+      trend: `${summary?.occupiedCells || 0} / ${summary?.totalCells || 0} Slots`,
       trendPositive: true,
       color: 'bg-indigo-600',
       path: '/rack-mgmt',
@@ -117,7 +117,7 @@ export default function Dashboard() {
     {
       id: 'expired',
       label: 'Outward Dispatches',
-      value: summary?.totalDispatches !== undefined ? String(summary.totalDispatches) : '1',
+      value: summary?.totalDispatches !== undefined ? String(summary.totalDispatches) : '0',
       trend: `${summary?.pendingDispatches || 0} Pending Pick`,
       trendPositive: true,
       color: 'bg-purple-600',
@@ -130,26 +130,19 @@ export default function Dashboard() {
     },
   ]
 
-  // Default Shades Data fallback
-  const shades = liveShades.length > 0 ? liveShades.map((s, idx) => ({
+  // Live Shades Data
+  const shades = liveShades.map((s, idx) => ({
     id: s._id || idx + 1,
     name: s.name,
     category: s.type || 'General Goods',
-    occupancy: 20 * (idx + 1) > 90 ? 85 : 20 * (idx + 1),
-    current: 40 * (idx + 1),
-    total: 200,
+    occupancy: 0,
+    current: 0,
+    total: 400,
     color: idx % 2 === 0 ? 'bg-emerald-500' : 'bg-indigo-500',
-  })) : [
-    { id: 1, name: 'Shade 1: Grains & Pulses', category: 'Grains & Pulses', occupancy: 80, current: 320, total: 400, color: 'bg-emerald-500' },
-    { id: 2, name: 'Shade 2: Edible Oils', category: 'Edible Oils', occupancy: 65, current: 260, total: 400, color: 'bg-amber-500' },
-    { id: 3, name: 'Shade 3: FMCG & Packaged Foods', category: 'Packaged FMCG', occupancy: 90, current: 360, total: 400, color: 'bg-emerald-500' },
-    { id: 4, name: 'Shade 4: Packaging & Materials', category: 'Packaging Materials', occupancy: 50, current: 200, total: 400, color: 'bg-amber-500' },
-    { id: 5, name: 'Shade 5: Chemicals & Hygiene', category: 'Chemicals & Hygiene', occupancy: 75, current: 300, total: 400, color: 'bg-emerald-500' },
-    { id: 6, name: 'Shade 6: Spares & General Hardware', category: 'Spares & General', occupancy: 40, current: 160, total: 400, color: 'bg-blue-400' },
-  ]
+  }))
 
   // Recent Gate Entries
-  const gateEntries = recentGate.length > 0 ? recentGate.map((g, idx) => ({
+  const gateEntries = recentGate.map((g, idx) => ({
     id: g._id || idx + 1,
     time: g.createdAt ? new Date(g.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Today',
     vehicle: g.vehicleNumber,
@@ -157,29 +150,21 @@ export default function Dashboard() {
     supplier: g.supplier,
     type: 'In',
     status: g.status || 'Completed'
-  })) : [
-    { id: 1, time: 'Today, 09:12', vehicle: 'UP32 AB 1947', driver: 'Satnam Singh', supplier: 'Adani Agri Logistics Ltd', type: 'In', status: 'Waiting at Gate' },
-  ]
+  }))
 
   // Recent GRN Receipts
-  const grnReceipts = recentGRN.length > 0 ? recentGRN.map((r, idx) => ({
+  const grnReceipts = recentGRN.map((r, idx) => ({
     id: r._id || idx + 1,
-    grn: r.grnNo || `GRN-2026-000${idx + 1}`,
-    product: r.materials?.[0]?.productName || 'Basmati Rice Special',
-    batch: r.materials?.[0]?.batchNo || 'BAT-2026-01',
-    qty: r.totalQty || String(r.materials?.[0]?.packageQty || '50'),
+    grn: r.grnNo || `GRN-2026-${String(idx + 1).padStart(4, '0')}`,
+    product: r.materials?.[0]?.productName || 'Material Item',
+    batch: r.materials?.[0]?.batchNo || 'BAT-01',
+    qty: r.totalQty || String(r.materials?.[0]?.packageQty || '0'),
     status: r.status || 'Completed',
     statusColor: r.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'
-  })) : [
-    { id: 1, grn: 'GRN-2026-0001', product: 'Basmati Rice (Grade 1 Special 25kg)', batch: 'BAT-2026-RIC-01', qty: '50 Bags', status: 'Completed', statusColor: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
-  ]
+  }))
 
   // Expiry Alerts (FEFO Priority)
-  const expiryAlerts = [
-    { id: 1, product: 'Basmati Rice (Grade 1 Special 25kg)', batch: 'BAT-2026-RIC-01', location: 'SH01-RK01-R1-C1', qty: '50', unit: 'Bags', date: '30 Dec 2026', days: 90, status: 'Active Stock', statusColor: 'bg-emerald-50 text-emerald-700 border-emerald-200', dayColor: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    { id: 2, product: 'Refined Mustard Oil (15L Tin)', batch: 'BAT-2026-OIL-02', location: 'SH02-RK01-R1-C1', qty: '30', unit: 'Tins', date: '15 Nov 2026', days: 45, status: 'Near Expiry', statusColor: 'bg-amber-50 text-amber-700 border-amber-200', dayColor: 'bg-amber-50 text-amber-700 border-amber-200' },
-    { id: 3, product: 'Arhar / Toor Dal (Grade A 30kg)', batch: 'BAT-2026-DAL-03', location: 'SH01-RK02-R2-C3', qty: '30', unit: 'Bags', date: '20 Jan 2027', days: 110, status: 'Active Stock', statusColor: 'bg-emerald-50 text-emerald-700 border-emerald-200', dayColor: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  ]
+  const expiryAlerts = []
 
   // System Audit Stream Logs
   const auditLogs = [
@@ -556,47 +541,55 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {gateEntries.map((row) => (
-                <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="py-4 px-4 text-slate-400 font-mono text-xs text-center w-14 font-semibold">
-                    0{row.id}
-                  </td>
-                  <td className="py-4 px-4">
-                    <span className="text-sm font-medium text-slate-700">{row.time}</span>
-                  </td>
-                  <td className="py-4 px-4">
-                    <span className="text-xs font-mono font-bold text-slate-800 bg-slate-100 border border-slate-200/90 px-3 py-1.5 rounded-lg inline-block tracking-wide shadow-2xs">
-                      {row.vehicle}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-slate-900 font-bold text-sm">
-                    {row.driver}
-                  </td>
-                  <td className="py-4 px-4 text-slate-600 font-medium text-sm">
-                    {row.supplier}
-                  </td>
-                  <td className="py-4 px-4 text-center">
-                    <span className={`text-xs font-bold px-3 py-1 rounded-full inline-flex items-center gap-1 ${row.type === 'In' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
-                      {row.type === 'In' ? '↓ Inward' : '↑ Outward'}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-center">
-                    <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="py-4 px-5 text-right">
-                    <Link
-                      to="/gate-pass"
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-100 hover:border-indigo-600 text-xs font-bold transition-all shadow-2xs"
-                    >
-                      <span>Gate Pass</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
+              {gateEntries.length === 0 ? (
+                <tr>
+                  <td colSpan="8" className="py-8 text-center text-slate-400 font-medium">
+                    No recent gate entries. New vehicle registrations at the gate will appear here in real-time.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                gateEntries.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-4 px-4 text-slate-400 font-mono text-xs text-center w-14 font-semibold">
+                      0{row.id}
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="text-sm font-medium text-slate-700">{row.time}</span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="text-xs font-mono font-bold text-slate-800 bg-slate-100 border border-slate-200/90 px-3 py-1.5 rounded-lg inline-block tracking-wide shadow-2xs">
+                        {row.vehicle}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-slate-900 font-bold text-sm">
+                      {row.driver}
+                    </td>
+                    <td className="py-4 px-4 text-slate-600 font-medium text-sm">
+                      {row.supplier}
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <span className={`text-xs font-bold px-3 py-1 rounded-full inline-flex items-center gap-1 ${row.type === 'In' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
+                        {row.type === 'In' ? '↓ Inward' : '↑ Outward'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="py-4 px-5 text-right">
+                      <Link
+                        to="/gate-pass"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-100 hover:border-indigo-600 text-xs font-bold transition-all shadow-2xs"
+                      >
+                        <span>Gate Pass</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -650,46 +643,54 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {grnReceipts.map((row) => (
-                <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="py-4 px-4 text-slate-400 font-mono text-xs text-center w-14 font-semibold">
-                    0{row.id}
-                  </td>
-                  <td className="py-4 px-4">
-                    <span className="font-mono font-bold text-slate-900 text-xs bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200 inline-block tracking-wide shadow-2xs">
-                      {row.grn}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-slate-900 font-bold text-sm">
-                    {row.product}
-                  </td>
-                  <td className="py-4 px-4">
-                    <span className="font-mono text-slate-700 text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 inline-block">
-                      {row.batch}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-right font-mono font-bold text-slate-900 text-sm">
-                    {row.qty} <span className="font-normal text-xs text-slate-500">Units</span>
-                  </td>
-                  <td className="py-4 px-4 text-center">
-                    <span className={`text-xs font-bold px-3 py-1 rounded-full border inline-flex items-center gap-1 ${row.statusColor}`}>
-                      {row.status === 'Passed' && '✓ Passed'}
-                      {row.status === 'Testing' && '⏳ Testing'}
-                      {row.status === 'Pending' && '● Pending'}
-                      {row.status === 'Failed' && '✕ Failed'}
-                    </span>
-                  </td>
-                  <td className="py-4 px-5 text-right">
-                    <Link
-                      to="/put-away"
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-600 text-amber-800 hover:text-white border border-amber-200 hover:border-amber-600 text-xs font-bold transition-all shadow-2xs"
-                    >
-                      <span>Put-Away</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
+              {grnReceipts.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="py-8 text-center text-slate-400 font-medium">
+                    No recent GRN receipts recorded yet. Process inward goods at unloading bays to generate GRNs.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                grnReceipts.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-4 px-4 text-slate-400 font-mono text-xs text-center w-14 font-semibold">
+                      0{row.id}
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="font-mono font-bold text-slate-900 text-xs bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200 inline-block tracking-wide shadow-2xs">
+                        {row.grn}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-slate-900 font-bold text-sm">
+                      {row.product}
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="font-mono text-slate-700 text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 inline-block">
+                        {row.batch}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-right font-mono font-bold text-slate-900 text-sm">
+                      {row.qty} <span className="font-normal text-xs text-slate-500">Units</span>
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <span className={`text-xs font-bold px-3 py-1 rounded-full border inline-flex items-center gap-1 ${row.statusColor}`}>
+                        {row.status === 'Passed' && '✓ Passed'}
+                        {row.status === 'Testing' && '⏳ Testing'}
+                        {row.status === 'Pending' && '● Pending'}
+                        {row.status === 'Failed' && '✕ Failed'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-5 text-right">
+                      <Link
+                        to="/put-away"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-600 text-amber-800 hover:text-white border border-amber-200 hover:border-amber-600 text-xs font-bold transition-all shadow-2xs"
+                      >
+                        <span>Put-Away</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -745,53 +746,61 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {expiryAlerts.map((row) => (
-                <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="py-4 px-4 text-slate-400 font-mono text-xs text-center w-14 font-semibold">
-                    0{row.id}
-                  </td>
-                  <td className="py-4 px-4 text-slate-900 font-bold text-sm">
-                    {row.product}
-                  </td>
-                  <td className="py-4 px-4">
-                    <span className="font-mono text-slate-700 text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 inline-block shadow-2xs">
-                      {row.batch}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-slate-700 font-medium text-sm">
-                    <span className="inline-flex items-center gap-1.5 text-slate-700 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-md text-xs font-semibold">
-                      <MapPin className="w-3 h-3 text-slate-400" />
-                      {row.location}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-right font-mono font-bold text-slate-900 text-sm">
-                    {row.qty} <span className="font-normal text-xs text-slate-500">{row.unit}</span>
-                  </td>
-                  <td className="py-4 px-4 text-slate-700 font-medium text-sm">
-                    {row.date}
-                  </td>
-                  <td className="py-4 px-4 text-center">
-                    <span className={`font-mono font-bold px-2.5 py-1 rounded-md text-xs border ${row.dayColor}`}>
-                      {row.days} d left
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-center">
-                    <span className={`text-xs font-bold px-3 py-1 rounded-full border inline-flex items-center gap-1 ${row.statusColor}`}>
-                      {row.status.includes('Critical') && '⚠ '}
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="py-4 px-5 text-right">
-                    <Link
-                      to="/hold-stock"
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-600 text-amber-800 hover:text-white border border-amber-200 hover:border-amber-600 text-xs font-bold transition-all shadow-2xs"
-                    >
-                      <span>Issue FEFO</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
+              {expiryAlerts.length === 0 ? (
+                <tr>
+                  <td colSpan="9" className="py-8 text-center text-slate-400 font-medium">
+                    ✓ All stored inventory is within safe shelf-life parameters. No immediate FEFO expiry alerts.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                expiryAlerts.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-4 px-4 text-slate-400 font-mono text-xs text-center w-14 font-semibold">
+                      0{row.id}
+                    </td>
+                    <td className="py-4 px-4 text-slate-900 font-bold text-sm">
+                      {row.product}
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="font-mono text-slate-700 text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 inline-block shadow-2xs">
+                        {row.batch}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-slate-700 font-medium text-sm">
+                      <span className="inline-flex items-center gap-1.5 text-slate-700 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-md text-xs font-semibold">
+                        <MapPin className="w-3 h-3 text-slate-400" />
+                        {row.location}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-right font-mono font-bold text-slate-900 text-sm">
+                      {row.qty} <span className="font-normal text-xs text-slate-500">{row.unit}</span>
+                    </td>
+                    <td className="py-4 px-4 text-slate-700 font-medium text-sm">
+                      {row.date}
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <span className={`font-mono font-bold px-2.5 py-1 rounded-md text-xs border ${row.dayColor}`}>
+                        {row.days} d left
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <span className={`text-xs font-bold px-3 py-1 rounded-full border inline-flex items-center gap-1 ${row.statusColor}`}>
+                        {row.status.includes('Critical') && '⚠ '}
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="py-4 px-5 text-right">
+                      <Link
+                        to="/hold-stock"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-600 text-amber-800 hover:text-white border border-amber-200 hover:border-amber-600 text-xs font-bold transition-all shadow-2xs"
+                      >
+                        <span>Issue FEFO</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

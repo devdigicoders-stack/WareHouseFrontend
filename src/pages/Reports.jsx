@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { apiRequest } from '../services/api'
 import {
   FileSpreadsheet,
   BarChart3,
@@ -132,7 +133,7 @@ export default function Reports() {
     shadeId: 'SH03',
   })
 
-  // 8 Curated Warehouse Reports
+  // 8 Curated Warehouse Reports with Dynamic Counts
   const [reportsList, setReportsList] = useState([
     {
       id: 1,
@@ -143,9 +144,9 @@ export default function Reports() {
       shadeName: 'Shade 3: Packaged FMCG',
       frequency: 'Daily',
       formats: ['Excel', 'PDF', 'CSV'],
-      lastGenerated: 'Today, 08:00 IST',
-      generatedBy: 'Rajesh Sharma',
-      recordsCount: 5842,
+      lastGenerated: 'Live System',
+      generatedBy: 'Warehouse Manager',
+      recordsCount: 0,
       status: 'Active',
       description: 'Comprehensive stock ledger with dual-unit breakdown (Units & Gatta) and storage metrics.',
     },
@@ -158,9 +159,9 @@ export default function Reports() {
       shadeName: 'Shade 1: Grains & Pulses',
       frequency: 'Daily',
       formats: ['Excel', 'PDF'],
-      lastGenerated: 'Today, 09:30 IST',
-      generatedBy: 'Amit Patel',
-      recordsCount: 1240,
+      lastGenerated: 'Live System',
+      generatedBy: 'Store Supervisor',
+      recordsCount: 0,
       status: 'Active',
       description: 'Vendor delivery receipts, weighbridge gross/tare weights, and PO indent reconciliation.',
     },
@@ -173,9 +174,9 @@ export default function Reports() {
       shadeName: 'Shade 3: Packaged FMCG',
       frequency: 'Daily',
       formats: ['Excel', 'CSV'],
-      lastGenerated: 'Yesterday, 18:00 IST',
-      generatedBy: 'Rajesh Sharma',
-      recordsCount: 980,
+      lastGenerated: 'Live System',
+      generatedBy: 'Dispatch Lead',
+      recordsCount: 0,
       status: 'Active',
       description: 'Customer deliveries, vehicle registration numbers, driver manifests, and delivery ETAs.',
     },
@@ -188,11 +189,11 @@ export default function Reports() {
       shadeName: 'Shade 2: Edible Oils',
       frequency: 'Weekly',
       formats: ['PDF', 'Excel'],
-      lastGenerated: '15 Sep 2026',
-      generatedBy: 'Dr. Priya Verma',
-      recordsCount: 340,
+      lastGenerated: 'Live System',
+      generatedBy: 'Dr. Sharma (QA Lead)',
+      recordsCount: 0,
       status: 'Active',
-      description: 'FSSAI chemical purity, moisture content, and micro-biology test results.',
+      description: 'Chemical purity, moisture content, and QC specimen test results.',
     },
     {
       id: 5,
@@ -203,9 +204,9 @@ export default function Reports() {
       shadeName: 'Shade 5: Chemicals & Hygiene',
       frequency: 'Weekly',
       formats: ['Excel', 'PDF'],
-      lastGenerated: '14 Sep 2026',
-      generatedBy: 'Sanjay Rawat',
-      recordsCount: 48,
+      lastGenerated: 'Live System',
+      generatedBy: 'Safety Officer',
+      recordsCount: 0,
       status: 'Active',
       description: 'Quarantined commodities, damaged carton write-offs, and root-cause disposition.',
     },
@@ -218,9 +219,9 @@ export default function Reports() {
       shadeName: 'All 6 Dedicated Shades',
       frequency: 'Weekly',
       formats: ['Excel', 'CSV'],
-      lastGenerated: '13 Sep 2026',
-      generatedBy: 'Vikram Singh',
-      recordsCount: 420,
+      lastGenerated: 'Live System',
+      generatedBy: 'Logistics Lead',
+      recordsCount: 0,
       status: 'Active',
       description: 'Occupancy percentages, vacant rack slots, and high-velocity fast-moving pick aisles.',
     },
@@ -233,9 +234,9 @@ export default function Reports() {
       shadeName: 'Shade 1: Grains & Pulses',
       frequency: 'Daily',
       formats: ['Excel', 'PDF'],
-      lastGenerated: 'Today, 07:45 IST',
+      lastGenerated: 'Live System',
       generatedBy: 'System Automated',
-      recordsCount: 52,
+      recordsCount: 0,
       status: 'Active',
       description: 'SKUs breaching safety threshold requiring immediate supplier purchase indents.',
     },
@@ -248,13 +249,44 @@ export default function Reports() {
       shadeName: 'All 6 Dedicated Shades',
       frequency: 'Monthly',
       formats: ['Excel', 'PDF', 'CSV'],
-      lastGenerated: '01 Sep 2026',
+      lastGenerated: 'Live System',
       generatedBy: 'Security Lead',
-      recordsCount: 246,
+      recordsCount: 0,
       status: 'Active',
       description: 'Gate pass authorizations, security stamps, and vehicle exit timestamps.',
     },
   ])
+
+  // Live products for preview snapshot
+  const [liveProductsList, setLiveProductsList] = useState([])
+
+  useEffect(() => {
+    Promise.allSettled([
+      apiRequest('/product'),
+      apiRequest('/grn'),
+      apiRequest('/dispatch'),
+      apiRequest('/qc'),
+    ]).then(([prodRes, grnRes, dspRes, qcRes]) => {
+      const pCount = prodRes.status === 'fulfilled' && Array.isArray(prodRes.value) ? prodRes.value.length : 0
+      const gCount = grnRes.status === 'fulfilled' && Array.isArray(grnRes.value) ? grnRes.value.length : 0
+      const dCount = dspRes.status === 'fulfilled' && Array.isArray(dspRes.value) ? dspRes.value.length : 0
+      const qCount = qcRes.status === 'fulfilled' && Array.isArray(qcRes.value) ? qcRes.value.length : 0
+
+      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
+        setLiveProductsList(prodRes.value)
+      }
+
+      setReportsList((prev) =>
+        prev.map((r) => {
+          if (r.id === 1 || r.id === 7) return { ...r, recordsCount: pCount }
+          if (r.id === 2) return { ...r, recordsCount: gCount }
+          if (r.id === 3 || r.id === 8) return { ...r, recordsCount: dCount }
+          if (r.id === 4) return { ...r, recordsCount: qCount }
+          return { ...r, recordsCount: 0 }
+        })
+      )
+    }).catch(() => {})
+  }, [])
 
   // Filtered Reports
   const filteredReports = useMemo(() => {
@@ -873,24 +905,22 @@ export default function Reports() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-                      <tr>
-                        <td className="py-2.5 px-3 font-sans font-semibold text-slate-800">Parle-G Glucose Biscuits (50g)</td>
-                        <td className="py-2.5 px-3 text-indigo-600">SH03-R02-C04</td>
-                        <td className="py-2.5 px-3 text-right font-bold">18,450 Pcs</td>
-                        <td className="py-2.5 px-3 text-center text-emerald-600 font-bold">PASSED</td>
-                      </tr>
-                      <tr>
-                        <td className="py-2.5 px-3 font-sans font-semibold text-slate-800">Fortune Refined Mustard Oil</td>
-                        <td className="py-2.5 px-3 text-indigo-600">SH02-R01-C03</td>
-                        <td className="py-2.5 px-3 text-right font-bold">4,500 Ltr</td>
-                        <td className="py-2.5 px-3 text-center text-emerald-600 font-bold">PASSED</td>
-                      </tr>
-                      <tr>
-                        <td className="py-2.5 px-3 font-sans font-semibold text-slate-800">Sharbati Golden Wheat Flour</td>
-                        <td className="py-2.5 px-3 text-indigo-600">SH01-R02-C08</td>
-                        <td className="py-2.5 px-3 text-right font-bold">12,500 Kg</td>
-                        <td className="py-2.5 px-3 text-center text-emerald-600 font-bold">PASSED</td>
-                      </tr>
+                      {liveProductsList.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="py-6 text-center text-slate-400 font-sans text-xs font-medium">
+                            No records currently available in database.
+                          </td>
+                        </tr>
+                      ) : (
+                        liveProductsList.slice(0, 5).map((p, idx) => (
+                          <tr key={p._id || idx}>
+                            <td className="py-2.5 px-3 font-sans font-semibold text-slate-800">{p.name}</td>
+                            <td className="py-2.5 px-3 text-indigo-600">{p.location || 'Unassigned'}</td>
+                            <td className="py-2.5 px-3 text-right font-bold">{(p.quantity || 0).toLocaleString()} {p.unit || 'Units'}</td>
+                            <td className="py-2.5 px-3 text-center text-emerald-600 font-bold">{p.qcStatus || 'PASSED'}</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>

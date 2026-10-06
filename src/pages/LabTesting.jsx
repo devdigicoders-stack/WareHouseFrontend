@@ -1,5 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import QRCode from 'qrcode'
+import { apiRequest } from '../services/api'
 import { printSpecificElement } from '../utils/printHelper'
 import {
   FlaskConical,
@@ -101,9 +103,98 @@ export default function LabTesting() {
   const [currentPage, setCurrentPage] = useState(1)
   const perPage = 7
 
-  // Modals state
-  const [showNewTestModal, setShowNewTestModal] = useState(false)
+  // Products and QC Data from Backend
+  const [backendProducts, setBackendProducts] = useState([])
+  const [backendGRNs, setBackendGRNs] = useState([])
   const [showCertModal, setShowCertModal] = useState(null)
+  const [showNewTestModal, setShowNewTestModal] = useState(false)
+  const [certQrDataUrl, setCertQrDataUrl] = useState('')
+  const [showLabelModal, setShowLabelModal] = useState(null)
+  const [labelQrDataUrl, setLabelQrDataUrl] = useState('')
+
+  // Fetch real data on mount
+  useEffect(() => {
+    Promise.allSettled([
+      apiRequest('/product'),
+      apiRequest('/grn'),
+      apiRequest('/qc'),
+    ]).then(([prodRes, grnRes, qcRes]) => {
+      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
+        setBackendProducts(prodRes.value)
+        if (prodRes.value.length > 0) {
+          setNewTest((prev) => ({
+            ...prev,
+            productName: prodRes.value[0].name,
+          }))
+        }
+      }
+      if (grnRes.status === 'fulfilled' && Array.isArray(grnRes.value)) {
+        setBackendGRNs(grnRes.value)
+      }
+      if (qcRes.status === 'fulfilled' && Array.isArray(qcRes.value) && qcRes.value.length > 0) {
+        const mapped = qcRes.value.map((q, idx) => ({
+          id: q._id || idx + 1,
+          sampleId: q.qcNumber || `LBT-2026-${String(idx + 1).padStart(3, '0')}`,
+          batchNo: q.batchNo || 'BT-2026-001',
+          productName: q.productName || 'Basmati Rice',
+          sku: q.sku || 'PRD-RIC-001',
+          testType: q.parameters?.[0]?.name || 'Moisture & Quality Test',
+          sampleDate: new Date(q.testDate || q.createdAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+          expectedDate: 'In 48 Hours',
+          status: q.status === 'Passed' ? 'Completed' : q.status === 'Failed / Rejected' ? 'Failed' : 'In Progress',
+          result: q.status === 'Passed' ? 'Pass' : q.status === 'Failed / Rejected' ? 'Fail' : 'Pending',
+          testedBy: q.testedBy || 'Dr. Sharma (QA Lead)',
+          parameters: q.parameters?.length > 0 ? q.parameters.map((p) => ({
+            param: p.name,
+            standard: p.standard || 'Within Spec',
+            result: p.observed || (p.pass ? 'Pass' : 'Fail'),
+            status: p.pass ? 'Pass' : 'Fail',
+          })) : [
+            { param: 'Sensory & Appearance', standard: 'Clean & Specimen Compliant', result: 'Verified Normal', status: 'Pass' },
+            { param: 'Moisture & Impurity', standard: '< 14.0%', result: '11.5%', status: 'Pass' },
+          ],
+          remarks: q.remarks || 'Standard QA inspection completed and verified.',
+          certificateNo: q.certificateNo || `COA-2026-${String(idx + 101).padStart(5, '0')}`,
+        }))
+        setSamplesData(mapped)
+      }
+    }).catch(() => {})
+  }, [])
+
+  // Generate QR for QA Certificate
+  useEffect(() => {
+    if (showCertModal) {
+      const payload = JSON.stringify({
+        type: 'WMS_QA_CERTIFICATE',
+        certNo: showCertModal.certificateNo || showCertModal.sampleId,
+        product: showCertModal.productName,
+        batch: showCertModal.batchNo,
+        testedBy: showCertModal.testedBy,
+        result: showCertModal.result,
+        date: showCertModal.sampleDate,
+      })
+      QRCode.toDataURL(payload, { width: 140, margin: 1 })
+        .then(setCertQrDataUrl)
+        .catch(() => setCertQrDataUrl(''))
+    }
+  }, [showCertModal])
+
+  // Generate QR for QC Sticker Label
+  useEffect(() => {
+    if (showLabelModal) {
+      const payload = JSON.stringify({
+        type: 'WMS_QC_STICKER',
+        sampleId: showLabelModal.sampleId,
+        product: showLabelModal.productName,
+        batch: showLabelModal.batchNo,
+        status: showLabelModal.status,
+        result: showLabelModal.result,
+      })
+      QRCode.toDataURL(payload, { width: 120, margin: 1 })
+        .then(setLabelQrDataUrl)
+        .catch(() => setLabelQrDataUrl(''))
+    }
+  }, [showLabelModal])
 
   // New Test Request Form State
   const [newTest, setNewTest] = useState({
@@ -112,166 +203,12 @@ export default function LabTesting() {
     testType: 'Moisture & Grain Quality',
     sampleQty: '2 Bags (Random Sampling)',
     testedBy: 'Dr. Sharma (QA Lead)',
-    expectedDate: '2026-09-24',
+    expectedDate: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10),
     remarks: 'Moisture meter and grain purity inspection prior to bay storage',
   })
 
   // Laboratory Samples Master Data
-  const [samplesData, setSamplesData] = useState([
-    {
-      id: 1,
-      sampleId: 'LBT-2026-001',
-      batchNo: 'BT-2026-001',
-      productName: 'Rice (Basmati Superior 25kg)',
-      sku: 'PRD-RIC-001',
-      testType: 'Moisture & Purity Test',
-      sampleDate: '20 Sep 2026',
-      expectedDate: '22 Sep 2026',
-      status: 'Completed',
-      result: 'Pass',
-      testedBy: 'Dr. Sharma (QA Lead)',
-      parameters: [
-        { param: 'Moisture Content', standard: '< 14.0%', result: '11.8%', status: 'Pass' },
-        { param: 'Grain Length (Avg)', standard: '≥ 7.0 mm', result: '7.4 mm', status: 'Pass' },
-        { param: 'Broken Grains', standard: '< 2.0%', result: '0.8%', status: 'Pass' },
-        { param: 'Foreign Matter', standard: '< 0.1%', result: '0.02%', status: 'Pass' },
-      ],
-      remarks: 'Moisture content and grain length meet Grade A export quality standard.',
-    },
-    {
-      id: 2,
-      sampleId: 'LBT-2026-002',
-      batchNo: 'BT-2026-002',
-      productName: 'Refined Mustard Oil (15L Tin)',
-      sku: 'PRD-OIL-002',
-      testType: 'Viscosity & FFA Analysis',
-      sampleDate: '20 Sep 2026',
-      expectedDate: '23 Sep 2026',
-      status: 'In Progress',
-      result: 'Pending',
-      testedBy: 'Priya Patel (Chemist)',
-      parameters: [
-        { param: 'Kinematic Viscosity @40°C', standard: '40 - 50 cSt', result: '43.2 cSt', status: 'Pass' },
-        { param: 'Free Fatty Acids (FFA)', standard: '< 0.20%', result: 'Testing in progress', status: 'Pending' },
-        { param: 'Iodine Value', standard: '98 - 112', result: 'Testing in progress', status: 'Pending' },
-      ],
-      remarks: 'Gas chromatography test for fatty acid profile in progress.',
-    },
-    {
-      id: 3,
-      sampleId: 'LBT-2026-003',
-      batchNo: 'BT-2026-003',
-      productName: 'Industrial First Aid Kit',
-      sku: 'PRD-MED-004',
-      testType: 'Sterility & Seal Integrity',
-      sampleDate: '19 Sep 2026',
-      expectedDate: '21 Sep 2026',
-      status: 'Completed',
-      result: 'Pass',
-      testedBy: 'Rajesh Verma (Inspector)',
-      parameters: [
-        { param: 'Hermetic Seal Integrity', standard: '100% Airtight', result: 'Verified Intact', status: 'Pass' },
-        { param: 'Chemical Expiry Verification', standard: 'Min 24 Months', result: '30 Months Valid', status: 'Pass' },
-        { param: 'Component Checklist', standard: '42 Items Complete', result: '42 / 42 Present', status: 'Pass' },
-      ],
-      remarks: 'Sterile packaging validated. All medical supplies conform to ISO 13485.',
-    },
-    {
-      id: 4,
-      sampleId: 'LBT-2026-004',
-      batchNo: 'BT-2026-004',
-      productName: 'Industrial Lubricant 15W-40 (20L)',
-      sku: 'PRD-LUB-005',
-      testType: 'Flash Point & Viscosity Index',
-      sampleDate: '18 Sep 2026',
-      expectedDate: '20 Sep 2026',
-      status: 'Completed',
-      result: 'Pass',
-      testedBy: 'Dr. Sharma (QA Lead)',
-      parameters: [
-        { param: 'Viscosity Index', standard: '≥ 135', result: '142', status: 'Pass' },
-        { param: 'Flash Point (COC)', standard: '≥ 220°C', result: '228°C', status: 'Pass' },
-        { param: 'Pour Point', standard: '≤ -30°C', result: '-33°C', status: 'Pass' },
-      ],
-      remarks: 'Viscosity index exceeds baseline specification. Cleared for heavy machinery bay.',
-    },
-    {
-      id: 5,
-      sampleId: 'LBT-2026-005',
-      batchNo: 'BT-2026-005',
-      productName: 'Corrugated Packaging Cartons 5-Ply',
-      sku: 'PRD-BOX-007',
-      testType: 'Bursting Strength & ECT',
-      sampleDate: '18 Sep 2026',
-      expectedDate: '21 Sep 2026',
-      status: 'Failed',
-      result: 'Fail',
-      testedBy: 'Neha Singh (Technician)',
-      parameters: [
-        { param: 'Bursting Strength', standard: '≥ 14.0 kg/cm²', result: '10.8 kg/cm²', status: 'Fail' },
-        { param: 'Edge Crush Test (ECT)', standard: '≥ 32 ECT', result: '26 ECT', status: 'Fail' },
-        { param: 'Moisture in Fluting', standard: '< 8.0%', result: '11.4%', status: 'Fail' },
-      ],
-      remarks: 'Board density below packaging threshold; high moisture fluting. Lot rejected.',
-    },
-    {
-      id: 6,
-      sampleId: 'LBT-2026-006',
-      batchNo: 'BT-2026-006',
-      productName: 'Heavy Duty Waterproof Tarpaulin',
-      sku: 'PRD-TAR-006',
-      testType: 'Hydrostatic & Tensile Test',
-      sampleDate: '17 Sep 2026',
-      expectedDate: '19 Sep 2026',
-      status: 'Completed',
-      result: 'Pass',
-      testedBy: 'Rajesh Verma (Inspector)',
-      parameters: [
-        { param: 'Hydrostatic Head', standard: '≥ 2,000 mm', result: '2,450 mm', status: 'Pass' },
-        { param: 'Tensile Strength (Warp)', standard: '≥ 1,800 N', result: '1,980 N', status: 'Pass' },
-        { param: 'UV Resistance Rating', standard: 'Class 4', result: 'Class 4 Verified', status: 'Pass' },
-      ],
-      remarks: '100% waterproof barrier integrity confirmed under simulated downpour pressure.',
-    },
-    {
-      id: 7,
-      sampleId: 'LBT-2026-007',
-      batchNo: 'BT-2026-007',
-      productName: 'Arhar / Toor Dal (Grade A 30kg)',
-      sku: 'PRD-DAL-003',
-      testType: 'Moisture & Foreign Matter',
-      sampleDate: '17 Sep 2026',
-      expectedDate: '20 Sep 2026',
-      status: 'Completed',
-      result: 'Pass',
-      testedBy: 'Priya Patel (Chemist)',
-      parameters: [
-        { param: 'Moisture Content', standard: '< 12.0%', result: '10.4%', status: 'Pass' },
-        { param: 'Foreign Matter / Stones', standard: '< 0.05%', result: '0.01%', status: 'Pass' },
-        { param: 'Damaged / Discolored Grains', standard: '< 1.5%', result: '0.6%', status: 'Pass' },
-      ],
-      remarks: 'Clean, uniformly sorted pulse grains without weevil or pest damage.',
-    },
-    {
-      id: 8,
-      sampleId: 'LBT-2026-008',
-      batchNo: 'BT-2026-008',
-      productName: 'Glucose Energy Biscuits (Box of 48)',
-      sku: 'PRD-FOD-008',
-      testType: 'Microbial & Packaging Seal',
-      sampleDate: '16 Sep 2026',
-      expectedDate: '19 Sep 2026',
-      status: 'Completed',
-      result: 'Pass',
-      testedBy: 'Dr. Sharma (QA Lead)',
-      parameters: [
-        { param: 'Total Plate Count', standard: '< 5,000 CFU/g', result: '320 CFU/g', status: 'Pass' },
-        { param: 'Yeast & Mould', standard: '< 100 CFU/g', result: '< 10 CFU/g', status: 'Pass' },
-        { param: 'Wrapper Nitrogen Flush', standard: '≥ 95% N2', result: '97.2% N2', status: 'Pass' },
-      ],
-      remarks: 'FSSAI compliant. Packaging retains nitrogen buffer for extended crispness.',
-    },
-  ])
+  const [samplesData, setSamplesData] = useState([])
 
   // Dynamic KPI Stats calculated from state
   const stats = useMemo(() => {
@@ -328,17 +265,48 @@ export default function LabTesting() {
   }
 
   // Create New Test Handler
-  const handleCreateTest = (e) => {
+  const handleCreateTest = async (e) => {
     e.preventDefault()
+    if (!newTest.remarks || !newTest.remarks.trim()) {
+      triggerToast('Inspection notes are mandatory for laboratory testing audits', 'error')
+      return
+    }
+
     const newId = samplesData.length + 1
     const sId = `LBT-2026-${String(newId).padStart(3, '0')}`
+    const matchingProd = backendProducts.find((p) => p.name === newTest.productName)
+
+    const payload = {
+      qcNumber: sId,
+      grnNo: `GRN-2026-${String(newId + 10).padStart(4, '0')}`,
+      productName: newTest.productName,
+      sku: matchingProd?.sku || `PRD-${newTest.batchNo.slice(3, 6)}-0${newId}`,
+      batchNo: newTest.batchNo,
+      sampleSize: newTest.sampleQty,
+      testedBy: newTest.testedBy,
+      status: 'Quarantine / Under Test',
+      remarks: newTest.remarks,
+      parameters: [
+        { name: newTest.testType, standard: 'Within Specification Limits', observed: 'Sample Inoculated / Under Measurement', pass: true },
+        { name: 'Sensory & Physical Integrity', standard: 'Clean & Sealed', observed: 'Verified Inward', pass: true },
+      ],
+    }
+
+    try {
+      await apiRequest('/qc', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }).catch(() => {})
+    } catch (err) {
+      console.warn('QC backend notice:', err)
+    }
 
     const newRecord = {
       id: newId,
       sampleId: sId,
       batchNo: newTest.batchNo,
       productName: newTest.productName,
-      sku: `PRD-${newTest.batchNo.slice(3, 6)}-0${newId}`,
+      sku: matchingProd?.sku || `PRD-${newTest.batchNo.slice(3, 6)}-0${newId}`,
       testType: newTest.testType,
       sampleDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       expectedDate: newTest.expectedDate,
@@ -346,10 +314,11 @@ export default function LabTesting() {
       result: 'Pending',
       testedBy: newTest.testedBy,
       parameters: [
+        { param: newTest.testType, standard: 'Standard Compliant', result: 'Testing in progress', status: 'Pending' },
         { param: 'Visual & Physical Appearance', standard: 'Uniform / Defect Free', result: 'Verified Normal', status: 'Pass' },
-        { param: 'Batch Purity / Active Specs', standard: 'Standard Compliant', result: 'Testing in progress', status: 'Pending' },
       ],
-      remarks: newTest.remarks || 'Standard QA inspection queued for lab testing.',
+      remarks: newTest.remarks,
+      certificateNo: `COA-2026-${String(newId + 100).padStart(5, '0')}`,
     }
 
     setSamplesData([newRecord, ...samplesData])
@@ -386,13 +355,13 @@ export default function LabTesting() {
   }
 
   // Dropdown Options
-  const productOptions = [
+  const productOptions = useMemo(() => [
     { value: 'ALL', label: 'All Warehouse Commodities' },
-    ...Array.from(new Set(samplesData.map((s) => s.productName))).map((p) => ({
+    ...Array.from(new Set([...samplesData.map((s) => s.productName), ...backendProducts.map((p) => p.name)])).map((p) => ({
       value: p,
       label: p,
     })),
-  ]
+  ], [samplesData, backendProducts])
 
   const testTypeOptions = [
     { value: 'ALL', label: 'All Quality Test Types' },
@@ -405,16 +374,25 @@ export default function LabTesting() {
     { value: 'Microbial & Packaging Seal', label: 'Microbial & Packaging Seal' },
   ]
 
-  const newTestProductOptions = [
-    { value: 'Rice (Basmati Superior 25kg)', label: 'Rice (Basmati Superior 25kg)', sublabel: 'Grains & Pulses' },
-    { value: 'Refined Mustard Oil (15L Tin)', label: 'Refined Mustard Oil (15L Tin)', sublabel: 'Edible Oils' },
-    { value: 'Arhar / Toor Dal (Grade A 30kg)', label: 'Arhar / Toor Dal (Grade A 30kg)', sublabel: 'Grains & Pulses' },
-    { value: 'Industrial Lubricant 15W-40 (20L)', label: 'Industrial Lubricant 15W-40 (20L)', sublabel: 'Maintenance & Spares' },
-    { value: 'Heavy Duty Waterproof Tarpaulin', label: 'Heavy Duty Waterproof Tarpaulin', sublabel: 'Packaging & Safety' },
-    { value: 'Corrugated Packaging Cartons 5-Ply', label: 'Corrugated Packaging Cartons 5-Ply', sublabel: 'Packaging Materials' },
-    { value: 'Industrial First Aid Kit', label: 'Industrial First Aid Kit', sublabel: 'Safety & Hygiene' },
-    { value: 'Glucose Energy Biscuits (Box of 48)', label: 'Glucose Energy Biscuits (Box of 48)', sublabel: 'Food & Groceries' },
-  ]
+  const newTestProductOptions = useMemo(() => {
+    if (backendProducts && backendProducts.length > 0) {
+      return backendProducts.map((p) => ({
+        value: p.name,
+        label: `${p.name} (${p.sku})`,
+        sublabel: `${p.category} • 1 ${p.outerPackaging} = ${p.packSize} ${p.baseUnit}`,
+      }))
+    }
+    return [
+      { value: 'Rice (Basmati Superior 25kg)', label: 'Rice (Basmati Superior 25kg)', sublabel: 'Grains & Pulses' },
+      { value: 'Refined Mustard Oil (15L Tin)', label: 'Refined Mustard Oil (15L Tin)', sublabel: 'Edible Oils' },
+      { value: 'Arhar / Toor Dal (Grade A 30kg)', label: 'Arhar / Toor Dal (Grade A 30kg)', sublabel: 'Grains & Pulses' },
+      { value: 'Industrial Lubricant 15W-40 (20L)', label: 'Industrial Lubricant 15W-40 (20L)', sublabel: 'Maintenance & Spares' },
+      { value: 'Heavy Duty Waterproof Tarpaulin', label: 'Heavy Duty Waterproof Tarpaulin', sublabel: 'Packaging & Safety' },
+      { value: 'Corrugated Packaging Cartons 5-Ply', label: 'Corrugated Packaging Cartons 5-Ply', sublabel: 'Packaging Materials' },
+      { value: 'Industrial First Aid Kit', label: 'Industrial First Aid Kit', sublabel: 'Safety & Hygiene' },
+      { value: 'Glucose Energy Biscuits (Box of 48)', label: 'Glucose Energy Biscuits (Box of 48)', sublabel: 'Food & Groceries' },
+    ]
+  }, [backendProducts])
 
   const newTestTypeOptions = [
     { value: 'Moisture & Grain Quality', label: 'Moisture & Grain Quality Test' },
@@ -733,10 +711,18 @@ export default function LabTesting() {
                         <button
                           type="button"
                           onClick={() => setShowCertModal(row)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition cursor-pointer"
                           title="View QA Certificate of Analysis"
                         >
                           <FileText className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowLabelModal(row)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 transition cursor-pointer"
+                          title="Print QC Clearance Sticker / Tag"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
@@ -746,7 +732,7 @@ export default function LabTesting() {
                               printSpecificElement('#printable-lab-test-cert', `QA Certificate - ${row.sampleId}`)
                             }, 300)
                           }}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition cursor-pointer"
                           title="Print Certificate"
                         >
                           <Printer className="w-3.5 h-3.5" />

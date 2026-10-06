@@ -172,6 +172,8 @@ export default function GoodsReceiving() {
 
   // New GRN Form State
   const initialNewGrn = {
+    selectedGatePassNo: '',
+    gateEntryId: null,
     poNo: '',
     supplier: '',
     vehicleNo: '',
@@ -180,12 +182,14 @@ export default function GoodsReceiving() {
     receivedBy: 'Warehouse Manager',
     remarks: 'Received and verified at Inward Receiving Terminal',
     selectedProductId: '',
-    itemQty: '100',
+    itemQty: '1',
     itemBatch: '',
     itemMfgDate: '',
     itemExpiryDate: '',
   }
   const [newGrn, setNewGrn] = useState(initialNewGrn)
+  const [grnSuccessModal, setGrnSuccessModal] = useState(null)
+  const [grnQrDataUrl, setGrnQrDataUrl] = useState('')
 
   // Toast trigger
   const triggerToast = (msg) => {
@@ -218,17 +222,58 @@ export default function GoodsReceiving() {
     })
   }, [grnList, activeTab, searchQuery])
 
-  // Auto-fill from Gate Entry
+  // Generate QR for Selected GRN
+  useEffect(() => {
+    if (selectedGrn) {
+      const payload = JSON.stringify({
+        type: 'WMS_GRN',
+        grnNo: selectedGrn.grnNo,
+        poNo: selectedGrn.poNo,
+        supplier: selectedGrn.supplier,
+        vehicleNo: selectedGrn.vehicleNo,
+        shade: selectedGrn.shade,
+        itemsCount: selectedGrn.itemsCount,
+        status: selectedGrn.status,
+        date: selectedGrn.createdAt || selectedGrn.dateTime,
+      })
+      QRCode.toDataURL(payload, { width: 140, margin: 1 })
+        .then(setGrnQrDataUrl)
+        .catch(() => setGrnQrDataUrl(''))
+    }
+  }, [selectedGrn])
+
+  // Auto-fill from Gate Entry (TC017 FIX)
   const handleSelectGateEntry = (gatePassNo) => {
     const entry = gateEntries.find((g) => g.passNumber === gatePassNo)
     if (entry) {
+      let matchedProdId = ''
+      let declaredQty = '1'
+
+      if (entry.materialItems && entry.materialItems.length > 0) {
+        const firstItem = entry.materialItems[0]
+        const prod = products.find(
+          (p) => p.name?.toLowerCase() === firstItem.product?.toLowerCase() || p.sku === firstItem.product
+        )
+        if (prod) {
+          matchedProdId = prod._id
+        }
+        if (firstItem.packageQty) {
+          declaredQty = String(firstItem.packageQty)
+        }
+      }
+
       setNewGrn((prev) => ({
         ...prev,
+        selectedGatePassNo: gatePassNo,
+        gateEntryId: entry._id,
         vehicleNo: entry.vehicleNumber || prev.vehicleNo,
         supplier: entry.supplier || prev.supplier,
-        poNo: entry.challanNo || prev.poNo,
+        poNo: entry.poNumber || entry.challanNo || prev.poNo,
+        selectedProductId: matchedProdId || prev.selectedProductId,
+        itemQty: declaredQty,
+        itemBatch: `BTH-${Date.now().toString().slice(-4)}`,
       }))
-      triggerToast(`Auto-filled vehicle & supplier from Gate Pass ${entry.passNumber}`)
+      triggerToast(`TC017: Successfully auto-filled data from Gate Pass ${entry.passNumber}!`)
     }
   }
 
@@ -241,7 +286,7 @@ export default function GoodsReceiving() {
     }
 
     const selectedProd = products.find((p) => p._id === newGrn.selectedProductId)
-    const qtyNum = Number(newGrn.itemQty) || 1
+    const qtyNum = Math.max(1, Number(newGrn.itemQty) || 1)
     const packRatio = selectedProd?.packSize || 1
     const totalBase = qtyNum * packRatio
 
@@ -280,6 +325,7 @@ export default function GoodsReceiving() {
       poNo: newGrn.poNo.trim().toUpperCase(),
       supplier: newGrn.supplier.trim(),
       vehicleNo: newGrn.vehicleNo.trim().toUpperCase(),
+      gateEntryId: newGrn.gateEntryId || null,
       shade: newGrn.shade,
       itemsCount: 1,
       totalQty: totalQtyStr,
@@ -297,11 +343,11 @@ export default function GoodsReceiving() {
       setGrnList((prev) => [created, ...prev])
       setSelectedGrn(created)
       setShowAddModal(false)
-      setShowPrintModal(true)
-      setNewGrn(initialNewGrn)
+      setGrnSuccessModal(created)
       triggerToast(`GRN ${created.grnNo} registered & stock updated!`)
+      setNewGrn(initialNewGrn)
     } catch (err) {
-      triggerToast(err.message || 'Failed to create GRN')
+      triggerToast(err.message || 'Failed to create GRN', 'error')
     }
   }
 
@@ -977,6 +1023,66 @@ export default function GoodsReceiving() {
       )}
 
       {/* ========================================================= */}
+      {/* GRN CREATION SUCCESS CONFIRMATION MODAL                   */}
+      {/* ========================================================= */}
+      {grnSuccessModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-center">
+            <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl mx-auto flex items-center justify-center">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-lg font-extrabold text-slate-900">GRN Generated Successfully!</h3>
+              <p className="text-xs text-slate-500 mt-1">Inward consignment verified and catalog stock updated.</p>
+            </div>
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-left text-xs space-y-1.5 font-medium">
+              <div className="flex justify-between">
+                <span className="text-slate-500">GRN Token:</span>
+                <strong className="font-mono text-indigo-700">{grnSuccessModal.grnNo}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">PO Number:</span>
+                <strong className="font-mono text-slate-900">{grnSuccessModal.poNo}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Supplier:</span>
+                <span className="text-slate-800">{grnSuccessModal.supplier}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Vehicle:</span>
+                <span className="font-mono font-bold text-slate-800">{grnSuccessModal.vehicleNo}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Storage Shade:</span>
+                <span className="text-indigo-700 font-bold">{grnSuccessModal.shade}</span>
+              </div>
+            </div>
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setGrnSuccessModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 cursor-pointer transition"
+              >
+                Close &amp; Continue
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const grn = grnSuccessModal
+                  setGrnSuccessModal(null)
+                  setSelectedGrn(grn)
+                  setShowPrintModal(true)
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition"
+              >
+                <Printer className="w-4 h-4" /> View &amp; Print Slip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
       {/* HIGH RESOLUTION PRINTABLE GRN RECEIPT MODAL               */}
       {/* ========================================================= */}
       {showPrintModal && selectedGrn && (
@@ -1016,8 +1122,12 @@ export default function GoodsReceiving() {
                     {selectedGrn.grnNo}
                   </p>
                 </div>
-                <div className="w-14 h-14 bg-slate-50 border border-slate-200 rounded-xl p-1 flex flex-col items-center justify-center">
-                  <QrCode className="w-10 h-10 text-slate-800" />
+                <div className="w-16 h-16 bg-white border border-slate-300 rounded-xl p-1 flex items-center justify-center shrink-0">
+                  {grnQrDataUrl ? (
+                    <img src={grnQrDataUrl} alt="GRN QR" className="w-full h-full object-contain" />
+                  ) : (
+                    <QrCode className="w-10 h-10 text-slate-800" />
+                  )}
                 </div>
               </div>
 

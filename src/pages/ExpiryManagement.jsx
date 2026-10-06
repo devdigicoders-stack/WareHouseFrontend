@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import QRCode from 'qrcode'
 import {
   X,
   Warehouse,
@@ -105,11 +106,34 @@ export default function ExpiryManagement() {
   // Filter toolbar state
   const [filterCategory, setFilterCategory] = useState('ALL')
   const [filterAction, setFilterAction] = useState('ALL')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
   // Modals
   const [showLogDisposalModal, setShowLogDisposalModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
+  const [detailQrUrl, setDetailQrUrl] = useState('')
+
+  useEffect(() => {
+    if (showDetailModal) {
+      const payload = JSON.stringify({
+        type: 'WMS_EXPIRY_AUDIT',
+        batch: showDetailModal.batchNo,
+        sku: showDetailModal.sku,
+        product: showDetailModal.productName,
+        expDate: showDetailModal.expDate,
+        location: showDetailModal.location,
+        qty: `${showDetailModal.stockQty} ${showDetailModal.unit}`,
+        status: showDetailModal.status,
+      })
+      QRCode.toDataURL(payload, { width: 140, margin: 1 })
+        .then((url) => setDetailQrUrl(url))
+        .catch(() => {})
+    } else {
+      setDetailQrUrl('')
+    }
+  }, [showDetailModal])
 
   // Disposal form state
   const [formBatchId, setFormBatchId] = useState('')
@@ -118,163 +142,8 @@ export default function ExpiryManagement() {
   const [formApprovedBy, setFormApprovedBy] = useState('Kiran Maddheshiya (Store Manager)')
   const [formDisposalLocation, setFormDisposalLocation] = useState('Hazardous Waste Yard - Section D')
 
-  // Mock Commercial Warehouse Stock Expiry Registry
-  const [expiryList, setExpiryList] = useState([
-    {
-      id: 1,
-      batchNo: 'BTH-2024-098',
-      sku: 'SKU-MED-009',
-      productName: 'First Aid Antiseptic Liquid (500ml)',
-      category: 'Medical & Healthcare',
-      shade: 'Shade 6 (Textiles & Medical)',
-      location: 'SH6-R01-B04',
-      mfgDate: '2024-03-10',
-      expDate: '2026-09-10',
-      daysRemaining: -15, // Expired
-      stockQty: 85,
-      packQty: 85,
-      unit: 'Bottles',
-      packUnit: 'Pcs',
-      unitCost: 120,
-      totalRiskValue: 10200,
-      status: 'Expired',
-      recommendedAction: 'Immediate Quarantine & Write-Off',
-      supplier: 'Apex Pharma Supplies Ltd',
-      quarantined: true,
-    },
-    {
-      id: 2,
-      batchNo: 'BTH-2025-112',
-      sku: 'SKU-CHM-044',
-      productName: 'Fast-Dry Polyurethane Resin Primer (20L Drum)',
-      category: 'Chemicals & Paints',
-      shade: 'Shade 4 (Chemical & Hazardous)',
-      location: 'SH4-R03-B02',
-      mfgDate: '2025-01-15',
-      expDate: '2026-10-05',
-      daysRemaining: 10, // Critical (<30 days)
-      stockQty: 24,
-      packQty: 24,
-      unit: 'Drums',
-      packUnit: 'Drums',
-      unitCost: 3200,
-      totalRiskValue: 76800,
-      status: 'Critical (< 30 Days)',
-      recommendedAction: 'Priority Clearance Sale / Transfer',
-      supplier: 'Kansai Industrial Coatings',
-      quarantined: false,
-    },
-    {
-      id: 3,
-      batchNo: 'BTH-2025-240',
-      sku: 'SKU-FOOD-019',
-      productName: 'Organic Wheat Atta Chakki Fresh (10kg)',
-      category: 'Food & Grains',
-      shade: 'Shade 2 (Food & Grains)',
-      location: 'SH2-R05-B01',
-      mfgDate: '2025-04-01',
-      expDate: '2026-10-20',
-      daysRemaining: 25, // Critical (<30 days)
-      stockQty: 180,
-      packQty: 180,
-      unit: 'Bags',
-      packUnit: 'Bags',
-      unitCost: 380,
-      totalRiskValue: 68400,
-      status: 'Critical (< 30 Days)',
-      recommendedAction: 'Immediate Dispatch to Retail Distribution',
-      supplier: 'Kisan Agro Products Ltd',
-      quarantined: false,
-    },
-    {
-      id: 4,
-      batchNo: 'BTH-2025-305',
-      sku: 'SKU-OIL-023',
-      productName: 'Cold Pressed Sunflower Oil (15L Tin)',
-      category: 'Food & Grains',
-      shade: 'Shade 2 (Food & Grains)',
-      location: 'SH2-R02-B08',
-      mfgDate: '2025-05-10',
-      expDate: '2026-11-15',
-      daysRemaining: 51, // Near Expiry (31-60 days)
-      stockQty: 90,
-      packQty: 90,
-      unit: 'Tins',
-      packUnit: 'Tins',
-      unitCost: 1950,
-      totalRiskValue: 175500,
-      status: 'Expiring Soon (31-60 Days)',
-      recommendedAction: 'FEFO Queue Promotion (First-Expiry)',
-      supplier: 'National Agro Mills',
-      quarantined: false,
-    },
-    {
-      id: 5,
-      batchNo: 'BTH-2025-410',
-      sku: 'SKU-ADH-005',
-      productName: 'High Strength Epoxy Adhesive Part A+B',
-      category: 'Industrial Supplies',
-      shade: 'Shade 3 (Industrial Supplies)',
-      location: 'SH3-R04-B03',
-      mfgDate: '2025-06-20',
-      expDate: '2026-12-10',
-      daysRemaining: 76, // Near Expiry (61-90 days)
-      stockQty: 320,
-      packQty: 32,
-      unit: 'Pcs',
-      packUnit: 'Boxes (10 pcs)',
-      unitCost: 450,
-      totalRiskValue: 144000,
-      status: 'Monitor (61-90 Days)',
-      recommendedAction: 'Prioritize for Outward Orders',
-      supplier: 'Pidilite Industrial Pro',
-      quarantined: false,
-    },
-    {
-      id: 6,
-      batchNo: 'BTH-2026-003',
-      sku: 'SKU-CHM-089',
-      productName: 'Industrial Solvent & Degreaser Drum (50L)',
-      category: 'Chemicals & Paints',
-      shade: 'Shade 4 (Chemical & Hazardous)',
-      location: 'SH4-R01-B05',
-      mfgDate: '2026-01-10',
-      expDate: '2026-09-18',
-      daysRemaining: -7, // Expired
-      stockQty: 12,
-      packQty: 12,
-      unit: 'Drums',
-      packUnit: 'Drums',
-      unitCost: 5500,
-      totalRiskValue: 66000,
-      status: 'Expired',
-      recommendedAction: 'Immediate Quarantine & Hazardous Disposal',
-      supplier: 'Bharat Petroleum Chemicals',
-      quarantined: true,
-    },
-    {
-      id: 7,
-      batchNo: 'BTH-2026-104',
-      sku: 'SKU-ELEC-012',
-      productName: 'Lithium Battery Pack 12V 100Ah Storage Cell',
-      category: 'Electronics & Spares',
-      shade: 'Shade 5 (Electronics & Spares)',
-      location: 'SH5-R02-B06',
-      mfgDate: '2025-08-01',
-      expDate: '2027-08-01',
-      daysRemaining: 310, // Healthy
-      stockQty: 40,
-      packQty: 40,
-      unit: 'Units',
-      packUnit: 'Units',
-      unitCost: 14500,
-      totalRiskValue: 580000,
-      status: 'Healthy (> 90 Days)',
-      recommendedAction: 'Standard Storage & Routine Cycle Count',
-      supplier: 'Exide Industrial Solutions',
-      quarantined: false,
-    },
-  ])
+  // Commercial Warehouse Stock Expiry Registry
+  const [expiryList, setExpiryList] = useState([])
 
   // Summary Metrics calculations
   const stats = useMemo(() => {
@@ -330,9 +199,13 @@ export default function ExpiryManagement() {
         if (!matchSku && !matchBatch && !matchName && !matchLoc) return false
       }
 
+      // Date Range filter
+      if (filterDateFrom && item.expDate < filterDateFrom) return false
+      if (filterDateTo && item.expDate > filterDateTo) return false
+
       return true
     })
-  }, [expiryList, activeTab, filterCategory, filterAction, searchQuery])
+  }, [expiryList, activeTab, filterCategory, filterAction, filterDateFrom, filterDateTo, searchQuery])
 
   // Quarantining toggle
   const handleToggleQuarantine = (id) => {
@@ -657,11 +530,11 @@ export default function ExpiryManagement() {
           {/* Search and Filters Bar */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-center text-xs">
             {/* Search Input */}
-            <div className="lg:col-span-5 relative">
+            <div className="lg:col-span-4 relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
               <input
                 type="text"
-                placeholder="Search SKU, Product Name, Batch Number, Bin Code..."
+                placeholder="Search SKU, Product, Batch, Bin..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
@@ -669,7 +542,7 @@ export default function ExpiryManagement() {
             </div>
 
             {/* Category Filter */}
-            <div className="lg:col-span-4">
+            <div className="lg:col-span-3">
               <CustomSelect
                 value={filterCategory}
                 onChange={setFilterCategory}
@@ -678,8 +551,28 @@ export default function ExpiryManagement() {
               />
             </div>
 
+            {/* Visible Calendar Range */}
+            <div className="lg:col-span-3 flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
+              <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <input
+                type="date"
+                title="Filter Expiry From"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+                className="bg-transparent text-[11px] font-semibold text-slate-700 outline-none w-full"
+              />
+              <span className="text-slate-400">-</span>
+              <input
+                type="date"
+                title="Filter Expiry To"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+                className="bg-transparent text-[11px] font-semibold text-slate-700 outline-none w-full"
+              />
+            </div>
+
             {/* Action / Quarantine Status Filter */}
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-2">
               <CustomSelect
                 value={filterAction}
                 onChange={setFilterAction}
@@ -900,15 +793,18 @@ export default function ExpiryManagement() {
 
             {/* Printable Slip Layout */}
             <div id="printable-expiry-batch-slip" className="printable-area border border-slate-300 rounded-xl p-5 bg-white space-y-4 text-xs">
-              <div className="flex items-start justify-between border-b pb-3 border-slate-200">
+              <div className="flex items-start justify-between border-b pb-3 border-slate-200 gap-3">
                 <div>
                   <h2 className="text-sm font-black text-slate-900 uppercase">CENTRAL WAREHOUSE OPERATIONS</h2>
                   <p className="text-[11px] text-slate-500">Stock Expiry Risk &amp; Quarantine Audit Voucher</p>
                   <p className="text-[10px] text-slate-400 font-mono mt-0.5">Voucher: EXP-AUD-{showDetailModal.batchNo}</p>
                 </div>
-                <div className="text-right">
+                <div className="flex items-center gap-3">
+                  {detailQrUrl && (
+                    <img src={detailQrUrl} alt="Inspection QR" className="w-14 h-14 rounded border border-slate-300 p-0.5 bg-white shrink-0" />
+                  )}
                   <span
-                    className={`inline-block px-3 py-1 rounded-full text-xs font-bold border ${
+                    className={`inline-block px-3 py-1 rounded-full text-xs font-bold border shrink-0 ${
                       showDetailModal.daysRemaining <= 0
                         ? 'bg-rose-100 text-rose-800 border-rose-300'
                         : showDetailModal.daysRemaining <= 30

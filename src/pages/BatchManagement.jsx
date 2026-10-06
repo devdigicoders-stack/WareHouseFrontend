@@ -212,7 +212,9 @@ export default function BatchManagement() {
     location: 'Shade 2 • Bay B • Rack 01',
     status: 'Active',
   }
-  const [newBatch, setNewBatch] = useState(initialNewBatch)
+  // Edit Batch State
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingBatch, setEditingBatch] = useState(null)
 
   // Toast trigger
   const triggerToast = (msg) => {
@@ -269,6 +271,49 @@ export default function BatchManagement() {
     setShowAddModal(false)
     setNewBatch(initialNewBatch)
     triggerToast(`Batch ${batchStr} registered successfully!`)
+  }
+
+  // Open Edit Modal
+  const handleOpenEdit = (b) => {
+    setEditingBatch({
+      ...b,
+      rawMfgDate: b.mfgDate || '2026-01-15',
+      rawExpiryDate: b.expiryDate || '2028-01-15',
+    })
+    setShowEditModal(true)
+  }
+
+  // Save Batch Edit
+  const handleUpdateBatch = (e) => {
+    e.preventDefault()
+    if (!editingBatch) return
+
+    const expTime = new Date(editingBatch.expiryDate).getTime()
+    const nowTime = new Date().getTime()
+    const daysRemaining = !isNaN(expTime) ? Math.round((expTime - nowTime) / (1000 * 3600 * 24)) : editingBatch.daysLeft
+
+    setBatches((prev) =>
+      prev.map((b) =>
+        b.id === editingBatch.id
+          ? {
+              ...b,
+              batchNo: editingBatch.batchNo.trim().toUpperCase(),
+              productName: editingBatch.productName,
+              mfgDate: editingBatch.mfgDate,
+              expiryDate: editingBatch.expiryDate,
+              daysLeft: daysRemaining,
+              qty: Math.max(1, Number(editingBatch.qty) || 1),
+              unit: editingBatch.unit,
+              location: editingBatch.location,
+              status: editingBatch.status,
+            }
+          : b
+      )
+    )
+
+    setShowEditModal(false)
+    setEditingBatch(null)
+    triggerToast(`Batch ${editingBatch.batchNo} updated successfully!`)
   }
 
   // Status Update
@@ -608,6 +653,16 @@ export default function BatchManagement() {
                     </td>
                     <td className="py-3.5 px-5 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(b)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition cursor-pointer flex items-center gap-1"
+                          title="Edit Batch Details"
+                        >
+                          <Tag className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </button>
+
                         <Link
                           to={`/label-qr?batch=${encodeURIComponent(b.batchNo)}&sku=${encodeURIComponent(b.sku)}&qty=${b.qty}`}
                           className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1"
@@ -782,6 +837,162 @@ export default function BatchManagement() {
                   className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-xs cursor-pointer transition"
                 >
                   Record Batch
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* EDIT / UPDATE BATCH MODAL                                 */}
+      {/* ========================================================= */}
+      {showEditModal && editingBatch && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-4 sm:p-6 space-y-5 animate-scale-in border border-slate-200">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b pb-4 border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center font-bold">
+                  <Tag className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Edit / Update Batch Details</h3>
+                  <p className="text-xs text-slate-500">Update expiry dates, storage location and status</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditModal(false)
+                  setEditingBatch(null)
+                }}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateBatch} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Product Name</label>
+                <input
+                  type="text"
+                  disabled
+                  value={editingBatch.productName}
+                  className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-600 font-semibold cursor-not-allowed"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Batch / Lot Number <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingBatch.batchNo}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, batchNo: e.target.value.toUpperCase() })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Available Quantity <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={editingBatch.qty}
+                      onChange={(e) => setEditingBatch({ ...editingBatch, qty: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-bold"
+                    />
+                    <select
+                      value={editingBatch.unit}
+                      onChange={(e) => setEditingBatch({ ...editingBatch, unit: e.target.value })}
+                      className="bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-800"
+                    >
+                      <option value="Bags">Bags</option>
+                      <option value="Tins">Tins</option>
+                      <option value="Boxes">Boxes</option>
+                      <option value="Drums">Drums</option>
+                      <option value="Bundles">Bundles</option>
+                      <option value="Units">Units</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Manufacturing Date</label>
+                  <input
+                    type="text"
+                    value={editingBatch.mfgDate}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, mfgDate: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Expiry Date <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingBatch.expiryDate}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, expiryDate: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Storage Location</label>
+                <input
+                  type="text"
+                  value={editingBatch.location}
+                  onChange={(e) => setEditingBatch({ ...editingBatch, location: e.target.value })}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Status</label>
+                <select
+                  value={editingBatch.status}
+                  onChange={(e) => setEditingBatch({ ...editingBatch, status: e.target.value })}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                >
+                  <option value="Active">Active (Healthy)</option>
+                  <option value="Expiring Soon">Expiring Soon (FEFO Priority)</option>
+                  <option value="On Hold">On Hold (Quarantined)</option>
+                  <option value="Expired">Expired</option>
+                </select>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false)
+                    setEditingBatch(null)
+                  }}
+                  className="px-4 py-2.5 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50 font-bold cursor-pointer transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-xs cursor-pointer transition"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>

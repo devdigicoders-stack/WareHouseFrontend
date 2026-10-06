@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { apiRequest } from '../services/api'
 import { printSpecificElement } from '../utils/printHelper'
 import {
   FileText,
@@ -107,164 +108,49 @@ export default function LabReports() {
 
   // Generate Report Form state
   const [newReport, setNewReport] = useState({
-    sampleId: 'LBT-2026-012',
-    productName: 'Rice (Basmati Superior 25kg)',
-    batchNo: 'BT-2026-012',
+    sampleId: '',
+    productName: '',
+    batchNo: '',
     testType: 'Physical & Moisture Test',
-    testedOn: '2026-09-21',
+    testedOn: new Date().toISOString().slice(0, 10),
     result: 'Pass',
     approvedBy: 'Dr. Sharma (QA Lead)',
-    remarks: 'Moisture content 11.6% and grain length meet Grade A export specification.',
+    remarks: '',
   })
 
   // Master Lab Reports Data
-  const [reportsData, setReportsData] = useState([
-    {
-      id: 1,
-      reportNo: 'LR-2026-001',
-      sampleId: 'LBT-2026-001',
-      productName: 'Rice (Basmati Superior 25kg)',
-      sku: 'PRD-RIC-001',
-      batchNo: 'BT-2026-001',
-      testType: 'Moisture & Purity Test',
-      testedOn: '20 Sep 2026',
-      result: 'Pass',
-      approvedBy: 'Dr. Sharma (QA Lead)',
-      parameters: [
-        { param: 'Moisture Content', standard: '< 14.0%', observation: '11.8%', status: 'Pass' },
-        { param: 'Average Grain Length', standard: '≥ 7.0 mm', observation: '7.4 mm', status: 'Pass' },
-        { param: 'Foreign Matter', standard: '< 0.10%', observation: '0.02%', status: 'Pass' },
-        { param: 'Aflatoxin Screen', standard: '< 10 ppb', observation: 'Not Detected', status: 'Pass' },
-      ],
-      remarks: 'Moisture content 11.8% (spec <14%). Aflatoxin negative. Stock cleared for bay storage.',
-    },
-    {
-      id: 2,
-      reportNo: 'LR-2026-002',
-      sampleId: 'LBT-2026-002',
-      productName: 'Refined Mustard Oil (15L Tin)',
-      sku: 'PRD-OIL-002',
-      batchNo: 'BT-2026-002',
-      testType: 'Viscosity & FFA Analysis',
-      testedOn: '20 Sep 2026',
-      result: 'Conditional',
-      approvedBy: 'Dr. Verma (Chemist)',
-      parameters: [
-        { param: 'Kinematic Viscosity @40°C', standard: '40 - 50 cSt', observation: '42.1 cSt', status: 'Pass' },
-        { param: 'Free Fatty Acids (FFA)', standard: '< 0.20%', observation: '0.19%', status: 'Conditional' },
-        { param: 'Moisture & Volatile Matter', standard: '< 0.25%', observation: '0.12%', status: 'Pass' },
-      ],
-      remarks: 'FFA marginal at 0.19% (spec <0.20%). Approved under 6-month prioritized dispatch protocol.',
-    },
-    {
-      id: 3,
-      reportNo: 'LR-2026-003',
-      sampleId: 'LBT-2026-003',
-      productName: 'Heavy Duty Waterproof Tarpaulin',
-      sku: 'PRD-TAR-006',
-      batchNo: 'BT-2026-003',
-      testType: 'Material & Hydrostatic Test',
-      testedOn: '19 Sep 2026',
-      result: 'Pass',
-      approvedBy: 'Dr. Sharma (QA Lead)',
-      parameters: [
-        { param: 'Hydrostatic Water Head', standard: '≥ 2,000 mm', observation: '2,480 mm', status: 'Pass' },
-        { param: 'Tensile Strength (Warp)', standard: '≥ 1,800 N', observation: '1,960 N', status: 'Pass' },
-        { param: 'Grommet Pull Resistance', standard: '≥ 450 N', observation: '510 N', status: 'Pass' },
-      ],
-      remarks: 'Tensile strength 1,960 N and hydrostatic pressure meet ISO heavy duty outdoor standards.',
-    },
-    {
-      id: 4,
-      reportNo: 'LR-2026-004',
-      sampleId: 'LBT-2026-004',
-      productName: 'Industrial First Aid Kit',
-      sku: 'PRD-MED-004',
-      batchNo: 'BT-2026-004',
-      testType: 'Chemical & Sterility Test',
-      testedOn: '18 Sep 2026',
-      result: 'Pass',
-      approvedBy: 'Priya Patel (QC Analyst)',
-      parameters: [
-        { param: 'Antiseptic Solution Volume', standard: '100 ml ± 2%', observation: '100.5 ml', status: 'Pass' },
-        { param: 'Packaging Seal Integrity', standard: '100% Hermetic', observation: 'Intact Seal', status: 'Pass' },
-        { param: 'Sterility Testing (Incubation)', standard: 'Zero Growth', observation: 'No Microbial Growth', status: 'Pass' },
-      ],
-      remarks: 'Antiseptic concentrations and package seal certified according to medical protocol.',
-    },
-    {
-      id: 5,
-      reportNo: 'LR-2026-005',
-      sampleId: 'LBT-2026-005',
-      productName: 'Corrugated Packaging Cartons 5-Ply',
-      sku: 'PRD-BOX-007',
-      batchNo: 'BT-2026-005',
-      testType: 'Bursting & ECT Strength',
-      testedOn: '18 Sep 2026',
-      result: 'Fail',
-      approvedBy: 'Dr. Sharma (QA Lead)',
-      parameters: [
-        { param: 'Bursting Strength', standard: '≥ 14.0 kg/cm²', observation: '10.8 kg/cm²', status: 'Fail' },
-        { param: 'Edge Crush Test (ECT)', standard: '≥ 32 ECT', observation: '26 ECT', status: 'Fail' },
-        { param: 'Ply Adhesion', standard: 'Complete Bond', observation: 'Edge Delamination', status: 'Fail' },
-      ],
-      remarks: 'Bursting strength below 14 kg/cm² baseline. Defective fluting adhesive. Batch quarantined for return.',
-    },
-    {
-      id: 6,
-      reportNo: 'LR-2026-006',
-      sampleId: 'LBT-2026-006',
-      productName: 'Industrial Lubricant 15W-40 (20L)',
-      sku: 'PRD-LUB-005',
-      batchNo: 'BT-2026-006',
-      testType: 'Viscosity & Flash Point',
-      testedOn: '17 Sep 2026',
-      result: 'Pass',
-      approvedBy: 'Dr. Verma (Chemist)',
-      parameters: [
-        { param: 'Kinematic Viscosity @100°C', standard: '12.5 - 16.3 cSt', observation: '14.8 cSt', status: 'Pass' },
-        { param: 'Viscosity Index', standard: '≥ 135', observation: '144', status: 'Pass' },
-        { param: 'Flash Point (COC)', standard: '≥ 220°C', observation: '228°C', status: 'Pass' },
-      ],
-      remarks: 'High thermal stability verified. Meets API CI-4/SL standards for heavy transport fleet.',
-    },
-    {
-      id: 7,
-      reportNo: 'LR-2026-007',
-      sampleId: 'LBT-2026-007',
-      productName: 'Arhar / Toor Dal (Grade A 30kg)',
-      sku: 'PRD-DAL-003',
-      batchNo: 'BT-2026-007',
-      testType: 'Moisture & Foreign Matter',
-      testedOn: '16 Sep 2026',
-      result: 'Pass',
-      approvedBy: 'Priya Patel (QC Analyst)',
-      parameters: [
-        { param: 'Moisture Content', standard: '< 12.0%', observation: '10.2%', status: 'Pass' },
-        { param: 'Admixture / Stones', standard: '< 0.05%', observation: '0.01%', status: 'Pass' },
-        { param: 'Damaged Grains', standard: '< 1.5%', observation: '0.5%', status: 'Pass' },
-      ],
-      remarks: 'FSSAI compliant pulse grade. Clean and free of any pesticide residue or infestation.',
-    },
-    {
-      id: 8,
-      reportNo: 'LR-2026-008',
-      sampleId: 'LBT-2026-008',
-      productName: 'Glucose Energy Biscuits (Box of 48)',
-      sku: 'PRD-FOD-008',
-      batchNo: 'BT-2026-008',
-      testType: 'Microbiological & Pack Seal',
-      testedOn: '15 Sep 2026',
-      result: 'Pass',
-      approvedBy: 'Dr. Sharma (QA Lead)',
-      parameters: [
-        { param: 'Total Plate Count', standard: '< 5,000 CFU/g', observation: '380 CFU/g', status: 'Pass' },
-        { param: 'E. Coli & Salmonella', standard: 'Absent in 25g', observation: 'Absent', status: 'Pass' },
-        { param: 'Moisture in Biscuit', standard: '< 2.5%', observation: '1.8%', status: 'Pass' },
-      ],
-      remarks: 'Moisture 1.8% ensuring crisp texture. Zero microbial contaminants detected.',
-    },
-  ])
+  const [reportsData, setReportsData] = useState([])
+
+  useEffect(() => {
+    apiRequest('/qc')
+      .then((res) => {
+        if (Array.isArray(res) && res.length > 0) {
+          const mapped = res.map((q, idx) => ({
+            id: q._id || idx + 1,
+            reportNo: `LR-2026-${String(idx + 1).padStart(3, '0')}`,
+            sampleId: q.qcNumber || `LBT-2026-${String(idx + 1).padStart(3, '0')}`,
+            productName: q.productName || 'Material Item',
+            sku: q.sku || 'PRD-001',
+            batchNo: q.batchNo || 'BT-2026-001',
+            testType: q.parameters?.[0]?.name || 'Physical & Lab Analysis',
+            testedOn: new Date(q.testDate || q.createdAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+            result: q.status === 'Passed' ? 'Pass' : q.status === 'Failed / Rejected' ? 'Fail' : 'Conditional',
+            approvedBy: q.testedBy || 'QA Inspector',
+            parameters: Array.isArray(q.parameters) && q.parameters.length > 0
+              ? q.parameters.map((p) => ({
+                  param: p.name || 'Quality Metric',
+                  standard: p.standard || 'Standard Spec',
+                  observation: p.value || 'Observed Value',
+                  status: p.status || 'Pass',
+                }))
+              : [{ param: 'Standard Inspection', standard: 'Quality Metric Pass', observation: '100% Passed', status: 'Pass' }],
+            remarks: q.remarks || 'Standard certified warehouse testing report.',
+          }))
+          setReportsData(mapped)
+        }
+      })
+      .catch((err) => console.error('Failed to load lab reports:', err))
+  }, [])
 
   // Dynamic KPI Stats calculated live from state
   const stats = useMemo(() => {

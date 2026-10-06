@@ -137,99 +137,7 @@ export default function DamageRejection() {
   })
 
   // Damage & Rejection Data
-  const [damageCases, setDamageCases] = useState([
-    {
-      id: 1,
-      refNo: 'DMG-2026-086',
-      date: '18 Sep 2026',
-      productName: 'Parle-G Glucose Biscuits (50g)',
-      batchNo: 'BT-2026-FMCG-01',
-      shadeId: 'SH03',
-      location: 'SH03-R02-C04',
-      damageType: 'Crushed Gatta Packaging',
-      baseQty: 12,
-      baseUnit: 'Pieces',
-      packQty: 2,
-      packUnit: 'Gatta',
-      unitsPerPack: 6,
-      reason: 'Forklift pallet impact crushed outer Gatta',
-      status: 'Moved to Hold',
-      reportedBy: 'Amit Patel',
-    },
-    {
-      id: 2,
-      refNo: 'REJ-2026-085',
-      date: '17 Sep 2026',
-      productName: 'Sharbati Wheat Grain (Grade A)',
-      batchNo: 'BT-2026-GRN-09',
-      shadeId: 'SH01',
-      location: 'SH01-R02-C08',
-      damageType: 'Lab QA Quality Rejection',
-      baseQty: 100,
-      baseUnit: 'Kg',
-      packQty: 2,
-      packUnit: 'Bags',
-      unitsPerPack: 50,
-      reason: 'Excess moisture content (15.2% vs allowed 12%)',
-      status: 'Lab Rejected',
-      reportedBy: 'Dr. Neha Verma (QC)',
-    },
-    {
-      id: 3,
-      refNo: 'DMG-2026-084',
-      date: '16 Sep 2026',
-      productName: 'Fortune Refined Sunflower Oil',
-      batchNo: 'BT-2026-OIL-14',
-      shadeId: 'SH02',
-      location: 'SH02-R01-C02',
-      damageType: 'Liquid Tin Leakage',
-      baseQty: 15,
-      baseUnit: 'Ltr',
-      packQty: 1,
-      packUnit: 'Tin',
-      unitsPerPack: 15,
-      reason: 'Punctured tin corner during transit unloading',
-      status: 'Moved to Hold',
-      reportedBy: 'Kavita Joshi',
-    },
-    {
-      id: 4,
-      refNo: 'REJ-2026-083',
-      date: '15 Sep 2026',
-      productName: 'Tata Premium Tea (500g)',
-      batchNo: 'BT-2026-FMCG-11',
-      shadeId: 'SH03',
-      location: 'SH03-R01-C06',
-      damageType: 'Moisture Contamination',
-      baseQty: 24,
-      baseUnit: 'Pieces',
-      packQty: 1,
-      packUnit: 'Gatta',
-      unitsPerPack: 24,
-      reason: 'Wet carton bottom identified during shelf check',
-      status: 'Under Review',
-      reportedBy: 'Sanjay Rawat',
-    },
-    {
-      id: 5,
-      refNo: 'DMG-2026-082',
-      date: '14 Sep 2026',
-      productName: 'Corrugated Shipping Cartons (5-Ply)',
-      sku: 'PKG-BOX-01',
-      batchNo: 'BT-2026-PKG-08',
-      shadeId: 'SH04',
-      location: 'SH04-R02-C02',
-      damageType: 'Crushed Gatta Packaging',
-      baseQty: 50,
-      baseUnit: 'Cartons',
-      packQty: 2,
-      packUnit: 'Bundles',
-      unitsPerPack: 25,
-      reason: 'Strapping band over-tightening split edge walls',
-      status: 'Moved to Hold',
-      reportedBy: 'Amit Patel',
-    },
-  ])
+  const [damageCases, setDamageCases] = useState([])
 
   // Filtered Damage Cases
   const filteredCases = useMemo(() => {
@@ -274,7 +182,20 @@ export default function DamageRejection() {
   // Handle Save New Damage Case
   const handleSaveCase = (e) => {
     e.preventDefault()
-    const computedBase = (Number(newCase.packsCount) || 0) * (Number(newCase.unitsPerPack) || 1)
+    const packs = Math.max(1, Number(newCase.packsCount) || 1)
+    const units = Math.max(1, Number(newCase.unitsPerPack) || 1)
+    const computedBase = packs * units
+
+    if (!newCase.reason || !newCase.reason.trim()) {
+      triggerToast('Root Cause / Investigation Notes are mandatory.', 'error')
+      return
+    }
+
+    if (computedBase <= 0) {
+      triggerToast('Quarantine quantity must be greater than zero.', 'error')
+      return
+    }
+
     const refCode = newCase.damageType.includes('Lab QA')
       ? `REJ-2026-0${87 + damageCases.length}`
       : `DMG-2026-0${87 + damageCases.length}`
@@ -291,10 +212,10 @@ export default function DamageRejection() {
       damageType: newCase.damageType,
       baseQty: computedBase,
       baseUnit: newCase.baseUnit,
-      packQty: Number(newCase.packsCount) || 1,
+      packQty: packs,
       packUnit: newCase.packUnit,
-      unitsPerPack: Number(newCase.unitsPerPack) || 1,
-      reason: newCase.reason,
+      unitsPerPack: units,
+      reason: newCase.reason.trim(),
       status: newCase.status,
       reportedBy: newCase.reportedBy,
     }
@@ -958,8 +879,9 @@ export default function DamageRejection() {
                     <label className="block text-[10px] font-semibold text-slate-600 mb-1">Packs Count</label>
                     <input
                       type="number"
+                      min="1"
                       value={newCase.packsCount}
-                      onChange={(e) => setNewCase({ ...newCase, packsCount: e.target.value })}
+                      onChange={(e) => setNewCase({ ...newCase, packsCount: Math.max(1, Number(e.target.value) || 1) })}
                       className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-mono font-bold text-slate-800 focus:outline-none focus:border-rose-500"
                     />
                   </div>
@@ -967,36 +889,49 @@ export default function DamageRejection() {
                     <label className="block text-[10px] font-semibold text-slate-600 mb-1">Units / Pack</label>
                     <input
                       type="number"
+                      min="1"
                       value={newCase.unitsPerPack}
-                      onChange={(e) => setNewCase({ ...newCase, unitsPerPack: e.target.value })}
+                      onChange={(e) => setNewCase({ ...newCase, unitsPerPack: Math.max(1, Number(e.target.value) || 1) })}
                       className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-mono font-bold text-slate-800 focus:outline-none focus:border-rose-500"
                     />
                   </div>
                   <div>
                     <label className="block text-[10px] font-semibold text-slate-600 mb-1">Base Unit</label>
-                    <input
-                      type="text"
+                    <CustomSelect
                       value={newCase.baseUnit}
-                      onChange={(e) => setNewCase({ ...newCase, baseUnit: e.target.value })}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+                      onChange={(val) => setNewCase({ ...newCase, baseUnit: val })}
+                      options={[
+                        { value: 'Pieces', label: 'Pieces (Pcs)' },
+                        { value: 'Kg', label: 'Kilograms (Kg)' },
+                        { value: 'Ltr', label: 'Litres (Ltr)' },
+                        { value: 'Bags', label: 'Bags (50kg)' },
+                        { value: 'Cartons', label: 'Cartons / Gatta' },
+                        { value: 'Tins', label: 'Tins (15L)' },
+                        { value: 'Drums', label: 'Drums (200L)' },
+                        { value: 'MT', label: 'Metric Ton (MT)' },
+                      ]}
+                      zIndexClass="z-40"
                     />
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-rose-900 font-bold pt-1 border-t border-rose-100">
                   <span>Total Base Units Quarantined:</span>
                   <span className="font-mono text-xs">
-                    {((Number(newCase.packsCount) || 0) * (Number(newCase.unitsPerPack) || 1)).toLocaleString()} {newCase.baseUnit}
+                    {((Number(newCase.packsCount) || 1) * (Number(newCase.unitsPerPack) || 1)).toLocaleString()} {newCase.baseUnit}
                   </span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Root Cause / Investigation Notes</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Root Cause / Investigation Notes <span className="text-rose-500">*</span>
+                </label>
                 <textarea
                   rows={2}
+                  required
                   value={newCase.reason}
                   onChange={(e) => setNewCase({ ...newCase, reason: e.target.value })}
-                  placeholder="Describe damage reason or lab defect..."
+                  placeholder="Describe damage reason or lab defect (mandatory for audit)..."
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>

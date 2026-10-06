@@ -166,7 +166,7 @@ export default function ProductEntry() {
     packSize: '25',
     storageZone: shades.length > 0 ? `${shades[0].code} (${shades[0].name})` : 'Shade 1 (General Stores)',
     reorderLevel: '50',
-    currentStock: '100',
+    currentStock: '0',
     barcode: '',
     hsnCode: '',
     description: '',

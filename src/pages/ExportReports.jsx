@@ -22,6 +22,9 @@ import {
   ArrowRight,
   Printer,
 } from 'lucide-react'
+import { exportToExcel, exportToCSV, printOrExportPDF } from '../utils/exportHelper'
+
+const API = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '')
 
 // Custom Accessible Select Dropdown
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -99,13 +102,26 @@ export default function ExportReports() {
   const [selectedDataset, setSelectedDataset] = useState('inventory') // 'inventory' | 'grn' | 'dispatch' | 'lab' | 'hold'
 
   // Selected Export Format
-  const [fileFormat, setFileFormat] = useState('excel') // 'excel' | 'pdf'
+  const [fileFormat, setFileFormat] = useState('excel') // 'excel' | 'pdf' | 'csv'
   const [fileName, setFileName] = useState('Warehouse_Inventory_Extract_2026')
 
   // Filter settings
   const [filterShade, setFilterShade] = useState('ALL')
   const [includeZeroStock, setIncludeZeroStock] = useState(false)
   const [includeQCCerts, setIncludeQCCerts] = useState(true)
+
+  // Dynamic backend data
+  const [liveProducts, setLiveProducts] = useState([])
+  const [liveGRNs, setLiveGRNs] = useState([])
+  const [liveDispatches, setLiveDispatches] = useState([])
+  const [liveQCs, setLiveQCs] = useState([])
+
+  useEffect(() => {
+    fetch(`${API}/api/product`).then((r) => r.json()).then(setLiveProducts).catch(() => {})
+    fetch(`${API}/api/grn`).then((r) => r.json()).then(setLiveGRNs).catch(() => {})
+    fetch(`${API}/api/dispatch`).then((r) => r.json()).then(setLiveDispatches).catch(() => {})
+    fetch(`${API}/api/qc`).then((r) => r.json()).then(setLiveQCs).catch(() => {})
+  }, [])
 
   // Column Selector state (12 Columns)
   const [selectedColumns, setSelectedColumns] = useState({
@@ -140,95 +156,21 @@ export default function ExportReports() {
   }
 
   // Recent Exports Log History
-  const [recentExports, setRecentExports] = useState([
-    {
-      id: 1,
-      fileName: 'Warehouse_Stock_Extract_Sep2026.csv',
-      dataset: 'Current Stock Ledger',
-      format: 'Excel',
-      records: 5842,
-      timestamp: 'Today, 11:20 IST',
-      officer: 'Rajesh Sharma',
-    },
-    {
-      id: 2,
-      fileName: 'Inward_GRN_Audit_Manifest.csv',
-      dataset: 'Inward GRN Operations',
-      format: 'Excel',
-      records: 1240,
-      timestamp: 'Today, 09:45 IST',
-      officer: 'Amit Patel',
-    },
-    {
-      id: 3,
-      fileName: 'Outward_Dispatches_GateLog.pdf',
-      dataset: 'Outward Dispatches',
-      format: 'PDF',
-      records: 980,
-      timestamp: 'Yesterday, 17:30 IST',
-      officer: 'Rajesh Sharma',
-    },
-    {
-      id: 4,
-      fileName: 'QA_Lab_Clearances_Monthly.csv',
-      dataset: 'Quality & Lab Clearance',
-      format: 'Excel',
-      records: 340,
-      timestamp: '15 Sep 2026',
-      officer: 'Dr. Priya Verma',
-    },
-  ])
+  const [recentExports, setRecentExports] = useState([])
 
   // Count active columns
   const activeColCount = Object.values(selectedColumns).filter(Boolean).length
 
   // Dataset Options
   const datasetOptions = [
-    { id: 'inventory', name: 'Current Stock Registry', records: 5842, code: 'INV-MASTER' },
-    { id: 'grn', name: 'Inward GRN Audit Logs', records: 1240, code: 'GRN-INWARD' },
-    { id: 'dispatch', name: 'Outward Dispatch Manifests', records: 980, code: 'DSP-OUTWARD' },
-    { id: 'lab', name: 'QA Lab Clearance & Certs', records: 340, code: 'LAB-QUALITY' },
-    { id: 'hold', name: 'Hold Stock & Quarantine Incidents', records: 48, code: 'HLD-QUARANTINE' },
+    { id: 'inventory', name: 'Current Stock Registry', records: liveProducts.length, code: 'INV-MASTER' },
+    { id: 'grn', name: 'Inward GRN Audit Logs', records: liveGRNs.length, code: 'GRN-INWARD' },
+    { id: 'dispatch', name: 'Outward Dispatch Manifests', records: liveDispatches.length, code: 'DSP-OUTWARD' },
+    { id: 'lab', name: 'QA Lab Clearance & Certs', records: liveQCs.length, code: 'LAB-QUALITY' },
+    { id: 'hold', name: 'Hold Stock & Quarantine Incidents', records: 0, code: 'HLD-QUARANTINE' },
   ]
 
   const currentDatasetMeta = datasetOptions.find((d) => d.id === selectedDataset) || datasetOptions[0]
-
-  // Handle Export Generation
-  const handleGenerateExport = () => {
-    const selectedHeaders = Object.keys(selectedColumns)
-      .filter((k) => selectedColumns[k])
-      .map((k) => k.toUpperCase())
-
-    const mockRow = Object.keys(selectedColumns)
-      .filter((k) => selectedColumns[k])
-      .map((k) => `"${k}_SAMPLE_DATA"`)
-      .join(',')
-
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [selectedHeaders.join(','), mockRow, mockRow].join('\n')
-
-    const encodedUri = encodeURI(csvContent)
-    const link = document.createElement('a')
-    link.setAttribute('href', encodedUri)
-    link.setAttribute('download', `${fileName.trim() || 'Warehouse_Extract'}.${fileFormat === 'excel' ? 'csv' : 'csv'}`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-
-    const newLog = {
-      id: Date.now(),
-      fileName: `${fileName.trim() || 'Warehouse_Extract'}.${fileFormat === 'excel' ? 'xlsx' : 'pdf'}`,
-      dataset: currentDatasetMeta.name,
-      format: fileFormat === 'excel' ? 'Excel' : 'PDF',
-      records: currentDatasetMeta.records,
-      timestamp: 'Just now',
-      officer: 'Current User',
-    }
-
-    setRecentExports([newLog, ...recentExports])
-    triggerToast(`Export generated: ${newLog.fileName} (${activeColCount} columns).`)
-  }
 
   // Column definitions for the UI
   const columnItems = [
@@ -245,6 +187,80 @@ export default function ExportReports() {
     { key: 'labStatus', label: 'Lab QA Clearance Status' },
     { key: 'responsibleOfficer', label: 'Authorizing Officer' },
   ]
+
+  // Dynamic Live Database Totals
+  const totalLiveRecords = useMemo(() => {
+    return liveProducts.length + liveGRNs.length + liveDispatches.length + liveQCs.length
+  }, [liveProducts, liveGRNs, liveDispatches, liveQCs])
+
+  // Build real dynamic export records
+  const buildExportData = () => {
+    let rawItems = []
+    if (selectedDataset === 'inventory') {
+      rawItems = liveProducts
+    } else if (selectedDataset === 'grn') {
+      rawItems = liveGRNs
+    } else if (selectedDataset === 'dispatch') {
+      rawItems = liveDispatches
+    } else if (selectedDataset === 'lab') {
+      rawItems = liveQCs
+    } else {
+      rawItems = []
+    }
+
+    if (!rawItems || rawItems.length === 0) {
+      return []
+    }
+
+    return rawItems.map((item) => {
+      const row = {}
+      if (selectedColumns.productName) row['Product / Item Name'] = item.name || item.productName || item.itemName || 'N/A'
+      if (selectedColumns.sku) row['SKU Code'] = item.sku || item.grnNumber || item.dispatchNumber || 'N/A'
+      if (selectedColumns.category) row['Category'] = item.category || item.supplierName || 'General Goods'
+      if (selectedColumns.batchNo) row['Batch / Lot No'] = item.batchNo || item.batchNumber || 'BT-2026-001'
+      if (selectedColumns.storageBin) row['Storage Bin'] = item.location || item.storageBin || 'SH01-R01-C01'
+      if (selectedColumns.baseQty) row['Base Quantity'] = item.currentStock ?? item.quantity ?? item.receivedQuantity ?? 0
+      if (selectedColumns.baseUnit) row['Base Unit'] = item.unit || item.uom || 'Units'
+      if (selectedColumns.packQty) row['Pack Count'] = item.packQty || 0
+      if (selectedColumns.packUnit) row['Pack Unit'] = item.packUnit || 'Packs'
+      if (selectedColumns.expiryDate) row['Expiry Date'] = item.expiryDate || 'N/A'
+      if (selectedColumns.labStatus) row['Lab QA Status'] = item.qcStatus || item.status || 'Verified'
+      if (selectedColumns.responsibleOfficer) row['Officer'] = item.officer || item.createdBy || 'Central Storekeeper'
+      return row
+    })
+  }
+
+  // Handle Export Generation
+  const handleGenerateExport = () => {
+    const exportRows = buildExportData()
+    if (exportRows.length === 0) {
+      triggerToast('Database currently has 0 records in this dataset.')
+      return
+    }
+    const cleanFileName = fileName.trim() || `Warehouse_${selectedDataset.toUpperCase()}_Extract`
+
+    if (fileFormat === 'excel') {
+      exportToExcel(exportRows, cleanFileName, currentDatasetMeta.name)
+    } else if (fileFormat === 'csv') {
+      exportToCSV(exportRows, cleanFileName)
+    } else {
+      printOrExportPDF(exportRows, cleanFileName, currentDatasetMeta.name)
+    }
+
+    const ext = fileFormat === 'excel' ? 'xlsx' : fileFormat === 'pdf' ? 'pdf' : 'csv'
+    const newLog = {
+      id: Date.now(),
+      fileName: `${cleanFileName}.${ext}`,
+      dataset: currentDatasetMeta.name,
+      format: fileFormat === 'excel' ? 'Excel' : fileFormat === 'pdf' ? 'PDF' : 'CSV',
+      records: exportRows.length,
+      timestamp: 'Just now',
+      officer: 'Store Manager',
+    }
+
+    setRecentExports([newLog, ...recentExports])
+    triggerToast(`Export file ${newLog.fileName} generated successfully!`)
+  }
 
   return (
     <div className="space-y-5 pb-12">
@@ -323,7 +339,7 @@ export default function ExportReports() {
           <div className="min-w-0">
             <p className="text-xs font-semibold text-slate-500 truncate">Live Database Rows</p>
             <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5 truncate">
-              8,450 Records
+              {totalLiveRecords.toLocaleString()} Records
             </h3>
             <p className="text-[11px] text-indigo-600 font-medium truncate">Across all 6 shades</p>
           </div>
@@ -596,49 +612,57 @@ export default function ExportReports() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {recentExports.map((row, idx) => (
-                <tr key={row.id} className="hover:bg-slate-50/60 transition">
-                  <td className="py-3 px-4 text-center text-slate-400 font-mono text-[11px]">
-                    {idx + 1}
-                  </td>
-                  <td className="py-3 px-4 font-mono font-bold text-slate-800">
-                    {row.fileName}
-                  </td>
-                  <td className="py-3 px-4 font-medium text-slate-700">
-                    {row.dataset}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                        row.format === 'Excel'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : 'bg-rose-50 text-rose-700 border-rose-200'
-                      }`}
-                    >
-                      {row.format}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right font-bold text-slate-800">
-                    {row.records.toLocaleString()}
-                  </td>
-                  <td className="py-3 px-4 text-slate-500 text-[11px]">
-                    {row.timestamp}
-                  </td>
-                  <td className="py-3 px-4 text-slate-600 font-medium">
-                    {row.officer}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <button
-                      type="button"
-                      onClick={() => triggerToast(`Re-downloaded ${row.fileName}.`)}
-                      className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
-                      title="Download again"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
+              {recentExports.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8 text-center text-slate-400 text-xs font-medium">
+                    No export manifests generated yet. Click "Generate & Download Extract File" above to export data.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                recentExports.map((row, idx) => (
+                  <tr key={row.id} className="hover:bg-slate-50/60 transition">
+                    <td className="py-3 px-4 text-center text-slate-400 font-mono text-[11px]">
+                      {idx + 1}
+                    </td>
+                    <td className="py-3 px-4 font-mono font-bold text-slate-800">
+                      {row.fileName}
+                    </td>
+                    <td className="py-3 px-4 font-medium text-slate-700">
+                      {row.dataset}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                          row.format === 'Excel'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}
+                      >
+                        {row.format}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right font-bold text-slate-800">
+                      {row.records.toLocaleString()}
+                    </td>
+                    <td className="py-3 px-4 text-slate-500 text-[11px]">
+                      {row.timestamp}
+                    </td>
+                    <td className="py-3 px-4 text-slate-600 font-medium">
+                      {row.officer}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => triggerToast(`Re-downloaded ${row.fileName}.`)}
+                        className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
+                        title="Download again"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

@@ -45,94 +45,19 @@ export default function GatePass() {
   const [materialItems, setMaterialItems] = useState([
     {
       id: 1,
-      productName: 'Basmati Rice (Grade 1 Special)',
-      batchNo: 'B102',
-      qty: '50',
-      unit: 'Bags (50 Kg)',
-      remarks: 'Warehouse Shade 2',
+      productName: '',
+      batchNo: '',
+      qty: '',
+      unit: 'Pieces',
+      remarks: '',
     },
   ])
 
   // Recent Gate Passes List
-  const [recentPasses, setRecentPasses] = useState([
-    {
-      id: 'GP-2026-00125',
-      dateTime: '16 Sep 2026, 09:12 AM',
-      vehicleNo: 'UP32 AB 1256',
-      vehicleType: 'Heavy Commercial Truck',
-      status: 'Issued',
-      passType: 'Material Outward',
-      purpose: 'Customer Delivery',
-      refNo: 'SO-2026-4587',
-      driverName: 'Rajesh Yadav',
-      driverContact: '98765 43210',
-      receiverName: 'ABC Retail Distribution Ltd.',
-      receiverAddress: 'Plot 12, Industrial Area, Sector 4',
-      materials: [
-        { productName: 'Basmati Rice (Grade 1 Special)', batchNo: 'B102', qty: '50', unit: 'Bags (50 Kg)' },
-        { productName: 'Chana Dal (Super Clean)', batchNo: 'D110', qty: '30', unit: 'Bags (50 Kg)' },
-        { productName: 'Refined Mustard Oil', batchNo: 'O301', qty: '20', unit: 'Tins (15 Ltr)' },
-      ],
-      remarks: 'Monthly order dispatch cleared',
-    },
-    {
-      id: 'GP-2026-00124',
-      dateTime: '16 Sep 2026, 08:45 AM',
-      vehicleNo: 'HR55 CD 7890',
-      vehicleType: 'Covered Container',
-      status: 'Approved',
-      passType: 'Material Outward',
-      purpose: 'Inter-Depot Transfer',
-      refNo: 'TR-2026-8841',
-      driverName: 'Harpreet Singh',
-      driverContact: '98123 45678',
-      receiverName: 'Regional Warehouse — Branch Store B',
-      receiverAddress: 'Sector 7, Logistics Corridor',
-      materials: [
-        { productName: 'Refined Sugar Bulk Pack', batchNo: 'SG-88', qty: '80', unit: 'Bags (50 Kg)' },
-      ],
-      remarks: 'Stock balancing transfer to Branch B',
-    },
-    {
-      id: 'GP-2026-00123',
-      dateTime: '15 Sep 2026, 04:20 PM',
-      vehicleNo: 'DL01 EF 4321',
-      vehicleType: 'Light Cargo Vehicle (LCV)',
-      status: 'Approved',
-      passType: 'Material Outward',
-      purpose: 'Return to Supplier',
-      refNo: 'RN-2026-1029',
-      driverName: 'Sunil Kumar',
-      driverContact: '98450 12345',
-      receiverName: 'Apex Suppliers Ltd.',
-      receiverAddress: 'MG Road Industrial Complex',
-      materials: [
-        { productName: 'Hardware & Packaging Crates', batchNo: 'PKG-09', qty: '40', unit: 'Boxes' },
-      ],
-      remarks: 'Damaged packaging returned to supplier',
-    },
-    {
-      id: 'GP-2026-00122',
-      dateTime: '15 Sep 2026, 02:15 PM',
-      vehicleNo: 'UP78 GH 9987',
-      vehicleType: 'Heavy Commercial Truck',
-      status: 'Pending',
-      passType: 'Disposal Outward',
-      purpose: 'Scrap Disposal',
-      refNo: 'SC-2026-4550',
-      driverName: 'Amit Verma',
-      driverContact: '97920 01122',
-      receiverName: 'Green Waste Recyclers',
-      receiverAddress: 'Industrial Zone, Hub 3',
-      materials: [
-        { productName: 'Damaged Outer Cartons', batchNo: 'SCRAP-04', qty: '250', unit: 'Cartons' },
-      ],
-      remarks: 'Awaiting supervisor sign-off before physical gate exit',
-    },
-  ])
+  const [recentPasses, setRecentPasses] = useState([])
 
   // Selected Pass for Modal
-  const [selectedPass, setSelectedPass] = useState(recentPasses[0])
+  const [selectedPass, setSelectedPass] = useState(null)
 
   // Toast Notification
   const triggerToast = (msg) => {

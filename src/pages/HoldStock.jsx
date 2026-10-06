@@ -140,113 +140,7 @@ export default function HoldStock() {
   })
 
   // Hold Stock Items Data
-  const [holdItems, setHoldItems] = useState([
-    {
-      id: 1,
-      refNo: 'HLD-2026-048',
-      productName: 'Refined Mustard Oil (New Batch Sample)',
-      sku: 'OIL-REF-02',
-      batchNo: 'BT-2026-OIL-99',
-      shadeId: 'SH02',
-      location: 'SH02-R01-C04',
-      baseQty: 300,
-      baseUnit: 'Ltr',
-      packQty: 20,
-      packUnit: 'Tins',
-      unitsPerPack: 15,
-      reason: 'Under Lab Testing',
-      labStatus: 'Pending Lab Test',
-      holdDate: '18 Sep 2026',
-      expectedRelease: '22 Sep 2026',
-      status: 'On Hold',
-      officer: 'Priya Patel',
-      remarks: 'Sample drawn at gate inward; locked from outward dispatch.',
-    },
-    {
-      id: 2,
-      refNo: 'HLD-2026-047',
-      productName: 'Maggi 2-Minute Noodles (70g)',
-      sku: 'FMCG-NOD-01',
-      batchNo: 'BT-2026-FMCG-88',
-      shadeId: 'SH03',
-      location: 'SH03-R03-C02',
-      baseQty: 480,
-      baseUnit: 'Pieces',
-      packQty: 20,
-      packUnit: 'Gatta',
-      unitsPerPack: 24,
-      reason: 'FSSAI Heavy Metal Lead Testing',
-      labStatus: 'Under Testing',
-      holdDate: '17 Sep 2026',
-      expectedRelease: '21 Sep 2026',
-      status: 'On Hold',
-      officer: 'Dr. Neha Verma',
-      remarks: 'Periodic compliance draw sent to referral laboratory.',
-    },
-    {
-      id: 3,
-      refNo: 'HLD-2026-046',
-      productName: 'Sharbati Wheat Grain (Grade A)',
-      sku: 'GRN-WHT-01',
-      batchNo: 'BT-2026-GRN-09',
-      shadeId: 'SH01',
-      location: 'SH01-R02-C08',
-      baseQty: 100,
-      baseUnit: 'Kg',
-      packQty: 2,
-      packUnit: 'Bags',
-      unitsPerPack: 50,
-      reason: 'Quality Rejection (High Moisture)',
-      labStatus: 'Lab Rejected',
-      holdDate: '17 Sep 2026',
-      expectedRelease: 'Vendor Return',
-      status: 'Quarantine',
-      officer: 'Dr. Neha Verma',
-      remarks: 'Moisture 15.2% exceeds standard 12.0%. Awaiting RTV debit note.',
-    },
-    {
-      id: 4,
-      refNo: 'HLD-2026-045',
-      productName: 'Tata Premium Tea (500g)',
-      sku: 'FMCG-TEA-01',
-      batchNo: 'BT-2026-FMCG-11',
-      shadeId: 'SH03',
-      location: 'SH03-R01-C06',
-      baseQty: 360,
-      baseUnit: 'Pieces',
-      packQty: 15,
-      packUnit: 'Gatta',
-      unitsPerPack: 24,
-      reason: 'Under Lab Testing',
-      labStatus: 'Under Testing',
-      holdDate: '16 Sep 2026',
-      expectedRelease: '20 Sep 2026',
-      status: 'On Hold',
-      officer: 'Priya Patel',
-      remarks: 'Moisture and pesticide residue screening in process.',
-    },
-    {
-      id: 5,
-      refNo: 'HLD-2026-044',
-      productName: 'Parle-G Glucose Biscuits (50g)',
-      sku: 'FMCG-BIS-01',
-      batchNo: 'BT-2026-FMCG-01',
-      shadeId: 'SH03',
-      location: 'SH03-R02-C04',
-      baseQty: 900,
-      baseUnit: 'Pieces',
-      packQty: 150,
-      packUnit: 'Gatta',
-      unitsPerPack: 6,
-      reason: 'Routine Sampling Passed',
-      labStatus: 'Passed',
-      holdDate: '12 Sep 2026',
-      expectedRelease: 'Released',
-      status: 'Released',
-      officer: 'Rajesh Sharma',
-      remarks: 'Lab Certificate LAB-2026-FMCG-088 approved; released to stock.',
-    },
-  ])
+  const [holdItems, setHoldItems] = useState([])
 
   // Filtered Hold Items
   const filteredItems = useMemo(() => {
@@ -323,21 +217,38 @@ export default function HoldStock() {
   }
 
   // Handle Confirm Release
-  const handleConfirmRelease = (item) => {
+  const handleConfirmRelease = (releaseData) => {
+    if (!releaseData.releaseOfficerName || !releaseData.releaseOfficerName.trim()) {
+      triggerToast('Releasing Officer Name is required.', 'error')
+      return
+    }
+    if (!releaseData.releaseReason || !releaseData.releaseReason.trim()) {
+      triggerToast('Release reason / authorization is required.', 'error')
+      return
+    }
+
+    const nowStr = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+    const officerLabel = releaseData.releaseOfficerId
+      ? `${releaseData.releaseOfficerName} (${releaseData.releaseOfficerId})`
+      : releaseData.releaseOfficerName
+
     setHoldItems((prev) =>
       prev.map((i) =>
-        i.id === item.id
+        i.id === releaseData.id
           ? {
               ...i,
               status: 'Released',
               labStatus: 'Passed',
-              expectedRelease: 'Released Today',
+              expectedRelease: 'Released',
+              releasedAt: nowStr,
+              releasedBy: officerLabel,
+              releaseReason: releaseData.releaseReason.trim(),
             }
           : i
       )
     )
     setShowReleaseModal(null)
-    triggerToast(`Batch ${item.batchNo} released to active stock successfully.`)
+    triggerToast(`Batch ${releaseData.batchNo} released by ${releaseData.releaseOfficerName}.`)
   }
 
   // Export CSV
@@ -988,19 +899,22 @@ export default function HoldStock() {
       {/* MODAL 2: CONFIRM RELEASE */}
       {showReleaseModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 text-center space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="w-12 h-12 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
-              <Unlock className="w-6 h-6" />
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 border-b pb-3 border-slate-100">
+              <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
+                <Unlock className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Release Stock to Active Inventory</h3>
+                <p className="text-[11px] text-slate-500">Record officer audit trail and release authorization</p>
+              </div>
             </div>
 
-            <div>
-              <h3 className="font-bold text-slate-900 text-base">Release to Active Stock?</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Confirm that <span className="font-bold text-slate-800">{showReleaseModal.productName}</span> (Batch: {showReleaseModal.batchNo}) has passed QC and can be dispatched.
-              </p>
-            </div>
-
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs text-left space-y-1">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Product &amp; Batch:</span>
+                <span className="font-bold text-slate-800 text-right">{showReleaseModal.productName} ({showReleaseModal.batchNo})</span>
+              </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Storage Bin:</span>
                 <span className="font-mono font-bold text-indigo-700">{showReleaseModal.location}</span>
@@ -1011,22 +925,75 @@ export default function HoldStock() {
               </div>
             </div>
 
-            <div className="pt-2 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setShowReleaseModal(null)}
-                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleConfirmRelease(showReleaseModal)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition"
-              >
-                Confirm Release
-              </button>
-            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleConfirmRelease(showReleaseModal)
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Releasing Officer Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Kiran Maddheshiya"
+                    value={showReleaseModal.releaseOfficerName || ''}
+                    onChange={(e) =>
+                      setShowReleaseModal({ ...showReleaseModal, releaseOfficerName: e.target.value })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Officer Badge / ID</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. QA-001"
+                    value={showReleaseModal.releaseOfficerId || ''}
+                    onChange={(e) =>
+                      setShowReleaseModal({ ...showReleaseModal, releaseOfficerId: e.target.value })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Reason for Stock Release <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={2}
+                  required
+                  placeholder="e.g. Retested in lab and cleared all quality parameters; packaging resealed."
+                  value={showReleaseModal.releaseReason || ''}
+                  onChange={(e) =>
+                    setShowReleaseModal({ ...showReleaseModal, releaseReason: e.target.value })
+                  }
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2.5 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowReleaseModal(null)}
+                  className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition"
+                >
+                  Confirm &amp; Record Release
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1094,6 +1061,21 @@ export default function HoldStock() {
                 </div>
               </div>
 
+              {showDetailsModal.releasedAt && (
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-emerald-800">Release Audit Trail</span>
+                    <span className="text-[10px] font-bold text-emerald-700">{showDetailsModal.releasedAt}</span>
+                  </div>
+                  <div className="text-xs text-emerald-950 font-semibold">
+                    Released By: <span className="font-bold">{showDetailsModal.releasedBy}</span>
+                  </div>
+                  <div className="text-[11px] text-emerald-800 mt-1">
+                    Reason: {showDetailsModal.releaseReason}
+                  </div>
+                </div>
+              )}
+
               {showDetailsModal.remarks && (
                 <div className="p-3 bg-amber-50/40 rounded-xl border border-amber-100/80">
                   <span className="text-[10px] text-amber-900 font-bold uppercase block mb-1">QC Officer Remarks</span>
@@ -1102,11 +1084,11 @@ export default function HoldStock() {
               )}
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
+            <div className="pt-2 flex justify-end">
               <button
                 type="button"
                 onClick={() => setShowDetailsModal(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition"
+                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
               >
                 Close
               </button>

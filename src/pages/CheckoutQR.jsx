@@ -80,47 +80,7 @@ export default function CheckoutQR() {
   })
 
   // Scanned Items List Table Data
-  const [scannedItemsList, setScannedItemsList] = useState([
-    {
-      id: 1,
-      name: 'Parle-G Glucose Biscuits (50g)',
-      sku: 'FMCG-BIS-01',
-      batchNo: 'BT-2026-FMCG-01',
-      location: 'SH03-R02-C04',
-      baseQty: 120,
-      baseUnit: 'Pieces',
-      packQty: 20,
-      packUnit: 'Gatta',
-      labStatus: 'Passed',
-      status: 'Ready for Dispatch',
-    },
-    {
-      id: 2,
-      name: 'Good Day Butter Cookies (75g)',
-      sku: 'FMCG-BIS-02',
-      batchNo: 'BT-2026-FMCG-02',
-      location: 'SH03-R02-C05',
-      baseQty: 60,
-      baseUnit: 'Pieces',
-      packQty: 10,
-      packUnit: 'Gatta',
-      labStatus: 'Passed',
-      status: 'Ready for Dispatch',
-    },
-    {
-      id: 3,
-      name: 'Fortune Refined Mustard Oil',
-      sku: 'OIL-REF-01',
-      batchNo: 'BT-2026-OIL-02',
-      location: 'SH02-R01-C03',
-      baseQty: 150,
-      baseUnit: 'Ltr',
-      packQty: 10,
-      packUnit: 'Tins (15L)',
-      labStatus: 'Passed',
-      status: 'Ready for Dispatch',
-    },
-  ])
+  const [scannedItemsList, setScannedItemsList] = useState([])
 
   // Modals state
   const [showManualModal, setShowManualModal] = useState(false)

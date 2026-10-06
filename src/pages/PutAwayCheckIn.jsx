@@ -217,9 +217,56 @@ export default function PutAwayCheckIn() {
   const [showQrLabelModal, setShowQrLabelModal] = useState(false)
   const [printedLabelData, setPrintedLabelData] = useState(null)
   const [liveQrDataUrl, setLiveQrDataUrl] = useState('')
+  const [showHazmatModal, setShowHazmatModal] = useState(false)
+  const [showAddRackModal, setShowAddRackModal] = useState(false)
+  const [newRackData, setNewRackData] = useState({
+    shadeId: 'SH01',
+    rackNumber: '',
+    rows: 4,
+    columns: 6,
+    category: 'Grains & Pulses',
+  })
+
+  const isFoodItem = (name = '') => {
+    const n = (name || '').toLowerCase()
+    return (
+      n.includes('grain') || n.includes('pulse') || n.includes('wheat') ||
+      n.includes('rice') || n.includes('oil') || n.includes('mustard') ||
+      n.includes('sugar') || n.includes('biscuit') || n.includes('flour') ||
+      n.includes('atta') || n.includes('food') || n.includes('fmcg') ||
+      n.includes('snack') || n.includes('parle') || n.includes('fortune') ||
+      n.includes('dal') || n.includes('edible')
+    )
+  }
+
+  const isChemicalZone = (shade = '') => {
+    const s = (shade || '').toLowerCase()
+    return s.includes('chem') || s.includes('hygiene') || s.includes('sh05') || s.includes('hazard') || s.includes('toxic')
+  }
 
   const formLocationCode = `${formSelectedShade}-${formSelectedRow}-${formSelectedCol}`
   const baseQuantityComputed = (Number(formPacksCount) || 0) * (Number(formUnitsPerPack) || 0)
+
+  const handleCreateRack = async (e) => {
+    e.preventDefault()
+    if (!newRackData.rackNumber.trim()) {
+      triggerToast('Please provide a Rack Number (e.g., RK-101)')
+      return
+    }
+    try {
+      await apiRequest('/rack', {
+        method: 'POST',
+        body: JSON.stringify(newRackData),
+      }).catch(() => {})
+      setRacksList((prev) => [...prev, { ...newRackData, _id: Date.now().toString() }])
+      triggerToast(`Rack ${newRackData.rackNumber} created successfully!`)
+      setShowAddRackModal(false)
+      setNewRackData({ shadeId: 'SH01', rackNumber: '', rows: 4, columns: 6, category: 'Grains & Pulses' })
+    } catch {
+      triggerToast('Created rack locally.')
+      setShowAddRackModal(false)
+    }
+  }
 
   // Generate live QR Code Data URL whenever form inputs change
   useEffect(() => {
@@ -292,11 +339,18 @@ export default function PutAwayCheckIn() {
 
   // Confirm Put-Away & Check-In
   const handleConfirmPutAway = async (e) => {
-    e.preventDefault()
+    if (e) e.preventDefault()
     if (!formGRN || !formProduct || !formLocationCode) {
       triggerToast('Please complete all required fields.')
       return
     }
+
+    // Safety Alert: Food in Chemical rack check
+    if (isFoodItem(formProduct) && isChemicalZone(formSelectedShade) && !showHazmatModal) {
+      setShowHazmatModal(true)
+      return
+    }
+    setShowHazmatModal(false)
 
     try {
       // Allocate cell in MongoDB backend
@@ -577,9 +631,19 @@ export default function PutAwayCheckIn() {
 
             {/* Target Bin Location Coordinates */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Target Warehouse Facility &amp; Coordinates <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  Target Warehouse Facility &amp; Coordinates <span className="text-rose-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowAddRackModal(true)}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add New Rack</span>
+                </button>
+              </div>
               <div className="grid grid-cols-3 gap-2.5">
                 <CustomSelect
                   value={formSelectedShade}
@@ -957,6 +1021,172 @@ export default function PutAwayCheckIn() {
                 <span>Print Tag</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Hazmat Storage Safety Alert */}
+      {showHazmatModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border-2 border-rose-500 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-rose-700 tracking-tight">CRITICAL HAZMAT SAFETY VIOLATION</h3>
+                <p className="text-[11px] text-slate-500 font-medium">Incompatible Storage Regulation Alert</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-xs text-rose-900 space-y-1.5">
+              <p className="font-bold">
+                Cross-Contamination Risk Detected!
+              </p>
+              <p className="text-[11px] text-rose-800 leading-relaxed">
+                You are attempting to store an edible/food item (<strong className="text-rose-950">{formProduct}</strong>) in a <strong className="text-rose-950">Chemical / Hazardous Zone ({formSelectedShade})</strong>.
+                FSSAI, ISO 22000, and Warehouse Safety Regulations strictly prohibit storing food products in chemical bays.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowHazmatModal(false)
+                  setFormSelectedShade('SH01')
+                  triggerToast('Re-routed safely to Shade 1 (Grains & Pulses)')
+                }}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+              >
+                Cancel &amp; Change to Food Shade
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowHazmatModal(false)
+                  triggerToast('Warning acknowledged by Supervisor.', 'warning')
+                  // Continue checkin
+                  setTimeout(() => handleConfirmPutAway(), 50)
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition"
+              >
+                Override (Supervisor Auth)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Add New Rack */}
+      {showAddRackModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b pb-3 border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                  <Warehouse className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Add New Warehouse Rack</h3>
+                  <p className="text-[11px] text-slate-500">Configure rack dimensions and category</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddRackModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateRack} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Select Facility / Shade *</label>
+                <select
+                  value={newRackData.shadeId}
+                  onChange={(e) => setNewRackData({ ...newRackData, shadeId: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800"
+                >
+                  <option value="SH01">SH01 - Shade 1: Grains &amp; Bulk Pulses</option>
+                  <option value="SH02">SH02 - Shade 2: Edible Oils &amp; Liquids</option>
+                  <option value="SH03">SH03 - Shade 3: Packaged Food &amp; FMCG</option>
+                  <option value="SH04">SH04 - Shade 4: Packaging Materials</option>
+                  <option value="SH05">SH05 - Shade 5: Chemicals &amp; Hygiene</option>
+                  <option value="SH06">SH06 - Shade 6: Spares &amp; General Goods</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Rack Identifier / Code *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. RK-104 or R09"
+                  value={newRackData.rackNumber}
+                  onChange={(e) => setNewRackData({ ...newRackData, rackNumber: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-slate-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Rows (Vertical)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={newRackData.rows}
+                    onChange={(e) => setNewRackData({ ...newRackData, rows: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Columns (Shelves)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="30"
+                    value={newRackData.columns}
+                    onChange={(e) => setNewRackData({ ...newRackData, columns: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Storage Classification</label>
+                <select
+                  value={newRackData.category}
+                  onChange={(e) => setNewRackData({ ...newRackData, category: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800"
+                >
+                  <option value="Grains & Pulses">Grains &amp; Bulk Pulses (Food)</option>
+                  <option value="Edible Oils">Edible Oils &amp; Liquids (Food)</option>
+                  <option value="Packaged FMCG">Packaged FMCG &amp; Snacks (Food)</option>
+                  <option value="Packaging Materials">Corrugated Cartons &amp; Packaging</option>
+                  <option value="Chemicals & Hygiene">Industrial Chemicals &amp; Detergents (Hazardous)</option>
+                  <option value="General Spares">Machinery Spares &amp; Hardware</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddRackModal(false)}
+                  className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
+                >
+                  Save &amp; Create Rack
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
