@@ -264,7 +264,8 @@ export default function GateEntry() {
             return {
               ...rest,
               product: prod?.name || productSku || 'General Material',
-              packagingUnit: prod?.outerPackaging || 'Bags',
+              sku: productSku,
+              packagingUnit: prod ? `${prod.outerPackaging || 'Bags'}` : 'Bags',
             }
           }),
           status: 'Waiting at Gate',

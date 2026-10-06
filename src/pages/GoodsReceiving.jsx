@@ -170,6 +170,23 @@ export default function GoodsReceiving() {
     ]
   }, [shades])
 
+  // Dynamic Empty GRN Item Helper
+  const EMPTY_GRN_ITEM = () => ({
+    id: Date.now() + Math.random(),
+    productId: '',
+    productName: '',
+    sku: '',
+    packageQty: '1',
+    packagingUnit: 'Bags',
+    packSize: 1,
+    totalBaseQty: 0,
+    baseUnit: 'Kg',
+    batchNo: `BTH-${Math.floor(1000 + Math.random() * 9000)}`,
+    mfgDate: '',
+    expiryDate: '',
+    remarks: '',
+  })
+
   // New GRN Form State
   const initialNewGrn = {
     selectedGatePassNo: '',
@@ -181,11 +198,7 @@ export default function GoodsReceiving() {
     status: 'Completed',
     receivedBy: 'Warehouse Manager',
     remarks: 'Received and verified at Inward Receiving Terminal',
-    selectedProductId: '',
-    itemQty: '1',
-    itemBatch: '',
-    itemMfgDate: '',
-    itemExpiryDate: '',
+    materials: [EMPTY_GRN_ITEM()],
   }
   const [newGrn, setNewGrn] = useState(initialNewGrn)
   const [grnSuccessModal, setGrnSuccessModal] = useState(null)
@@ -242,24 +255,108 @@ export default function GoodsReceiving() {
     }
   }, [selectedGrn])
 
-  // Auto-fill from Gate Entry (TC017 FIX)
+  // Multi-item management handlers for GRN Modal
+  const handleAddGrnItem = () => {
+    setNewGrn((prev) => ({
+      ...prev,
+      materials: [...prev.materials, EMPTY_GRN_ITEM()],
+    }))
+  }
+
+  const handleRemoveGrnItem = (id) => {
+    setNewGrn((prev) => {
+      if (prev.materials.length === 1) return prev
+      return {
+        ...prev,
+        materials: prev.materials.filter((m) => m.id !== id),
+      }
+    })
+  }
+
+  const handleGrnItemChange = (id, field, value) => {
+    setNewGrn((prev) => ({
+      ...prev,
+      materials: prev.materials.map((item) => {
+        if (item.id !== id) return item
+        const updated = { ...item, [field]: value }
+
+        if (field === 'productId') {
+          const prod = products.find((p) => p._id === value)
+          if (prod) {
+            updated.productId = prod._id
+            updated.productName = prod.name
+            updated.sku = prod.sku
+            updated.packagingUnit = prod.outerPackaging || 'Bags'
+            updated.packSize = prod.packSize || 1
+            updated.baseUnit = prod.baseUnit || 'Kg'
+            const qty = Number(updated.packageQty) || 1
+            updated.totalBaseQty = qty * updated.packSize
+          }
+        }
+
+        if (field === 'packageQty') {
+          const qty = Math.max(1, Number(value) || 1)
+          updated.packageQty = String(qty)
+          updated.totalBaseQty = qty * (updated.packSize || 1)
+        }
+
+        return updated
+      }),
+    }))
+  }
+
+  // Auto-fill ALL items from Gate Entry
   const handleSelectGateEntry = (gatePassNo) => {
     const entry = gateEntries.find((g) => g.passNumber === gatePassNo)
     if (entry) {
-      let matchedProdId = ''
-      let declaredQty = '1'
+      let populatedMaterials = []
 
       if (entry.materialItems && entry.materialItems.length > 0) {
-        const firstItem = entry.materialItems[0]
-        const prod = products.find(
-          (p) => p.name?.toLowerCase() === firstItem.product?.toLowerCase() || p.sku === firstItem.product
-        )
-        if (prod) {
-          matchedProdId = prod._id
-        }
-        if (firstItem.packageQty) {
-          declaredQty = String(firstItem.packageQty)
-        }
+        populatedMaterials = entry.materialItems.map((item, idx) => {
+          const prod = products.find(
+            (p) =>
+              (item.sku && p.sku === item.sku) ||
+              p.sku === item.product ||
+              p.name?.toLowerCase() === item.product?.toLowerCase()
+          )
+
+          const qty = Number(item.packageQty) || 1
+          const packSize = prod?.packSize || 1
+          const totalBase = qty * packSize
+
+          return {
+            id: Date.now() + idx + Math.random(),
+            productId: prod ? prod._id : '',
+            productName: prod ? prod.name : (item.product || 'Consignment Material'),
+            sku: prod ? prod.sku : (item.sku || `SKU-${idx + 1}`),
+            packageQty: String(qty),
+            packagingUnit: prod ? (prod.outerPackaging || 'Bags') : (item.packagingUnit || 'Bags'),
+            packSize: packSize,
+            totalBaseQty: totalBase,
+            baseUnit: prod ? (prod.baseUnit || 'Kg') : 'Kg',
+            batchNo: `BTH-${Date.now().toString().slice(-4)}${idx + 1}`,
+            mfgDate: '',
+            expiryDate: '',
+            remarks: item.remarks || '',
+          }
+        })
+      }
+
+      if (populatedMaterials.length === 0) {
+        populatedMaterials = [EMPTY_GRN_ITEM()]
+      }
+
+      // Match shade from entry.assignedBay
+      let matchedShade = newGrn.shade
+      if (entry.assignedBay) {
+        const foundShade = shadeOptions.find((s) => {
+          const shadeCodeMatch = entry.assignedBay.match(/SH-0[1-6]/i)
+          if (shadeCodeMatch && s.value.toLowerCase().includes(shadeCodeMatch[0].toLowerCase())) return true
+          const bayNum = entry.assignedBay.match(/(?:Bay|Shade)\s*([1-6])/i)
+          if (bayNum && s.value.includes(`SH-0${bayNum[1]}`)) return true
+          return false
+        })
+        if (foundShade) matchedShade = foundShade.value
       }
 
       setNewGrn((prev) => ({
@@ -269,11 +366,10 @@ export default function GoodsReceiving() {
         vehicleNo: entry.vehicleNumber || prev.vehicleNo,
         supplier: entry.supplier || prev.supplier,
         poNo: entry.poNumber || entry.challanNo || prev.poNo,
-        selectedProductId: matchedProdId || prev.selectedProductId,
-        itemQty: declaredQty,
-        itemBatch: `BTH-${Date.now().toString().slice(-4)}`,
+        shade: matchedShade,
+        materials: populatedMaterials,
       }))
-      triggerToast(`TC017: Successfully auto-filled data from Gate Pass ${entry.passNumber}!`)
+      triggerToast(`Successfully loaded all ${populatedMaterials.length} items from Gate Pass ${entry.passNumber}!`)
     }
   }
 
@@ -285,41 +381,35 @@ export default function GoodsReceiving() {
       return
     }
 
-    const selectedProd = products.find((p) => p._id === newGrn.selectedProductId)
-    const qtyNum = Math.max(1, Number(newGrn.itemQty) || 1)
-    const packRatio = selectedProd?.packSize || 1
-    const totalBase = qtyNum * packRatio
+    if (!newGrn.materials || newGrn.materials.length === 0) {
+      triggerToast('At least 1 material item is required!')
+      return
+    }
 
-    const materialItem = selectedProd
-      ? {
-          productId: selectedProd._id,
-          productName: selectedProd.name,
-          sku: selectedProd.sku,
-          packageQty: qtyNum,
-          packagingUnit: selectedProd.outerPackaging || 'Bags',
-          packSize: packRatio,
-          totalBaseQty: totalBase,
-          baseUnit: selectedProd.baseUnit || 'Kg',
-          batchNo: newGrn.itemBatch.trim() || `BTH-${Date.now().toString().slice(-4)}`,
-          mfgDate: newGrn.itemMfgDate || '',
-          expiryDate: newGrn.itemExpiryDate || '',
-        }
-      : {
-          productName: 'General Consignment Material',
-          sku: `SKU-${Math.floor(100 + Math.random() * 900)}`,
-          packageQty: qtyNum,
-          packagingUnit: 'Units',
-          packSize: 1,
-          totalBaseQty: qtyNum,
-          baseUnit: 'Units',
-          batchNo: newGrn.itemBatch.trim() || `BTH-${Date.now().toString().slice(-4)}`,
-          mfgDate: newGrn.itemMfgDate || '',
-          expiryDate: newGrn.itemExpiryDate || '',
-        }
+    const materialsPayload = newGrn.materials.map((m, idx) => {
+      const prod = products.find((p) => p._id === m.productId || p.sku === m.sku)
+      const qtyNum = Math.max(1, Number(m.packageQty) || 1)
+      const packRatio = prod?.packSize || m.packSize || 1
+      const totalBase = qtyNum * packRatio
 
-    const totalQtyStr = selectedProd
-      ? `${qtyNum} ${selectedProd.outerPackaging} (${totalBase} ${selectedProd.baseUnit})`
-      : `${qtyNum} Units`
+      return {
+        productId: prod?._id || (m.productId ? m.productId : null),
+        productName: prod?.name || m.productName || 'General Consignment Material',
+        sku: prod?.sku || m.sku || `SKU-${idx + 1}`,
+        packageQty: qtyNum,
+        packagingUnit: prod?.outerPackaging || m.packagingUnit || 'Bags',
+        packSize: packRatio,
+        totalBaseQty: totalBase,
+        baseUnit: prod?.baseUnit || m.baseUnit || 'Kg',
+        batchNo: m.batchNo?.trim() || `BTH-${Date.now().toString().slice(-4)}${idx + 1}`,
+        mfgDate: m.mfgDate || '',
+        expiryDate: m.expiryDate || '',
+        remarks: m.remarks || '',
+      }
+    })
+
+    const totalPackages = materialsPayload.reduce((acc, curr) => acc + curr.packageQty, 0)
+    const totalQtyStr = `${totalPackages} Packages (${materialsPayload.length} Product Lines)`
 
     const payload = {
       poNo: newGrn.poNo.trim().toUpperCase(),
@@ -327,12 +417,12 @@ export default function GoodsReceiving() {
       vehicleNo: newGrn.vehicleNo.trim().toUpperCase(),
       gateEntryId: newGrn.gateEntryId || null,
       shade: newGrn.shade,
-      itemsCount: 1,
+      itemsCount: materialsPayload.length,
       totalQty: totalQtyStr,
       status: newGrn.status,
       receivedBy: newGrn.receivedBy.trim() || 'Warehouse Officer',
       remarks: newGrn.remarks.trim() || 'Received and verified at Inward Receiving Terminal',
-      materials: [materialItem],
+      materials: materialsPayload,
     }
 
     try {
@@ -770,7 +860,7 @@ export default function GoodsReceiving() {
       {/* ========================================================= */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[90dvh] overflow-y-auto p-4 sm:p-6 space-y-5 animate-scale-in border border-slate-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90dvh] overflow-y-auto p-4 sm:p-6 space-y-5 animate-scale-in border border-slate-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b pb-4 border-slate-100">
               <div className="flex items-center gap-3">
@@ -799,11 +889,11 @@ export default function GoodsReceiving() {
                   Auto-fill from Active Gate Pass:
                 </span>
                 <select
+                  value={newGrn.selectedGatePassNo || ''}
                   onChange={(e) => {
                     if (e.target.value) handleSelectGateEntry(e.target.value)
                   }}
-                  className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800 font-medium"
-                  defaultValue=""
+                  className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800 font-medium cursor-pointer"
                 >
                   <option value="">-- Choose Gate Pass --</option>
                   {gateEntries.map((ge) => (
@@ -867,100 +957,140 @@ export default function GoodsReceiving() {
                 />
               </div>
 
-              {/* Product Selection from Product Catalog */}
-              <div className="p-3.5 rounded-xl bg-indigo-50/60 border border-indigo-100 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Boxes className="w-4 h-4 text-indigo-600" />
-                  <span className="text-xs font-bold text-indigo-950">
-                    Select Product from Catalog (Auto Stock Sync)
-                  </span>
+              {/* Product Selection Breakdown from Gate Pass / Catalog */}
+              <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50/80 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Boxes className="w-4 h-4 text-indigo-600" />
+                    <span className="text-xs font-bold text-slate-900">
+                      Inward Consignment Items ({newGrn.materials.length} Lines)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddGrnItem}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Item</span>
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Product Name / SKU
-                    </label>
-                    <select
-                      value={newGrn.selectedProductId}
-                      onChange={(e) => {
-                        const pid = e.target.value
-                        const prod = products.find((p) => p._id === pid)
-                        setNewGrn((prev) => ({
-                          ...prev,
-                          selectedProductId: pid,
-                          shade: prod?.storageZone || prev.shade,
-                        }))
-                      }}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                <div className="space-y-3">
+                  {newGrn.materials.map((m, idx) => (
+                    <div
+                      key={m.id || idx}
+                      className="bg-white p-3 rounded-xl border border-slate-200 space-y-2.5 shadow-2xs relative"
                     >
-                      <option value="">-- Choose from Registered Products --</option>
-                      {Array.from(new Set(products.map((p) => p.storageZone || 'Other Zones'))).map((zone) => (
-                        <optgroup key={zone} label={zone}>
-                          {products
-                            .filter((p) => (p.storageZone || 'Other Zones') === zone)
-                            .map((p) => (
-                              <option key={p._id} value={p._id}>
-                                {p.name} ({p.sku}) — {p.outerPackaging} of {p.packSize} {p.baseUnit}
-                              </option>
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-[11px] font-bold text-indigo-900 bg-indigo-50 px-2 py-0.5 rounded">
+                          Item #{idx + 1} {m.productName ? `— ${m.productName}` : ''}
+                        </span>
+                        {newGrn.materials.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGrnItem(m.id)}
+                            className="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50 transition cursor-pointer"
+                            title="Remove item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                        {/* Product Select */}
+                        <div className="sm:col-span-6">
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Product Name / SKU <span className="text-rose-500">*</span>
+                          </label>
+                          <select
+                            value={m.productId || ''}
+                            onChange={(e) => handleGrnItemChange(m.id, 'productId', e.target.value)}
+                            required
+                            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                          >
+                            <option value="">-- Choose Product from Master --</option>
+                            {Array.from(new Set(products.map((p) => p.storageZone || 'Other Zones'))).map((zone) => (
+                              <optgroup key={zone} label={zone}>
+                                {products
+                                  .filter((p) => (p.storageZone || 'Other Zones') === zone)
+                                  .map((p) => (
+                                    <option key={p._id} value={p._id}>
+                                      {p.name} ({p.sku})
+                                    </option>
+                                  ))}
+                              </optgroup>
                             ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
+                          </select>
+                        </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Quantity Received (Packaging Units)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="100"
-                      value={newGrn.itemQty}
-                      onChange={(e) => setNewGrn({ ...newGrn, itemQty: e.target.value })}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    />
-                  </div>
-                </div>
+                        {/* Quantity Received */}
+                        <div className="sm:col-span-3">
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Pkg Qty ({m.packagingUnit || 'Bags'}) <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={m.packageQty}
+                            onChange={(e) => handleGrnItemChange(m.id, 'packageQty', e.target.value)}
+                            required
+                            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none"
+                          />
+                        </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Batch / Lot No.
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. BTH-2026-081"
-                      value={newGrn.itemBatch}
-                      onChange={(e) => setNewGrn({ ...newGrn, itemBatch: e.target.value.toUpperCase() })}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:outline-none"
-                    />
-                  </div>
+                        {/* Base Stock Total */}
+                        <div className="sm:col-span-3">
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Total Base Units
+                          </label>
+                          <div className="px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-mono font-bold text-emerald-800 truncate">
+                            {m.totalBaseQty || (Number(m.packageQty) * (m.packSize || 1))} {m.baseUnit || 'Kg'}
+                          </div>
+                        </div>
+                      </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Mfg Date
-                    </label>
-                    <input
-                      type="date"
-                      value={newGrn.itemMfgDate}
-                      onChange={(e) => setNewGrn({ ...newGrn, itemMfgDate: e.target.value })}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
-                    />
-                  </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
+                            Batch / Lot No.
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. BTH-2026-081"
+                            value={m.batchNo}
+                            onChange={(e) => handleGrnItemChange(m.id, 'batchNo', e.target.value.toUpperCase())}
+                            className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-mono text-slate-900 focus:outline-none"
+                          />
+                        </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Expiry Date
-                    </label>
-                    <input
-                      type="date"
-                      value={newGrn.itemExpiryDate}
-                      onChange={(e) => setNewGrn({ ...newGrn, itemExpiryDate: e.target.value })}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
-                    />
-                  </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
+                            Mfg Date
+                          </label>
+                          <input
+                            type="date"
+                            value={m.mfgDate}
+                            onChange={(e) => handleGrnItemChange(m.id, 'mfgDate', e.target.value)}
+                            className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-900 focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
+                            Expiry Date
+                          </label>
+                          <input
+                            type="date"
+                            value={m.expiryDate}
+                            onChange={(e) => handleGrnItemChange(m.id, 'expiryDate', e.target.value)}
+                            className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-900 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
