@@ -1098,6 +1098,33 @@ export default function GoodsReceiving() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Manufacturing Date & Expiry Date Inputs (Batch field removed) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 border-t border-slate-100">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
+                            Manufacturing Date (Mfg Date)
+                          </label>
+                          <input
+                            type="date"
+                            value={m.mfgDate}
+                            onChange={(e) => handleGrnItemChange(m.id, 'mfgDate', e.target.value)}
+                            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
+                            Expiry Date
+                          </label>
+                          <input
+                            type="date"
+                            value={m.expiryDate}
+                            onChange={(e) => handleGrnItemChange(m.id, 'expiryDate', e.target.value)}
+                            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
