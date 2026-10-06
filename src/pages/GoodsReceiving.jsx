@@ -19,6 +19,7 @@ import {
   Layers,
   Trash2,
   Boxes,
+  Lock,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
 
@@ -908,52 +909,94 @@ export default function GoodsReceiving() {
             <form onSubmit={handleCreateGrn} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    PO / Indent Reference No. <span className="text-rose-500">*</span>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                    <span>
+                      PO / Indent Reference No. <span className="text-rose-500">*</span>
+                    </span>
+                    {newGrn.selectedGatePassNo && (
+                      <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                        <Lock className="w-2.5 h-2.5 text-slate-400" /> Locked from Gate Pass
+                      </span>
+                    )}
                   </label>
                   <input
                     type="text"
                     required
+                    readOnly={Boolean(newGrn.selectedGatePassNo)}
                     placeholder="e.g. PO-2026-4587"
                     value={newGrn.poNo}
                     onChange={(e) => setNewGrn({ ...newGrn, poNo: e.target.value.toUpperCase() })}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className={`w-full rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold focus:outline-none transition ${
+                      newGrn.selectedGatePassNo
+                        ? 'bg-slate-100 text-slate-700 border border-slate-200 cursor-not-allowed select-none'
+                        : 'bg-white border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Vehicle Number <span className="text-rose-500">*</span>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                    <span>
+                      Vehicle Number <span className="text-rose-500">*</span>
+                    </span>
+                    {newGrn.selectedGatePassNo && (
+                      <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                        <Lock className="w-2.5 h-2.5 text-slate-400" /> Locked from Gate Pass
+                      </span>
+                    )}
                   </label>
-                  <div className="relative flex rounded-xl overflow-hidden border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 shadow-2xs">
-                    <span className="inline-flex items-center px-3 bg-slate-100 border-r border-slate-200 text-xs font-bold text-indigo-900 select-none">
+                  <div
+                    className={`relative flex rounded-xl overflow-hidden border shadow-2xs ${
+                      newGrn.selectedGatePassNo
+                        ? 'border-slate-200 bg-slate-100 cursor-not-allowed'
+                        : 'border-slate-300 bg-white focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500'
+                    }`}
+                  >
+                    <span className="inline-flex items-center px-3 bg-slate-200 border-r border-slate-300 text-xs font-bold text-slate-700 select-none">
                       IND
                     </span>
                     <input
                       type="text"
                       required
+                      readOnly={Boolean(newGrn.selectedGatePassNo)}
                       placeholder="UP32 AB 1256"
                       value={newGrn.vehicleNo}
                       onChange={(e) =>
                         setNewGrn({ ...newGrn, vehicleNo: e.target.value.toUpperCase() })
                       }
-                      className="w-full px-3 py-2 text-xs font-bold uppercase text-slate-900 font-mono outline-none"
+                      className={`w-full px-3 py-2 text-xs font-bold uppercase text-slate-900 font-mono outline-none ${
+                        newGrn.selectedGatePassNo
+                          ? 'bg-slate-100 text-slate-700 cursor-not-allowed select-none'
+                          : 'bg-white'
+                      }`}
                     />
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Supplier / Vendor Party Name <span className="text-rose-500">*</span>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>
+                    Supplier / Vendor Party Name <span className="text-rose-500">*</span>
+                  </span>
+                  {newGrn.selectedGatePassNo && (
+                    <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                      <Lock className="w-2.5 h-2.5 text-slate-400" /> Locked from Gate Pass
+                    </span>
+                  )}
                 </label>
                 <input
                   type="text"
                   required
+                  readOnly={Boolean(newGrn.selectedGatePassNo)}
                   placeholder="e.g. M/s Bharat Supply Corp, Prime Foods"
                   value={newGrn.supplier}
                   onChange={(e) => setNewGrn({ ...newGrn, supplier: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  className={`w-full rounded-xl px-3.5 py-2.5 text-xs focus:outline-none transition ${
+                    newGrn.selectedGatePassNo
+                      ? 'bg-slate-100 text-slate-700 border border-slate-200 font-semibold cursor-not-allowed select-none'
+                      : 'bg-white border border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500'
+                  }`}
                 />
               </div>
 
