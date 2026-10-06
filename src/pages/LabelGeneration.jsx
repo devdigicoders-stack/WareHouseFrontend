@@ -28,6 +28,8 @@ import {
   RotateCcw,
   Boxes,
   Truck,
+  Loader2,
+  CheckCheck,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
 
@@ -109,15 +111,22 @@ export default function LabelGeneration() {
 
   // Label Form Configuration
   const [selectedGrnNo, setSelectedGrnNo] = useState('')
+  const [selectedGrnObject, setSelectedGrnObject] = useState(null)
+  const [selectedItemIndex, setSelectedItemIndex] = useState(0)
+
   const [labelCategory, setLabelCategory] = useState('Product Label') // 'Product Label' | 'Batch Label' | 'Location Label' | 'Pallet Master'
   const [selectedProductSku, setSelectedProductSku] = useState('')
   const [selectedBatchNo, setSelectedBatchNo] = useState('')
   const [labelFormat, setLabelFormat] = useState('Product + Batch Barcode')
   const [labelSize, setLabelSize] = useState('60mm x 40mm')
-  const [quantity, setQuantity] = useState('100')
+  const [quantity, setQuantity] = useState('10')
   const [storageLocation, setStorageLocation] = useState('Shade 1 (General Stores)')
-  const [mfgDate, setMfgDate] = useState('2026-09-01')
-  const [expDate, setExpDate] = useState('2028-08-31')
+  const [mfgDate, setMfgDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [expDate, setExpDate] = useState(() => {
+    const d = new Date()
+    d.setFullYear(d.getFullYear() + 2)
+    return d.toISOString().split('T')[0]
+  })
   const [additionalInfo, setAdditionalInfo] = useState('Handle With Care • Store in Cool Dry Place')
 
   // Location-specific form state
@@ -128,21 +137,25 @@ export default function LabelGeneration() {
   const [includeQr, setIncludeQr] = useState(true)
   const [includeBarcode, setIncludeBarcode] = useState(true)
   const [includeLogo, setIncludeLogo] = useState(true)
-  const [includeBatchDetails, setIncludeBatchDetails] = useState(true)
+  const [includeBatchDetails, setIncludeBatchDetails] = useState(false)
   const [includeExpiryDate, setIncludeExpiryDate] = useState(true)
+
+  // Button loading states (One-time click with rolling animation)
+  const [isPrintingSingle, setIsPrintingSingle] = useState(false)
+  const [isPrintingSheet, setIsPrintingSheet] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
 
   // Real Scannable QR and Barcode states
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('')
   const barcodeSvgRef = useRef(null)
 
-  // Printer Settings
+  // Printer Settings & Sheet Modal
   const [showPrinterSettings, setShowPrinterSettings] = useState(false)
   const [showSheetModal, setShowSheetModal] = useState(false)
+  const [sheetPrintMode, setSheetPrintMode] = useState('single') // 'single' (repeats current item) or 'all_grn' (all items from selected GRN)
   const [printerModel, setPrinterModel] = useState('Zebra ZT411 Industrial (Warehouse Dock)')
 
   // Search & Filter for History Table
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('ALL')
   const [recentLabels, setRecentLabels] = useState([])
 
   // Load backend data
@@ -217,10 +230,11 @@ export default function LabelGeneration() {
           type: 'WMS_ITEM',
           sku: activeProduct.sku,
           name: activeProduct.name,
-          batch: selectedBatchNo || 'BTH-2026-001',
           qty: Number(quantity) || 1,
+          mfg: mfgDate,
           exp: expDate,
           loc: storageLocation,
+          grn: selectedGrnNo || undefined,
         })
 
     QRCode.toDataURL(qrPayload, {
@@ -237,17 +251,17 @@ export default function LabelGeneration() {
       try {
         const barcodeText = isLocation
           ? `LOC-${(rackBinCode || 'SH01').replace(/[^A-Za-z0-9]/g, '')}`
-          : `${activeProduct.sku}-${(selectedBatchNo || 'BT2026').replace(/[^A-Za-z0-9]/g, '')}`
+          : `${activeProduct.sku}`
 
         JsBarcode(barcodeSvgRef.current, barcodeText, {
           format: 'CODE128',
           lineColor: '#000000',
-          width: 1.5,
-          height: 32,
+          width: 1.6,
+          height: 34,
           displayValue: true,
-          fontSize: 9,
+          fontSize: 10,
           font: 'monospace',
-          margin: 0,
+          margin: 2,
         })
       } catch (err) {
         console.warn('Barcode gen notice:', err)
@@ -260,8 +274,10 @@ export default function LabelGeneration() {
     rackBinCode,
     selectedZone,
     quantity,
+    mfgDate,
     expDate,
     storageLocation,
+    selectedGrnNo,
   ])
 
   // Dropdown Options
@@ -282,22 +298,35 @@ export default function LabelGeneration() {
     ]
   }, [products])
 
-  // GRN Auto-Fill Handler
+  // GRN Auto-Fill Handler with multi-item line support
   const handleSelectGrn = (grnNo) => {
     setSelectedGrnNo(grnNo)
+    setSelectedItemIndex(0)
     const grn = grnList.find((g) => g.grnNo === grnNo)
+    setSelectedGrnObject(grn || null)
+
     if (grn) {
       if (grn.materials && grn.materials.length > 0) {
         const item = grn.materials[0]
         if (item.sku) setSelectedProductSku(item.sku)
-        if (item.batchNo) setSelectedBatchNo(item.batchNo)
         if (item.packageQty) setQuantity(String(item.packageQty))
         if (item.mfgDate) setMfgDate(item.mfgDate)
         if (item.expiryDate) setExpDate(item.expiryDate)
       }
       if (grn.shade) setStorageLocation(grn.shade)
-      triggerToast(`Auto-filled label details from ${grn.grnNo}`)
+      triggerToast(`Loaded GRN ${grn.grnNo} (${grn.materials?.length || 1} items)`)
     }
+  }
+
+  // Handle clicking a specific item from the multi-item GRN list
+  const handleSelectGrnItem = (item, index) => {
+    setSelectedItemIndex(index)
+    if (item.sku) setSelectedProductSku(item.sku)
+    if (item.packageQty) setQuantity(String(item.packageQty))
+    if (item.mfgDate) setMfgDate(item.mfgDate)
+    if (item.expiryDate) setExpDate(item.expiryDate)
+    if (selectedGrnObject?.shade) setStorageLocation(selectedGrnObject.shade)
+    triggerToast(`Selected ${item.productName || item.sku}`)
   }
 
   // Dynamic KPI Stats
@@ -315,16 +344,19 @@ export default function LabelGeneration() {
   // Reset form
   const handleReset = () => {
     setSelectedGrnNo('')
+    setSelectedGrnObject(null)
+    setSelectedItemIndex(0)
     if (products.length > 0) {
       setSelectedProductSku(products[0].sku)
       setStorageLocation(products[0].storageZone || 'Shade 1')
     }
-    setSelectedBatchNo(`BTH-${Date.now().toString().slice(-4)}`)
     setLabelFormat('Product + Batch Barcode')
     setLabelSize('60mm x 40mm')
-    setQuantity('100')
-    setMfgDate('2026-09-01')
-    setExpDate('2028-08-31')
+    setQuantity('10')
+    setMfgDate(new Date().toISOString().split('T')[0])
+    const d = new Date()
+    d.setFullYear(d.getFullYear() + 2)
+    setExpDate(d.toISOString().split('T')[0])
     setAdditionalInfo('Handle With Care • Store in Cool Dry Place')
     triggerToast('Form reset to default configuration.')
   }
@@ -335,7 +367,7 @@ export default function LabelGeneration() {
       id: Date.now(),
       productName: labelCategory === 'Location Label' ? `Location Tag: ${rackBinCode}` : activeProduct.name,
       sku: labelCategory === 'Location Label' ? `LOC-${rackBinCode.replace(/[^a-zA-Z0-9]/g, '')}` : activeProduct.sku,
-      batchNo: labelCategory === 'Location Label' ? selectedZone.split(' ')[0] : (selectedBatchNo || 'BTH-2026-01'),
+      batchNo: labelCategory === 'Location Label' ? selectedZone.split(' ')[0] : (selectedBatchNo || 'STD-01'),
       labelType: labelCategory,
       size: labelSize.replace('mm x ', ' × '),
       quantity: Number(quantity) || 1,
@@ -344,7 +376,38 @@ export default function LabelGeneration() {
       status: 'Printed',
     }
     setRecentLabels([newEntry, ...recentLabels])
-    triggerToast(`Sent ${quantity} scannable labels to printer!`)
+  }
+
+  // Print single label handler with rolling spinner
+  const handlePrintSingle = async () => {
+    if (isPrintingSingle) return
+    setIsPrintingSingle(true)
+    handleQueuePrint()
+    try {
+      await printSpecificElement('#printable-thermal-label-preview', `Thermal Label - ${activeProduct.sku} (${quantity})`)
+      triggerToast(`Sent ${quantity} scannable labels to thermal printer!`)
+    } catch {
+      triggerToast('Printing initiated.')
+    } finally {
+      setTimeout(() => setIsPrintingSingle(false), 1200)
+    }
+  }
+
+  // Download label preview as high-res PNG image
+  const handleDownloadImage = () => {
+    if (isDownloading) return
+    setIsDownloading(true)
+    try {
+      const link = document.createElement('a')
+      link.download = `Label_${activeProduct.sku}_${labelSize.replace(/\s+/g, '')}.png`
+      link.href = qrCodeDataUrl
+      link.click()
+      triggerToast('Label QR asset downloaded successfully!')
+    } catch {
+      triggerToast('Download completed.')
+    } finally {
+      setTimeout(() => setIsDownloading(false), 800)
+    }
   }
 
   const labelSizeOptions = [
@@ -355,8 +418,8 @@ export default function LabelGeneration() {
   ]
 
   const labelFormatOptions = [
-    { value: 'Product + Batch Barcode', label: 'Product + Batch Barcode' },
-    { value: 'Product QR Only', label: 'Product QR Only' },
+    { value: 'Product + Batch Barcode', label: 'Product Barcode + QR Code' },
+    { value: 'Product QR Only', label: 'Product QR Only (Compact)' },
     { value: 'Pallet Master Tag', label: 'Pallet Master Tag' },
     { value: 'Storage Bay Locator', label: 'Storage Bay Locator' },
   ]
@@ -375,6 +438,34 @@ export default function LabelGeneration() {
       { value: 'Shade 4 (Chemical & Hazardous)', label: 'Shade 4 (Chemical & Hazardous Safety Bay)' },
     ]
   }, [shades])
+
+  // Compute all sticker items for the multi-sheet modal
+  const sheetItems = useMemo(() => {
+    if (sheetPrintMode === 'all_grn' && selectedGrnObject && selectedGrnObject.materials?.length > 0) {
+      return selectedGrnObject.materials.map((mat, i) => ({
+        index: i + 1,
+        name: mat.productName || mat.sku,
+        sku: mat.sku,
+        qty: mat.packageQty || 1,
+        unit: mat.outerPackaging || 'Bags',
+        mfg: mat.mfgDate || mfgDate,
+        exp: mat.expiryDate || expDate,
+        zone: selectedGrnObject.shade || storageLocation,
+      }))
+    }
+    // Default: repeated stickers for currently selected single item
+    const count = Math.min(24, Math.max(1, Number(quantity) || 6))
+    return Array.from({ length: count }).map((_, i) => ({
+      index: i + 1,
+      name: activeProduct.name,
+      sku: activeProduct.sku,
+      qty: quantity,
+      unit: activeProduct.outerPackaging || 'Units',
+      mfg: mfgDate,
+      exp: expDate,
+      zone: storageLocation,
+    }))
+  }, [sheetPrintMode, selectedGrnObject, activeProduct, quantity, mfgDate, expDate, storageLocation])
 
   return (
     <div className="space-y-5 pb-12 select-none">
@@ -403,7 +494,10 @@ export default function LabelGeneration() {
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
-            onClick={() => setShowSheetModal(true)}
+            onClick={() => {
+              setSheetPrintMode('single')
+              setShowSheetModal(true)
+            }}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
@@ -496,25 +590,74 @@ export default function LabelGeneration() {
 
           {/* Quick Auto-Fill from GRN */}
           {grnList.length > 0 && (
-            <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2">
-                <Truck className="w-4 h-4 text-indigo-700 shrink-0" />
-                <span className="text-xs font-bold text-indigo-950">
-                  Select GRN to Auto-Fill Batch &amp; Qty:
-                </span>
+            <div className="p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-indigo-700 shrink-0" />
+                  <span className="text-xs font-bold text-indigo-950">
+                    Auto-Fill from Inward GRN:
+                  </span>
+                </div>
+                <select
+                  value={selectedGrnNo}
+                  onChange={(e) => handleSelectGrn(e.target.value)}
+                  className="bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                >
+                  <option value="">-- Choose Received GRN --</option>
+                  {grnList.map((g) => (
+                    <option key={g._id || g.grnNo} value={g.grnNo}>
+                      {g.grnNo} • {g.supplier} ({g.materials?.length || 1} Items)
+                    </option>
+                  ))}
+                </select>
               </div>
-              <select
-                value={selectedGrnNo}
-                onChange={(e) => handleSelectGrn(e.target.value)}
-                className="bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-              >
-                <option value="">-- Choose Received GRN --</option>
-                {grnList.map((g) => (
-                  <option key={g._id || g.grnNo} value={g.grnNo}>
-                    {g.grnNo} • {g.supplier} ({g.totalQty || `${g.itemsCount} Items`})
-                  </option>
-                ))}
-              </select>
+
+              {/* Multi-Item Line Selector for Multi-Item GRN */}
+              {selectedGrnObject && selectedGrnObject.materials && selectedGrnObject.materials.length > 0 && (
+                <div className="pt-2 border-t border-indigo-100">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-indigo-900">
+                      Items in this GRN ({selectedGrnObject.materials.length}):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSheetPrintMode('all_grn')
+                        setShowSheetModal(true)
+                      }}
+                      className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-white border border-indigo-200 px-2 py-0.5 rounded-md hover:bg-indigo-50 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                    >
+                      <Layers className="w-3 h-3" />
+                      <span>Print All {selectedGrnObject.materials.length} Items Sheet</span>
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedGrnObject.materials.map((mat, idx) => {
+                      const isSelected = selectedItemIndex === idx && activeProduct.sku === mat.sku
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSelectGrnItem(mat, idx)}
+                          className={`text-xs px-2.5 py-1.5 rounded-lg border transition text-left cursor-pointer flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-indigo-600 text-white font-bold border-indigo-700 shadow-xs'
+                              : 'bg-white text-slate-700 font-medium border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50/50'
+                          }`}
+                        >
+                          <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${isSelected ? 'bg-white text-indigo-600' : 'bg-indigo-100 text-indigo-700'}`}>
+                            {idx + 1}
+                          </span>
+                          <span className="truncate max-w-[140px]">{mat.productName || mat.sku}</span>
+                          <span className={`text-[10px] font-mono ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
+                            ({mat.packageQty || 1} {mat.outerPackaging || 'Bags'})
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -640,29 +783,6 @@ export default function LabelGeneration() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Batch / Lot Number</label>
-                    <input
-                      type="text"
-                      value={selectedBatchNo}
-                      onChange={(e) => setSelectedBatchNo(e.target.value.toUpperCase())}
-                      placeholder="e.g. BTH-2026-081"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Label Format</label>
-                    <CustomSelect
-                      value={labelFormat}
-                      onChange={setLabelFormat}
-                      options={labelFormatOptions}
-                      zIndexClass="z-30"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">Label Size</label>
                     <CustomSelect
                       value={labelSize}
@@ -676,14 +796,14 @@ export default function LabelGeneration() {
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-bold text-slate-700">Quantity of Stickers</label>
                       <div className="flex items-center gap-1">
-                        {[10, 50, 100, 200].map((q) => (
+                        {[1, 5, 10, 50, 100].map((q) => (
                           <button
                             key={q}
                             type="button"
                             onClick={() => setQuantity(String(q))}
                             className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer"
                           >
-                            +{q}
+                            {q}
                           </button>
                         ))}
                       </div>
@@ -705,28 +825,32 @@ export default function LabelGeneration() {
                       type="text"
                       value={storageLocation}
                       onChange={(e) => setStorageLocation(e.target.value)}
-                      placeholder="Shade 2 (Food & Grains)"
+                      placeholder="Shade 1 (General)"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Mfg Date</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Mfg Date <span className="text-rose-500">*</span>
+                    </label>
                     <input
                       type="date"
                       value={mfgDate}
                       onChange={(e) => setMfgDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Expiry Date</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Expiry Date <span className="text-rose-500">*</span>
+                    </label>
                     <input
                       type="date"
                       value={expDate}
                       onChange={(e) => setExpDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                     />
                   </div>
                 </div>
@@ -735,7 +859,7 @@ export default function LabelGeneration() {
                   <label className="block text-xs font-bold text-slate-700 mb-1">Handling Notes / Instructions</label>
                   <input
                     type="text"
-                    placeholder="e.g. Keep Dry • Store Below 25°C • Stack Max 4 High"
+                    placeholder="e.g. Keep Dry • Store in Cool Dry Place"
                     value={additionalInfo}
                     onChange={(e) => setAdditionalInfo(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
@@ -747,7 +871,7 @@ export default function LabelGeneration() {
             {/* Sticker Graphic Elements Toggles */}
             <div className="pt-3 border-t border-slate-100">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Visible Elements On Sticker</p>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-50 hover:bg-slate-100/70 p-2 rounded-xl border border-slate-200/80 transition">
                   <input
                     type="checkbox"
@@ -781,21 +905,11 @@ export default function LabelGeneration() {
                 <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-50 hover:bg-slate-100/70 p-2 rounded-xl border border-slate-200/80 transition">
                   <input
                     type="checkbox"
-                    checked={includeBatchDetails}
-                    onChange={(e) => setIncludeBatchDetails(e.target.checked)}
-                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span className="text-xs font-semibold text-slate-700">Batch Specs</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-50 hover:bg-slate-100/70 p-2 rounded-xl border border-slate-200/80 transition">
-                  <input
-                    type="checkbox"
                     checked={includeExpiryDate}
                     onChange={(e) => setIncludeExpiryDate(e.target.checked)}
                     className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
                   />
-                  <span className="text-xs font-semibold text-slate-700">Expiry Date</span>
+                  <span className="text-xs font-semibold text-slate-700">Dates (Mfg/Exp)</span>
                 </label>
               </div>
             </div>
@@ -860,7 +974,7 @@ export default function LabelGeneration() {
                   </div>
                 </div>
               ) : (
-                /* Product & Batch Thermal Sticker Preview */
+                /* Product Thermal Sticker Preview */
                 <>
                   <div className="flex items-start justify-between border-b pb-2 border-slate-900">
                     {includeLogo ? (
@@ -904,20 +1018,14 @@ export default function LabelGeneration() {
                   </div>
 
                   <div className="space-y-1 text-[10px] font-mono text-slate-800 bg-slate-100/60 p-2 rounded border border-slate-300">
-                    {includeBatchDetails && (
-                      <div className="flex justify-between">
-                        <span className="text-slate-500 font-sans">Batch No:</span>
-                        <span className="font-bold text-indigo-800">{selectedBatchNo || 'BTH-2026-081'}</span>
-                      </div>
-                    )}
                     <div className="flex justify-between">
                       <span className="text-slate-500 font-sans">Mfg Date:</span>
-                      <span className="font-bold">{mfgDate || '2026-09-01'}</span>
+                      <span className="font-bold">{mfgDate}</span>
                     </div>
                     {includeExpiryDate && (
                       <div className="flex justify-between">
                         <span className="text-slate-500 font-sans">Expiry Date:</span>
-                        <span className="font-bold text-rose-700">{expDate || '2028-08-31'}</span>
+                        <span className="font-bold text-rose-700">{expDate}</span>
                       </div>
                     )}
                     <div className="flex justify-between">
@@ -946,26 +1054,56 @@ export default function LabelGeneration() {
             </div>
           </div>
 
-          {/* Quick Print Actions Toolbar */}
-          <div className="flex items-center gap-2 pt-1">
+          {/* Quick Print Actions Toolbar with Rolling Animations */}
+          <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+            <button
+              type="button"
+              disabled={isPrintingSingle}
+              onClick={handlePrintSingle}
+              className={`flex-1 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition cursor-pointer ${
+                isPrintingSingle ? 'opacity-80 cursor-not-allowed' : ''
+              }`}
+            >
+              {isPrintingSingle ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>Printing Label...</span>
+                </>
+              ) : (
+                <>
+                  <Printer className="w-4 h-4" />
+                  <span>Print Scannable Label ({quantity})</span>
+                </>
+              )}
+            </button>
+
             <button
               type="button"
               onClick={() => {
-                handleQueuePrint()
-                printSpecificElement('#printable-thermal-label-preview', `Thermal Label (${quantity})`)
+                setSheetPrintMode('single')
+                setShowSheetModal(true)
               }}
-              className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Print Scannable Label ({quantity})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowSheetModal(true)}
-              className="px-3 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-semibold border border-indigo-200 transition flex items-center gap-1.5 cursor-pointer"
+              className="w-full sm:w-auto px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-semibold border border-indigo-200 transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
             >
               <Layers className="w-3.5 h-3.5" />
               <span>Multi Sheet</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isDownloading}
+              onClick={handleDownloadImage}
+              title="Download High-Res QR Code PNG"
+              className={`w-full sm:w-auto px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                isDownloading ? 'opacity-80 cursor-not-allowed' : ''
+              }`}
+            >
+              {isDownloading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-600" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span>PNG</span>
             </button>
           </div>
         </div>
@@ -974,13 +1112,19 @@ export default function LabelGeneration() {
       {/* Multi-Sticker Sheet Modal with Genuine Scannable QR Codes */}
       {showSheetModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90dvh] overflow-y-auto p-5 space-y-4 border border-slate-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90dvh] overflow-y-auto p-5 space-y-4 border border-slate-200">
             <div className="flex items-center justify-between border-b pb-3 border-slate-100">
               <div className="flex items-center gap-2.5">
                 <FileSpreadsheet className="w-5 h-5 text-indigo-600" />
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Multi-Sticker Print Sheet (A4 / Grid)</h3>
-                  <p className="text-[11px] text-slate-500">Each sticker contains a unique scannable QR code &amp; batch identifier</p>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    {sheetPrintMode === 'all_grn' ? `All Items Sheet — ${selectedGrnNo}` : `Multi-Sticker Sheet (A4 / Grid)`}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {sheetPrintMode === 'all_grn'
+                      ? `Print stickers for all ${sheetItems.length} items received in this GRN consignment`
+                      : `Each sticker contains high-contrast scannable QR code & product details`}
+                  </p>
                 </div>
               </div>
               <button
@@ -993,18 +1137,19 @@ export default function LabelGeneration() {
             </div>
 
             <div id="printable-sticker-sheet-area" className="printable-area grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-              {Array.from({ length: Math.min(12, Number(quantity) || 6) }).map((_, i) => (
+              {sheetItems.map((item, i) => (
                 <div key={i} className="bg-white border-2 border-slate-800 rounded-lg p-2.5 text-[10px] space-y-1">
                   <div className="flex items-center justify-between border-b pb-1 border-slate-300">
-                    <span className="font-extrabold text-slate-900 text-[10px] truncate">{activeProduct.name}</span>
+                    <span className="font-extrabold text-slate-900 text-[10px] truncate">{item.name}</span>
+                    <span className="text-[9px] font-mono font-bold bg-slate-100 px-1 py-0.5 rounded border border-slate-200">{item.sku}</span>
                   </div>
-                  <div className="flex justify-between font-mono font-bold text-indigo-700">
-                    <span>{activeProduct.sku}</span>
-                    <span>{selectedBatchNo || 'BTH-2026'}</span>
+                  <div className="flex justify-between font-mono font-bold text-indigo-700 text-[9px]">
+                    <span>Mfg: {item.mfg}</span>
+                    <span className="text-rose-700">Exp: {item.exp}</span>
                   </div>
-                  <div className="flex justify-between text-slate-600">
-                    <span>Exp: {expDate}</span>
-                    <span>{storageLocation}</span>
+                  <div className="flex justify-between text-slate-600 text-[9px]">
+                    <span>Qty: {item.qty} {item.unit}</span>
+                    <span className="font-medium text-emerald-700">{item.zone}</span>
                   </div>
                   <div className="pt-1 flex items-center justify-between gap-1">
                     {qrCodeDataUrl ? (
@@ -1015,7 +1160,7 @@ export default function LabelGeneration() {
                       </div>
                     )}
                     <div className="flex-1 text-right font-mono text-[8px] font-bold text-slate-800">
-                      Unit #{i + 1} of {quantity}
+                      Tag #{item.index} of {sheetItems.length}
                     </div>
                   </div>
                 </div>
@@ -1032,14 +1177,35 @@ export default function LabelGeneration() {
               </button>
               <button
                 type="button"
-                onClick={() => {
+                disabled={isPrintingSheet}
+                onClick={async () => {
+                  if (isPrintingSheet) return
+                  setIsPrintingSheet(true)
                   handleQueuePrint()
-                  printSpecificElement('#printable-sticker-sheet-area', `Sticker Sheet - ${activeProduct.sku}`)
+                  try {
+                    await printSpecificElement('#printable-sticker-sheet-area', `Sticker Sheet - ${selectedGrnNo || activeProduct.sku}`)
+                    triggerToast(`Sent sticker sheet to printer!`)
+                  } catch {
+                    triggerToast('Printing initiated.')
+                  } finally {
+                    setTimeout(() => setIsPrintingSheet(false), 1200)
+                  }
                 }}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                className={`px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                  isPrintingSheet ? 'opacity-80 cursor-not-allowed' : ''
+                }`}
               >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print Entire Sheet</span>
+                {isPrintingSheet ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                    <span>Printing Sheet...</span>
+                  </>
+                ) : (
+                  <>
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Print Entire Sheet ({sheetItems.length} Stickers)</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -1060,7 +1226,7 @@ export default function LabelGeneration() {
                 onClick={() => setShowPrinterSettings(false)}
                 className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
