@@ -137,7 +137,6 @@ export default function LabelGeneration() {
   const [includeQr, setIncludeQr] = useState(true)
   const [includeBarcode, setIncludeBarcode] = useState(true)
   const [includeLogo, setIncludeLogo] = useState(true)
-  const [includeBatchDetails, setIncludeBatchDetails] = useState(false)
   const [includeExpiryDate, setIncludeExpiryDate] = useState(true)
 
   // Button loading states (One-time click with rolling animation)
@@ -201,8 +200,23 @@ export default function LabelGeneration() {
     if (paramQty) setQuantity(paramQty)
   }, [searchParams])
 
-  // Active Selected Product Details
+  // Active Selected Product Details (Prioritizes selected GRN's material info)
   const activeProduct = useMemo(() => {
+    if (selectedGrnObject && selectedGrnObject.materials && selectedGrnObject.materials.length > 0) {
+      const grnMat = selectedGrnObject.materials.find((m) => m.sku === selectedProductSku)
+      const found = products.find((p) => p.sku === selectedProductSku)
+      if (grnMat) {
+        return {
+          name: grnMat.productName || found?.name || grnMat.sku,
+          sku: grnMat.sku,
+          category: found?.category || 'General Inward Commodity',
+          baseUnit: found?.baseUnit || 'Kg',
+          outerPackaging: grnMat.outerPackaging || found?.outerPackaging || 'Bag',
+          packSize: found?.packSize || 1,
+          storageZone: selectedGrnObject.shade || found?.storageZone || 'Shade 1',
+        }
+      }
+    }
     const found = products.find((p) => p.sku === selectedProductSku)
     if (found) return found
     if (products.length > 0) return products[0]
@@ -215,7 +229,36 @@ export default function LabelGeneration() {
       packSize: 25,
       storageZone: 'Shade 2 (Food & Grains)',
     }
-  }, [selectedProductSku, products])
+  }, [selectedProductSku, products, selectedGrnObject])
+
+  // Dropdown Options: Strictly filtered to the selected GRN's SKUs when a GRN is active!
+  const productOptions = useMemo(() => {
+    if (selectedGrnObject && selectedGrnObject.materials && selectedGrnObject.materials.length > 0) {
+      return selectedGrnObject.materials.map((mat, idx) => {
+        const prod = products.find((p) => p.sku === mat.sku)
+        return {
+          value: mat.sku,
+          label: `${mat.productName || prod?.name || mat.sku} (${mat.sku})`,
+          sublabel: `GRN Item #${idx + 1} • Inward Qty: ${mat.packageQty || 1} ${mat.outerPackaging || 'Bags'} • Mfg: ${mat.mfgDate || 'N/A'} • Exp: ${mat.expiryDate || 'N/A'}`,
+        }
+      })
+    }
+
+    if (products.length > 0) {
+      return products.map((p) => ({
+        value: p.sku,
+        label: `${p.name} (${p.sku})`,
+        sublabel: `${p.category} • 1 ${p.outerPackaging} = ${p.packSize} ${p.baseUnit}`,
+      }))
+    }
+    return [
+      {
+        value: 'PRD-RIC-001',
+        label: 'Basmati Rice (Grade 1 Special 25kg) (PRD-RIC-001)',
+        sublabel: 'Grains & Pulses • 1 Bag = 25 Kg',
+      },
+    ]
+  }, [products, selectedGrnObject])
 
   // Generate Real Scannable QR Code Data & Barcode
   useEffect(() => {
@@ -280,25 +323,7 @@ export default function LabelGeneration() {
     selectedGrnNo,
   ])
 
-  // Dropdown Options
-  const productOptions = useMemo(() => {
-    if (products.length > 0) {
-      return products.map((p) => ({
-        value: p.sku,
-        label: `${p.name} (${p.sku})`,
-        sublabel: `${p.category} • 1 ${p.outerPackaging} = ${p.packSize} ${p.baseUnit}`,
-      }))
-    }
-    return [
-      {
-        value: 'PRD-RIC-001',
-        label: 'Basmati Rice (Grade 1 Special 25kg) (PRD-RIC-001)',
-        sublabel: 'Grains & Pulses • 1 Bag = 25 Kg',
-      },
-    ]
-  }, [products])
-
-  // GRN Auto-Fill Handler with multi-item line support
+  // GRN Auto-Fill Handler: loads GRN and locks SKU list to that GRN's items
   const handleSelectGrn = (grnNo) => {
     setSelectedGrnNo(grnNo)
     setSelectedItemIndex(0)
@@ -307,14 +332,18 @@ export default function LabelGeneration() {
 
     if (grn) {
       if (grn.materials && grn.materials.length > 0) {
-        const item = grn.materials[0]
-        if (item.sku) setSelectedProductSku(item.sku)
-        if (item.packageQty) setQuantity(String(item.packageQty))
-        if (item.mfgDate) setMfgDate(item.mfgDate)
-        if (item.expiryDate) setExpDate(item.expiryDate)
+        const firstItem = grn.materials[0]
+        if (firstItem.sku) setSelectedProductSku(firstItem.sku)
+        if (firstItem.packageQty) setQuantity(String(firstItem.packageQty))
+        if (firstItem.mfgDate) setMfgDate(firstItem.mfgDate)
+        if (firstItem.expiryDate) setExpDate(firstItem.expiryDate)
       }
       if (grn.shade) setStorageLocation(grn.shade)
-      triggerToast(`Loaded GRN ${grn.grnNo} (${grn.materials?.length || 1} items)`)
+      triggerToast(`Loaded GRN ${grn.grnNo} — SKU list filtered to this GRN's items!`)
+    } else {
+      if (products.length > 0) {
+        setSelectedProductSku(products[0].sku)
+      }
     }
   }
 
@@ -595,7 +624,7 @@ export default function LabelGeneration() {
                 <div className="flex items-center gap-2">
                   <Truck className="w-4 h-4 text-indigo-700 shrink-0" />
                   <span className="text-xs font-bold text-indigo-950">
-                    Auto-Fill from Inward GRN:
+                    Select GRN to Auto-Fill Items:
                   </span>
                 </div>
                 <select
@@ -760,16 +789,47 @@ export default function LabelGeneration() {
               /* Product / Batch / Pallet Label Designer */
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Commodity / Product SKU <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700">
+                      Commodity / Product SKU <span className="text-rose-500">*</span>
+                    </label>
+                    {selectedGrnObject && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200">
+                          Filtered by {selectedGrnNo} ({productOptions.length} Items)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedGrnNo('')
+                            setSelectedGrnObject(null)
+                            triggerToast('Showing all catalog products')
+                          }}
+                          className="text-[10px] font-semibold text-slate-400 hover:text-rose-600 underline cursor-pointer"
+                        >
+                          Show All
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <CustomSelect
                     value={selectedProductSku}
                     onChange={(val) => {
                       setSelectedProductSku(val)
+                      // Auto-fill from GRN material details
+                      if (selectedGrnObject && selectedGrnObject.materials) {
+                        const idx = selectedGrnObject.materials.findIndex((m) => m.sku === val)
+                        if (idx !== -1) {
+                          const mat = selectedGrnObject.materials[idx]
+                          setSelectedItemIndex(idx)
+                          if (mat.packageQty) setQuantity(String(mat.packageQty))
+                          if (mat.mfgDate) setMfgDate(mat.mfgDate)
+                          if (mat.expiryDate) setExpDate(mat.expiryDate)
+                        }
+                      }
                       const found = products.find((p) => p.sku === val)
                       if (found) {
-                        setStorageLocation(found.storageZone || 'Shade 1')
+                        setStorageLocation(selectedGrnObject?.shade || found.storageZone || 'Shade 1')
                       }
                     }}
                     options={productOptions}
