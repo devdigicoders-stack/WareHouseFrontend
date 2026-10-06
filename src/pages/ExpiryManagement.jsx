@@ -314,7 +314,7 @@ export default function ExpiryManagement() {
     <div className="space-y-4 sm:space-y-5">
       {/* Toast notification banner */}
       {toastMessage && (
-        <div className="fixed top-4 right-4 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-800 flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-200 text-xs font-semibold">
+        <div className="fixed top-4 right-4 z-[9999] pointer-events-auto bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-800 flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-200 text-xs font-semibold">
           <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
           <span>{toastMessage}</span>
           <button

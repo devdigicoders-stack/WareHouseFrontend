@@ -321,7 +321,7 @@ export default function GateEntry() {
       {/* Toast Alert */}
       {toast && (
         <div
-          className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-xl shadow-2xl border flex items-center gap-3 text-sm font-semibold animate-in fade-in duration-200 ${
+          className={`fixed top-5 right-5 z-[9999] px-4 py-3 rounded-xl shadow-2xl border flex items-center gap-3 text-sm font-semibold animate-in fade-in duration-200 pointer-events-auto ${
             toast.type === 'error'
               ? 'bg-rose-900 text-white border-rose-700'
               : 'bg-slate-900 text-white border-slate-700'
