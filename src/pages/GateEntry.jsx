@@ -59,9 +59,24 @@ export default function GateEntry() {
   const [challanNo, setChallanNo] = useState('')
   const [poNumber, setPoNumber] = useState('')
   const [purpose, setPurpose] = useState('Goods Delivery (GRN Inward)')
-  const [assignedBay, setAssignedBay] = useState('Bay 1 (General Stores - Shade 1)')
+  const [assignedBay, setAssignedBay] = useState('Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)')
   const [officerRemark, setOfficerRemark] = useState('')
   const [materialItems, setMaterialItems] = useState([EMPTY_ITEM()])
+  const [backendShades, setBackendShades] = useState([])
+
+  const bayOptions = useMemo(() => {
+    if (backendShades.length > 0) {
+      return backendShades.map((s, idx) => `Bay ${idx + 1} (${s.name} - ${s.code})`)
+    }
+    return [
+      'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)',
+      'Bay 2 (Shade 2: Edible Oils & Liquids - SH-02)',
+      'Bay 3 (Shade 3: FMCG & Packaged Foods - SH-03)',
+      'Bay 4 (Shade 4: Packaging & Materials - SH-04)',
+      'Bay 5 (Shade 5: Chemicals & Hygiene - SH-05)',
+      'Bay 6 (Shade 6: Spares & General Hardware - SH-06)',
+    ]
+  }, [backendShades])
 
   const triggerToast = (msg, type = 'success') => {
     setToast({ msg, type })
@@ -80,6 +95,9 @@ export default function GateEntry() {
     fetchEntries()
     apiRequest('/product').then((data) => {
       if (Array.isArray(data)) setProducts(data)
+    }).catch(() => {})
+    apiRequest('/shade').then((data) => {
+      if (Array.isArray(data) && data.length > 0) setBackendShades(data)
     }).catch(() => {})
   }, [])
 
@@ -163,7 +181,7 @@ export default function GateEntry() {
     setChallanNo('')
     setPoNumber('')
     setPurpose('Goods Delivery (GRN Inward)')
-    setAssignedBay('Bay 1 (General Stores - Shade 1)')
+    setAssignedBay(bayOptions[0] || 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)')
     setOfficerRemark('')
     setMaterialItems([EMPTY_ITEM()])
   }
@@ -486,13 +504,13 @@ export default function GateEntry() {
                   <select
                     value={assignedBay}
                     onChange={(e) => setAssignedBay(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none pr-8"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none pr-8 cursor-pointer"
                   >
-                    <option>Bay 1 (General Stores - Shade 1)</option>
-                    <option>Bay 2 (Food &amp; Grains - Shade 2)</option>
-                    <option>Bay 3 (Industrial Supplies - Shade 3)</option>
-                    <option>Bay 4 (Chemical Bay - Shade 4)</option>
-                    <option>Bay 5 (Spares &amp; Electronics - Shade 5)</option>
+                    {bayOptions.map((bay) => (
+                      <option key={bay} value={bay}>
+                        {bay}
+                      </option>
+                    ))}
                   </select>
                   <ChevronDown className="w-4 h-4 absolute right-2.5 top-3 pointer-events-none text-slate-400" />
                 </div>

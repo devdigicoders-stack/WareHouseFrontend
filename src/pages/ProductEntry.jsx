@@ -118,12 +118,12 @@ const BASE_UNIT_OPTIONS = [
 ]
 
 const STORAGE_ZONE_OPTIONS = [
-  { value: 'Shade 1 (General Stores)', label: 'Shade 1 (General Stores & Packaging)' },
-  { value: 'Shade 2 (Food & Grains)', label: 'Shade 2 (Food & Grains Ambient Zone)' },
-  { value: 'Shade 3 (Industrial Supplies)', label: 'Shade 3 (Industrial Supplies & Heavy Pallets)' },
-  { value: 'Shade 4 (Chemical & Hazardous)', label: 'Shade 4 (Chemical & Hazardous Safety Bay)' },
-  { value: 'Shade 5 (Electronics & Spares)', label: 'Shade 5 (Electronics, Cables & Spares)' },
-  { value: 'Shade 6 (Textiles & Medical)', label: 'Shade 6 (Textiles, PPE & First Aid)' },
+  { value: 'SH-01 (Shade 1: Grains & Bulk Pulses)', label: 'SH-01 - Shade 1: Grains & Bulk Pulses' },
+  { value: 'SH-02 (Shade 2: Edible Oils & Liquids)', label: 'SH-02 - Shade 2: Edible Oils & Liquids' },
+  { value: 'SH-03 (Shade 3: FMCG & Packaged Foods)', label: 'SH-03 - Shade 3: FMCG & Packaged Foods' },
+  { value: 'SH-04 (Shade 4: Packaging & Materials)', label: 'SH-04 - Shade 4: Packaging & Materials' },
+  { value: 'SH-05 (Shade 5: Chemicals & Hygiene)', label: 'SH-05 - Shade 5: Chemicals & Hygiene' },
+  { value: 'SH-06 (Shade 6: Spares & General Hardware)', label: 'SH-06 - Shade 6: Spares & General Hardware' },
 ]
 
 export default function ProductEntry() {

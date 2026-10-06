@@ -28,10 +28,12 @@ const PURPOSE_OPTIONS = [
 ]
 
 const BAY_OPTIONS = [
-  { value: 'Bay 1 (General Stores - Shade 1)', label: 'Bay 1 (General Stores - Shade 1)' },
-  { value: 'Bay 2 (Food & Grains - Shade 2)', label: 'Bay 2 (Food & Grains - Shade 2)' },
-  { value: 'Bay 3 (Industrial Supplies - Shade 3)', label: 'Bay 3 (Industrial Supplies - Shade 3)' },
-  { value: 'Bay 4 (Chemical & Hazardous - Shade 4)', label: 'Bay 4 (Chemical - Shade 4)' },
+  { value: 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)', label: 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)' },
+  { value: 'Bay 2 (Shade 2: Edible Oils & Liquids - SH-02)', label: 'Bay 2 (Shade 2: Edible Oils & Liquids - SH-02)' },
+  { value: 'Bay 3 (Shade 3: FMCG & Packaged Foods - SH-03)', label: 'Bay 3 (Shade 3: FMCG & Packaged Foods - SH-03)' },
+  { value: 'Bay 4 (Shade 4: Packaging & Materials - SH-04)', label: 'Bay 4 (Shade 4: Packaging & Materials - SH-04)' },
+  { value: 'Bay 5 (Shade 5: Chemicals & Hygiene - SH-05)', label: 'Bay 5 (Shade 5: Chemicals & Hygiene - SH-05)' },
+  { value: 'Bay 6 (Shade 6: Spares & General Hardware - SH-06)', label: 'Bay 6 (Shade 6: Spares & General Hardware - SH-06)' },
   { value: 'Dock 1 (Dispatch Outward)', label: 'Dock 1 (Dispatch Outward)' },
   { value: 'Dock 2 (Dispatch Outward)', label: 'Dock 2 (Dispatch Outward)' },
 ]
@@ -124,7 +126,7 @@ export default function VehicleQueue() {
     driverPhone: '',
     supplier: '',
     purpose: 'Material Inward',
-    bay: 'Bay 1 (General Stores - Shade 1)',
+    bay: 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)',
   })
 
   // Toast trigger
@@ -193,7 +195,7 @@ export default function VehicleQueue() {
       driverPhone: '',
       supplier: '',
       purpose: 'Material Inward',
-      bay: 'Bay 1 (General Stores - Shade 1)',
+      bay: 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)',
     })
     triggerToast(`Vehicle ${newItem.vehicleNo} added with Token ${tokenStr}`)
   }

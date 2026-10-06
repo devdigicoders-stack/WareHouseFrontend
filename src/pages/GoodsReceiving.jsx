@@ -161,12 +161,12 @@ export default function GoodsReceiving() {
       }))
     }
     return [
-      { value: 'Shade 1 (General Stores)', label: 'Shade 1 (General Hardware & Packaging)' },
-      { value: 'Shade 2 (Food & Grains)', label: 'Shade 2 (Dry Ration & Food Grains)' },
-      { value: 'Shade 3 (Industrial Supplies)', label: 'Shade 3 (Industrial Maintenance & Tools)' },
-      { value: 'Shade 4 (Chemical & Hazardous)', label: 'Shade 4 (Paints, Oils & Chemical Drums)' },
-      { value: 'Shade 5 (Electronics & Spares)', label: 'Shade 5 (Electronics, Cables & Hardware)' },
-      { value: 'Shade 6 (Textiles & Medical)', label: 'Shade 6 (Textiles, PPE & First Aid)' },
+      { value: 'SH-01 (Shade 1: Grains & Bulk Pulses)', label: 'SH-01 - Shade 1: Grains & Bulk Pulses' },
+      { value: 'SH-02 (Shade 2: Edible Oils & Liquids)', label: 'SH-02 - Shade 2: Edible Oils & Liquids' },
+      { value: 'SH-03 (Shade 3: FMCG & Packaged Foods)', label: 'SH-03 - Shade 3: FMCG & Packaged Foods' },
+      { value: 'SH-04 (Shade 4: Packaging & Materials)', label: 'SH-04 - Shade 4: Packaging & Materials' },
+      { value: 'SH-05 (Shade 5: Chemicals & Hygiene)', label: 'SH-05 - Shade 5: Chemicals & Hygiene' },
+      { value: 'SH-06 (Shade 6: Spares & General Hardware)', label: 'SH-06 - Shade 6: Spares & General Hardware' },
     ]
   }, [shades])
 
@@ -177,7 +177,7 @@ export default function GoodsReceiving() {
     poNo: '',
     supplier: '',
     vehicleNo: '',
-    shade: shadeOptions[0]?.value || 'Shade 1 (General Stores)',
+    shade: shadeOptions[0]?.value || 'SH-01 (Shade 1: Grains & Bulk Pulses)',
     status: 'Completed',
     receivedBy: 'Warehouse Manager',
     remarks: 'Received and verified at Inward Receiving Terminal',
