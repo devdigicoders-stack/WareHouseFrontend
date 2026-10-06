@@ -78,6 +78,28 @@ export default function GateEntry() {
     ]
   }, [backendShades])
 
+  // Auto-filter products matching the assigned bay's shade
+  const filteredProductsForBay = useMemo(() => {
+    if (!assignedBay || products.length === 0) return products
+
+    const shadeCodeMatch = assignedBay.match(/SH-0[1-6]/i)
+    const bayNumMatch = assignedBay.match(/(?:Bay|Shade)\s*([1-6])/i)
+
+    const filtered = products.filter((p) => {
+      if (!p.storageZone) return false
+      if (shadeCodeMatch && p.storageZone.toLowerCase().includes(shadeCodeMatch[0].toLowerCase())) {
+        return true
+      }
+      if (bayNumMatch) {
+        const num = bayNumMatch[1]
+        return p.storageZone.includes(`SH-0${num}`) || p.storageZone.toLowerCase().includes(`shade ${num}`)
+      }
+      return false
+    })
+
+    return filtered.length > 0 ? filtered : products
+  }, [assignedBay, products])
+
   const triggerToast = (msg, type = 'success') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3800)
@@ -556,10 +578,10 @@ export default function GateEntry() {
                             value={item.productSku}
                             onChange={(e) => handleItemChange(item.id, 'productSku', e.target.value)}
                             required
-                            className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+                            className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium cursor-pointer"
                           >
-                            <option value="">Select Product from Master</option>
-                            {products.map((p) => (
+                            <option value="">-- Select Product ({filteredProductsForBay.length} for this Bay) --</option>
+                            {filteredProductsForBay.map((p) => (
                               <option key={p.sku} value={p.sku}>
                                 {p.name} ({p.sku})
                               </option>

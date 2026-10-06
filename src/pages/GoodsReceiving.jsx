@@ -895,10 +895,16 @@ export default function GoodsReceiving() {
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     >
                       <option value="">-- Choose from Registered Products --</option>
-                      {products.map((p) => (
-                        <option key={p._id} value={p._id}>
-                          {p.name} ({p.sku}) — {p.outerPackaging} of {p.packSize} {p.baseUnit}
-                        </option>
+                      {Array.from(new Set(products.map((p) => p.storageZone || 'Other Zones'))).map((zone) => (
+                        <optgroup key={zone} label={zone}>
+                          {products
+                            .filter((p) => (p.storageZone || 'Other Zones') === zone)
+                            .map((p) => (
+                              <option key={p._id} value={p._id}>
+                                {p.name} ({p.sku}) — {p.outerPackaging} of {p.packSize} {p.baseUnit}
+                              </option>
+                            ))}
+                        </optgroup>
                       ))}
                     </select>
                   </div>
