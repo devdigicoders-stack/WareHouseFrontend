@@ -1420,18 +1420,48 @@ export default function GoodsReceiving() {
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
                         <tr>
                           <th className="py-2 px-3">Item Description</th>
-                          <th className="py-2 px-3">Batch</th>
+                          <th className="py-2 px-3">Mfg Date</th>
+                          <th className="py-2 px-3">Expiry Date</th>
                           <th className="py-2 px-3 text-right">Quantity</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
                         {selectedGrn.materials.map((m, idx) => (
                           <tr key={idx}>
-                            <td className="py-2 px-3 font-semibold text-slate-900">{m.productName || m.name}</td>
-                            <td className="py-2 px-3 font-mono text-slate-600">{m.batchNo || m.batch || '—'}</td>
-                            <td className="py-2 px-3 text-right font-bold text-slate-900">
-                              {m.packageQty || m.qty} <span className="font-normal text-slate-500">{m.packagingUnit || m.unit}</span>
-                              {m.totalBaseQty ? ` (${m.totalBaseQty} ${m.baseUnit})` : ''}
+                            <td className="py-2 px-3 font-semibold text-slate-900">
+                              {m.productName || m.name}
+                              {m.sku && (
+                                <span className="text-[10px] text-slate-400 font-mono block">
+                                  SKU: {m.sku}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3 text-slate-700 font-medium whitespace-nowrap">
+                              {m.mfgDate
+                                ? new Date(m.mfgDate).toLocaleDateString('en-IN', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  })
+                                : '—'}
+                            </td>
+                            <td className="py-2 px-3 text-rose-700 font-semibold whitespace-nowrap">
+                              {m.expiryDate
+                                ? new Date(m.expiryDate).toLocaleDateString('en-IN', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  })
+                                : '—'}
+                            </td>
+                            <td className="py-2 px-3 text-right font-bold text-slate-900 whitespace-nowrap">
+                              {m.packageQty || m.qty}{' '}
+                              <span className="font-normal text-slate-500">
+                                {m.packagingUnit || m.unit || 'Bags'}
+                              </span>
+                              {m.totalBaseQty
+                                ? ` (${m.totalBaseQty} ${m.baseUnit || 'Kg'})`
+                                : ''}
                             </td>
                           </tr>
                         ))}
