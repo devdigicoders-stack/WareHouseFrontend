@@ -6,7 +6,7 @@ import { apiRequest } from '../services/api'
 import {
   Truck, FileText, ClipboardList, Package, Trash2, Check,
   Printer, ChevronDown, Search, ArrowRight, QrCode, LogOut, Clock,
-  Plus, Warehouse, AlertCircle, CheckCircle2, ShieldCheck, X
+  Plus, Warehouse, AlertCircle, CheckCircle2, ShieldCheck, X, Loader2
 } from 'lucide-react'
 
 const fmt = (iso) => {
@@ -665,10 +665,19 @@ export default function GateEntry() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center gap-2 cursor-pointer shadow-sm transition-all disabled:opacity-60"
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center gap-2 cursor-pointer shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none"
                 >
-                  <Printer className="w-4 h-4" />
-                  {loading ? 'Registering...' : 'Register Gate Entry'}
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Registering Gate Entry...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Printer className="w-4 h-4" />
+                      <span>Register Gate Entry</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

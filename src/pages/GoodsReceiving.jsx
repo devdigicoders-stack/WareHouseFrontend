@@ -21,6 +21,7 @@ import {
   Trash2,
   Boxes,
   Lock,
+  Loader2,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
 
@@ -205,6 +206,21 @@ export default function GoodsReceiving() {
   const [newGrn, setNewGrn] = useState(initialNewGrn)
   const [grnSuccessModal, setGrnSuccessModal] = useState(null)
   const [grnQrDataUrl, setGrnQrDataUrl] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Pending Gate Passes filter (exlude already processed / inwarded gate entries)
+  const pendingGateEntries = useMemo(() => {
+    return gateEntries.filter((ge) => {
+      if (ge.status === 'Gate Out / Cleared') return false
+      // Exclude if a GRN already exists for this gateEntryId or passNumber
+      const alreadyHasGrn = grnList.some(
+        (grn) =>
+          (grn.gateEntryId && String(grn.gateEntryId) === String(ge._id)) ||
+          (grn.poNo && grn.poNo === ge.poNumber && grn.vehicleNo === ge.vehicleNumber)
+      )
+      return !alreadyHasGrn
+    })
+  }, [gateEntries, grnList])
 
   // Toast trigger
   const triggerToast = (msg) => {
@@ -378,6 +394,8 @@ export default function GoodsReceiving() {
   // Create GRN
   const handleCreateGrn = async (e) => {
     e.preventDefault()
+    if (isSubmitting) return
+
     if (!newGrn.poNo.trim() || !newGrn.supplier.trim() || !newGrn.vehicleNo.trim()) {
       triggerToast('PO Number, Supplier Name and Vehicle Number are required!')
       return
@@ -405,6 +423,8 @@ export default function GoodsReceiving() {
         return
       }
     }
+
+    setIsSubmitting(true)
 
     const materialsPayload = newGrn.materials.map((m, idx) => {
       const prod = products.find((p) => p._id === m.productId || p.sku === m.sku)
@@ -450,6 +470,15 @@ export default function GoodsReceiving() {
         method: 'POST',
         body: JSON.stringify(payload),
       })
+
+      // If created against a Gate Entry, update gate entry status
+      if (newGrn.gateEntryId) {
+        apiRequest(`/gate-entry/${newGrn.gateEntryId}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'GRN In Process' }),
+        }).catch(() => {})
+      }
+
       setGrnList((prev) => [created, ...prev])
       setSelectedGrn(created)
       setShowAddModal(false)
@@ -458,6 +487,8 @@ export default function GoodsReceiving() {
       setNewGrn(initialNewGrn)
     } catch (err) {
       triggerToast(err.message || 'Failed to create GRN', 'error')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -901,29 +932,32 @@ export default function GoodsReceiving() {
               </button>
             </div>
 
-            {/* Quick autofill from Gate Pass */}
-            {gateEntries.length > 0 && (
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                  <Truck className="w-3.5 h-3.5 text-indigo-600" />
-                  Auto-fill from Active Gate Pass:
-                </span>
-                <select
-                  value={newGrn.selectedGatePassNo || ''}
-                  onChange={(e) => {
-                    if (e.target.value) handleSelectGateEntry(e.target.value)
-                  }}
-                  className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800 font-medium cursor-pointer"
-                >
-                  <option value="">-- Choose Gate Pass --</option>
-                  {gateEntries.map((ge) => (
-                    <option key={ge._id} value={ge.passNumber}>
-                      {ge.passNumber} - {ge.vehicleNumber} ({ge.supplier})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            {/* Quick autofill from Gate Pass (Only pending inward passes) */}
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                <Truck className="w-3.5 h-3.5 text-indigo-600" />
+                Auto-fill from Active Gate Pass:
+              </span>
+              <select
+                value={newGrn.selectedGatePassNo || ''}
+                onChange={(e) => {
+                  if (e.target.value) handleSelectGateEntry(e.target.value)
+                  else setNewGrn(initialNewGrn)
+                }}
+                className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800 font-medium cursor-pointer"
+              >
+                <option value="">
+                  {pendingGateEntries.length > 0
+                    ? `-- Choose Gate Pass (${pendingGateEntries.length} Pending Inward) --`
+                    : '-- No Pending Gate Passes (All Inward Completed) --'}
+                </option>
+                {pendingGateEntries.map((ge) => (
+                  <option key={ge._id} value={ge.passNumber}>
+                    {ge.passNumber} - {ge.vehicleNumber} ({ge.supplier})
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <form onSubmit={handleCreateGrn} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1199,16 +1233,28 @@ export default function GoodsReceiving() {
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2.5 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50 font-bold cursor-pointer transition"
+                  className="px-4 py-2.5 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50 font-bold cursor-pointer transition disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-xs cursor-pointer transition"
+                  disabled={isSubmitting}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-xs transition flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none cursor-pointer"
                 >
-                  Create &amp; Print GRN
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Creating &amp; Processing GRN...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Create &amp; Print GRN</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
