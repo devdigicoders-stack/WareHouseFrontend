@@ -1041,7 +1041,7 @@ export default function GoodsReceiving() {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
                         {/* Product Select */}
                         <div className="sm:col-span-6">
                           <label className="block text-[11px] font-bold text-slate-700 mb-1">
@@ -1051,7 +1051,12 @@ export default function GoodsReceiving() {
                             value={m.productId || ''}
                             onChange={(e) => handleGrnItemChange(m.id, 'productId', e.target.value)}
                             required
-                            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                            disabled={Boolean(newGrn.selectedGatePassNo)}
+                            className={`w-full border rounded-lg px-2.5 py-1.5 text-xs font-medium focus:outline-none transition ${
+                              newGrn.selectedGatePassNo
+                                ? 'bg-slate-100 border-slate-200 text-slate-800 cursor-not-allowed select-none'
+                                : 'bg-white border-slate-300 text-slate-800 focus:ring-2 focus:ring-indigo-500/20 cursor-pointer'
+                            }`}
                           >
                             <option value="">-- Choose Product from Master --</option>
                             {Array.from(new Set(products.map((p) => p.storageZone || 'Other Zones'))).map((zone) => (
@@ -1091,45 +1096,6 @@ export default function GoodsReceiving() {
                           <div className="px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-mono font-bold text-emerald-800 truncate">
                             {m.totalBaseQty || (Number(m.packageQty) * (m.packSize || 1))} {m.baseUnit || 'Kg'}
                           </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
-                            Batch / Lot No.
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. BTH-2026-081"
-                            value={m.batchNo}
-                            onChange={(e) => handleGrnItemChange(m.id, 'batchNo', e.target.value.toUpperCase())}
-                            className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-mono text-slate-900 focus:outline-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
-                            Mfg Date
-                          </label>
-                          <input
-                            type="date"
-                            value={m.mfgDate}
-                            onChange={(e) => handleGrnItemChange(m.id, 'mfgDate', e.target.value)}
-                            className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-900 focus:outline-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
-                            Expiry Date
-                          </label>
-                          <input
-                            type="date"
-                            value={m.expiryDate}
-                            onChange={(e) => handleGrnItemChange(m.id, 'expiryDate', e.target.value)}
-                            className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-900 focus:outline-none"
-                          />
                         </div>
                       </div>
                     </div>
