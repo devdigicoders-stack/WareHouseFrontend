@@ -269,19 +269,37 @@ export default function PutAwayCheckIn() {
 
   // Helper to find the next available empty bin in any shade
   const findNextAvailableBin = (shadeCode) => {
-    const cleanShade = shadeCode ? shadeCode.split(' ')[0] : 'SH01'
-    const matchingRacks = racksList.filter((r) => r.shadeCode === cleanShade || r.shadeId === cleanShade)
+    const cleanShade = shadeCode ? shadeCode.split(' ')[0] : 'SH-01'
+    const sMatch = cleanShade.match(/SH[-_]?0?(\d+)/i)
+    const sNum = sMatch ? parseInt(sMatch[1]) : 1
+
+    const matchingRacks = racksList.filter((r) => {
+      const rSMatch = (r.shadeCode || '').match(/SH[-_]?0?(\d+)/i)
+      return (
+        (rSMatch && parseInt(rSMatch[1]) === sNum) ||
+        r.shadeCode === cleanShade ||
+        r.shadeId === cleanShade
+      )
+    })
 
     if (matchingRacks.length > 0) {
       for (const rack of matchingRacks) {
         if (rack.cells && Array.isArray(rack.cells)) {
           for (const cell of rack.cells) {
-            if (cell.status === 'Empty' && !occupiedLocationCodes.has(cell.code)) {
+            const cellCode = cell.code || `${rack.shadeCode}-${rack.rackNumber}-R${cell.row}-C${cell.col}`
+            const legacyCode = `${cleanShade}-${cell.row < 10 ? `R0${cell.row}` : `R${cell.row}`}-${cell.col < 10 ? `C0${cell.col}` : `C${cell.col}`}`
+            if (
+              cell.status === 'Empty' &&
+              !occupiedLocationCodes.has(cellCode) &&
+              !occupiedLocationCodes.has(legacyCode) &&
+              (!cell.currentStock || Number(cell.currentStock) === 0)
+            ) {
               return {
-                shade: cleanShade,
+                shade: rack.shadeCode || cleanShade,
+                rackNumber: rack.rackNumber,
                 row: cell.row < 10 ? `R0${cell.row}` : `R${cell.row}`,
                 col: cell.col < 10 ? `C0${cell.col}` : `C${cell.col}`,
-                code: `${cleanShade}-${cell.row < 10 ? `R0${cell.row}` : `R${cell.row}`}-${cell.col < 10 ? `C0${cell.col}` : `C${cell.col}`}`,
+                code: cellCode,
                 found: true,
               }
             }

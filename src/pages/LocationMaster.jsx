@@ -189,22 +189,28 @@ export default function LocationMaster() {
             currentStock = Number(existingCell.currentStock) || 1
           }
 
-          // Also check GRN allocations matching cell code or (shade, row, col)
+          // Also check GRN allocations matching cell code or (shade, rack, row, col)
           const matchingGrn = allocatedFromGrn.find((a) => {
             if (!a.location) return false
-            if (a.location === cellCode || a.location.toLowerCase() === defaultCode.toLowerCase()) return true
-            
+            if (a.location.toUpperCase() === cellCode.toUpperCase() || a.location.toUpperCase() === defaultCode.toUpperCase()) return true
+
             const sMatch = a.location.match(/SH[-_]?0?(\d+)/i)
+            const rkMatch = a.location.match(/RK[-_]?0?(\d+)/i)
             const rMatch = a.location.match(/R0?(\d+)/i)
             const cMatch = a.location.match(/C0?(\d+)/i)
+
             const rackSMatch = (rack.shadeCode || '').match(/SH[-_]?0?(\d+)/i)
+            const rackRKMatch = (rack.rackNumber || '').match(/RK[-_]?0?(\d+)/i)
 
             if (sMatch && rMatch && cMatch && rackSMatch) {
-              return (
-                parseInt(sMatch[1]) === parseInt(rackSMatch[1]) &&
-                parseInt(rMatch[1]) === r &&
-                parseInt(cMatch[1]) === c
-              )
+              const shadeMatch = parseInt(sMatch[1]) === parseInt(rackSMatch[1])
+              const rowMatch = parseInt(rMatch[1]) === r
+              const colMatch = parseInt(cMatch[1]) === c
+
+              if (rkMatch && rackRKMatch) {
+                return shadeMatch && parseInt(rkMatch[1]) === parseInt(rackRKMatch[1]) && rowMatch && colMatch
+              }
+              return shadeMatch && rowMatch && colMatch
             }
             return false
           })
