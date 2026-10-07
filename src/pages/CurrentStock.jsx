@@ -185,16 +185,14 @@ export default function CurrentStock() {
       .catch(() => {})
   }, [])
 
-  // Fetch Products from MongoDB (Only active inventory with actual stock)
+  // Fetch Products from MongoDB
   const fetchProducts = useCallback(() => {
     setLoading(true)
     fetch(`${API}/api/product`)
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data)) {
-          // Products only enter active warehouse stock once GRN has received inventory (> 0 stock)
-          const stockOnly = data.filter((p) => Number(p.currentStock) > 0)
-          const mapped = stockOnly.map((p, idx) => {
+          const mapped = data.map((p, idx) => {
             const normalizedShade = normalizeShade(p.shadeId || p.storageZone)
             const rowVal = p.row || 'R01'
             const colVal = p.col || 'C01'
