@@ -806,93 +806,108 @@ export default function LocationMaster() {
         </div>
       </div>
 
-      {/* Edit / Inspect Cell Modal */}
+      {/* Bin Details & Inspector Modal (Read-Only Automated View) */}
       {showEditCellModal && selectedCell && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4">
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
                   <MapPin className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-slate-800">Bin Cell Inspector</h3>
-                  <p className="font-mono font-bold text-xs text-indigo-600">{cellFormData.cellCode}</p>
+                  <h3 className="font-bold text-sm text-slate-800">Bin Location Details</h3>
+                  <p className="font-mono font-bold text-xs text-indigo-600">{selectedCell.code}</p>
                 </div>
               </div>
-              <button type="button" onClick={() => setShowEditCellModal(false)} className="text-slate-400 hover:text-slate-700">
+              <button
+                type="button"
+                onClick={() => setShowEditCellModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCell} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Cell Status</label>
-                <CustomSelect
-                  value={cellFormData.status}
-                  onChange={(v) => setCellFormData({ ...cellFormData, status: v })}
-                  options={[
-                    { value: 'Empty', label: 'Empty (Available for Put-Away)' },
-                    { value: 'Occupied', label: 'Occupied (Stock Present)' },
-                    { value: 'Full', label: 'Full (Max Capacity)' },
-                    { value: 'Blocked', label: 'Blocked (Maintenance / Quarantine)' },
-                    { value: 'Reserved', label: 'Reserved' },
-                  ]}
-                  zIndexClass="z-50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Mapped Product Name</label>
-                <input
-                  type="text"
-                  value={cellFormData.productName}
-                  onChange={(e) => setCellFormData({ ...cellFormData, productName: e.target.value })}
-                  placeholder="e.g. Basmati Rice 25kg"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            {/* Content Info Cards */}
+            <div className="space-y-3 text-xs">
+              {/* Facility & Grid Info */}
+              <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200/80">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Batch Number</label>
-                  <input
-                    type="text"
-                    value={cellFormData.batchNo}
-                    onChange={(e) => setCellFormData({ ...cellFormData, batchNo: e.target.value })}
-                    placeholder="e.g. BT-2026-001"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-                  />
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Facility / Shade</span>
+                  <strong className="text-slate-800 text-[11px] truncate block">{selectedCell.shadeName || selectedCell.shadeCode}</strong>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Current Stock Quantity</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={cellFormData.currentStock}
-                    onChange={(e) => setCellFormData({ ...cellFormData, currentStock: parseInt(e.target.value) || 0 })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-                  />
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Rack &amp; Position</span>
+                  <span className="font-mono font-semibold text-slate-800 text-[11px]">
+                    {selectedCell.rackNumber} • Row {selectedCell.row}, Shelf {selectedCell.col}
+                  </span>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowEditCellModal(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingCell}
-                  className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-5 py-2 rounded-xl text-xs font-bold transition shadow-xs"
-                >
-                  {savingCell ? 'Saving...' : 'Update Mongo Cell'}
-                </button>
-              </div>
-            </form>
+              {/* Status & Inventory Data */}
+              {selectedCell.status === 'Occupied' || selectedCell.status === 'Full' || Number(selectedCell.currentStock) > 0 ? (
+                <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                      Occupied (Stock Present)
+                    </span>
+                    <span className="text-[11px] font-mono font-bold text-emerald-800">
+                      Qty: {selectedCell.currentStock || 0}
+                    </span>
+                  </div>
+
+                  <div className="pt-1 space-y-1.5 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Product:</span>
+                      <strong className="text-slate-900 text-right truncate max-w-[200px]">{selectedCell.productName}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Batch Number:</span>
+                      <strong className="font-mono text-slate-800">{selectedCell.batchNo || 'N/A'}</strong>
+                    </div>
+                  </div>
+
+                  <div className="text-[10px] text-emerald-700 font-medium pt-1.5 border-t border-emerald-200/60 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Allocated &amp; managed automatically via Check-In / Movement</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center space-y-1.5">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+                    Empty Bin
+                  </span>
+                  <p className="text-[11px] text-slate-500">
+                    This bin is currently empty and available for incoming Check-In allocations or intra-depot transfers.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowEditCellModal(false)}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditCellModal(false)
+                  handleOpenQrModal(selectedCell)
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+              >
+                <QrCode className="w-4 h-4" />
+                <span>Print Bin QR Tag</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
