@@ -140,20 +140,13 @@ export default function LabelGeneration() {
   const [includeLogo, setIncludeLogo] = useState(true)
   const [includeExpiryDate, setIncludeExpiryDate] = useState(true)
 
-  // Button loading states (One-time click with rolling animation)
+  // Button loading states
   const [isPrintingSingle, setIsPrintingSingle] = useState(false)
-  const [isPrintingSheet, setIsPrintingSheet] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
 
   // Real Scannable QR and Barcode states
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('')
   const barcodeSvgRef = useRef(null)
-
-  // Printer Settings & Sheet Modal
-  const [showPrinterSettings, setShowPrinterSettings] = useState(false)
-  const [showSheetModal, setShowSheetModal] = useState(false)
-  const [sheetPrintMode, setSheetPrintMode] = useState('single') // 'single' (repeats current item) or 'all_grn' (all items from selected GRN)
-  const [printerModel, setPrinterModel] = useState('Zebra ZT411 Industrial (Warehouse Dock)')
 
   // Search & Filter for History Table
   const [recentLabels, setRecentLabels] = useState([])
@@ -593,34 +586,6 @@ export default function LabelGeneration() {
     ]
   }, [shades])
 
-  // Compute all sticker items for the multi-sheet modal
-  const sheetItems = useMemo(() => {
-    if (sheetPrintMode === 'all_grn' && selectedGrnObject && selectedGrnObject.materials?.length > 0) {
-      return selectedGrnObject.materials.map((mat, i) => ({
-        index: i + 1,
-        name: mat.productName || mat.sku,
-        sku: mat.sku,
-        qty: mat.packageQty || 1,
-        unit: mat.outerPackaging || 'Bags',
-        mfg: mat.mfgDate || mfgDate,
-        exp: mat.expiryDate || expDate,
-        zone: selectedGrnObject.shade || storageLocation,
-      }))
-    }
-    // Default: repeated stickers for currently selected single item
-    const count = Math.min(24, Math.max(1, Number(quantity) || 6))
-    return Array.from({ length: count }).map((_, i) => ({
-      index: i + 1,
-      name: activeProduct.name,
-      sku: activeProduct.sku,
-      qty: quantity,
-      unit: activeProduct.outerPackaging || 'Units',
-      mfg: mfgDate,
-      exp: expDate,
-      zone: storageLocation,
-    }))
-  }, [sheetPrintMode, selectedGrnObject, activeProduct, quantity, mfgDate, expDate, storageLocation])
-
   return (
     <div className="space-y-5 pb-12 select-none">
       {/* Toast Notification */}
@@ -643,28 +608,6 @@ export default function LabelGeneration() {
               100% Real, Scannable GS1 Barcodes &amp; 2D QR Code Stickers for WMS Location Allocation &amp; Put-Away
             </p>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => {
-              setSheetPrintMode('single')
-              setShowSheetModal(true)
-            }}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Print Sticker Sheet (A4 / Roll)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowPrinterSettings(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer"
-          >
-            <Settings className="w-3.5 h-3.5 text-slate-500" />
-            <span>Printer Setup</span>
-          </button>
         </div>
       </div>
 
@@ -1300,22 +1243,10 @@ export default function LabelGeneration() {
 
             <button
               type="button"
-              onClick={() => {
-                setSheetPrintMode('single')
-                setShowSheetModal(true)
-              }}
-              className="w-full sm:w-auto px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-semibold border border-indigo-200 transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Multi Sheet Preview</span>
-            </button>
-
-            <button
-              type="button"
               disabled={isDownloading}
               onClick={handleDownloadImage}
               title="Download High-Res QR Code PNG"
-              className={`w-full sm:w-auto px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+              className={`w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
                 isDownloading ? 'opacity-80 cursor-not-allowed' : ''
               }`}
             >
@@ -1324,7 +1255,7 @@ export default function LabelGeneration() {
               ) : (
                 <Download className="w-3.5 h-3.5" />
               )}
-              <span>PNG</span>
+              <span>Download PNG</span>
             </button>
           </div>
 
@@ -1417,164 +1348,6 @@ export default function LabelGeneration() {
           </div>
         </div>
       </div>
-
-      {/* Multi-Sticker Sheet Modal with Genuine Scannable QR Codes */}
-      {showSheetModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90dvh] overflow-y-auto p-5 space-y-4 border border-slate-200">
-            <div className="flex items-center justify-between border-b pb-3 border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <FileSpreadsheet className="w-5 h-5 text-indigo-600" />
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    {sheetPrintMode === 'all_grn' ? `All Items Sheet — ${selectedGrnNo}` : `Multi-Sticker Sheet (A4 / Grid)`}
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    {sheetPrintMode === 'all_grn'
-                      ? `Print stickers for all ${sheetItems.length} items received in this GRN consignment`
-                      : `Each sticker contains high-contrast scannable QR code & product details`}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowSheetModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div id="printable-sticker-sheet-area" className="printable-area grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-              {sheetItems.map((item, i) => (
-                <div key={i} className="bg-white border-2 border-slate-800 rounded-lg p-2.5 text-[10px] space-y-1">
-                  <div className="flex items-center justify-between border-b pb-1 border-slate-300">
-                    <span className="font-extrabold text-slate-900 text-[10px] truncate">{item.name}</span>
-                    <span className="text-[9px] font-mono font-bold bg-slate-100 px-1 py-0.5 rounded border border-slate-200">{item.sku}</span>
-                  </div>
-                  <div className="flex justify-between font-mono font-bold text-indigo-700 text-[9px]">
-                    <span>Mfg: {item.mfg}</span>
-                    <span className="text-rose-700">Exp: {item.exp}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600 text-[9px]">
-                    <span>Qty: {item.qty} {item.unit}</span>
-                    <span className="font-medium text-emerald-700">{item.zone}</span>
-                  </div>
-                  <div className="pt-1 flex items-center justify-between gap-1">
-                    {qrCodeDataUrl ? (
-                      <img src={qrCodeDataUrl} alt="QR Code" className="w-9 h-9 object-contain bg-white border border-slate-300 rounded p-0.5" />
-                    ) : (
-                      <div className="w-9 h-9 bg-slate-900 rounded p-0.5 flex items-center justify-center">
-                        <QrCode className="w-full h-full text-white" />
-                      </div>
-                    )}
-                    <div className="flex-1 text-right font-mono text-[8px] font-bold text-slate-800">
-                      Tag #{item.index} of {sheetItems.length}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setShowSheetModal(false)}
-                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                disabled={isPrintingSheet}
-                onClick={async () => {
-                  if (isPrintingSheet) return
-                  setIsPrintingSheet(true)
-                  handleQueuePrint()
-                  try {
-                    await printSpecificElement('#printable-sticker-sheet-area', `Sticker Sheet - ${selectedGrnNo || activeProduct.sku}`)
-                    triggerToast(`Sent sticker sheet to printer!`)
-                  } catch {
-                    triggerToast('Printing initiated.')
-                  } finally {
-                    setTimeout(() => setIsPrintingSheet(false), 1200)
-                  }
-                }}
-                className={`px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                  isPrintingSheet ? 'opacity-80 cursor-not-allowed' : ''
-                }`}
-              >
-                {isPrintingSheet ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                    <span>Printing Sheet...</span>
-                  </>
-                ) : (
-                  <>
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>Print Entire Sheet ({sheetItems.length} Stickers)</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Printer Settings Modal */}
-      {showPrinterSettings && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4 border border-slate-200">
-            <div className="flex items-center justify-between border-b pb-3 border-slate-100">
-              <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-indigo-600" />
-                <h3 className="text-sm font-bold text-slate-900">Thermal Barcode Printer Setup</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPrinterSettings(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Assigned Printer Model</label>
-                <select
-                  value={printerModel}
-                  onChange={(e) => setPrinterModel(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                >
-                  <option value="Zebra ZT411 Industrial (Warehouse Dock)">Zebra ZT411 Industrial (Inward Dock Thermal)</option>
-                  <option value="TSC TE200 Desktop (Supervisor Desk)">TSC TE200 Desktop (Supervisor USB)</option>
-                  <option value="TVS LP 46 Neo Thermal">TVS LP 46 Neo (Direct Thermal)</option>
-                  <option value="A4 Standard Laser Printer (Sticker Sheet)">A4 Standard Laser/Inkjet Printer (Grid Sheet)</option>
-                </select>
-              </div>
-
-              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Printer driver online &amp; calibrated for direct thermal peel-off rolls.</span>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPrinterSettings(false)
-                  triggerToast('Printer preferences saved!')
-                }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
-              >
-                Save Setup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
