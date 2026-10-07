@@ -39,6 +39,7 @@ export const allocateCell = (data) => apiRequest('/rack/allocate-cell', { method
 // 4. Gate Inward & Pass
 export const fetchGateEntries = () => apiRequest('/gate-entry')
 export const createGateEntry = (data) => apiRequest('/gate-entry', { method: 'POST', body: JSON.stringify(data) })
+export const updateGateEntryStatus = (id, data) => apiRequest(`/gate-entry/${id}/status`, { method: 'PATCH', body: JSON.stringify(typeof data === 'string' ? { status: data } : data) })
 export const markGateOut = (id) => apiRequest(`/gate-entry/${id}/gate-out`, { method: 'PATCH' })
 
 // 5. Inward GRN

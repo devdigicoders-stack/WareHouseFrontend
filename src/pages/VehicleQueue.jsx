@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import {
   Truck,
   Clock,
@@ -12,7 +12,17 @@ import {
   Zap,
   CheckCircle2,
   ChevronDown,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react'
+import {
+  fetchGateEntries,
+  createGateEntry,
+  updateGateEntryStatus,
+  fetchGatePasses,
+  updateGatePassStatus,
+  fetchShades,
+} from '../services/api'
 
 // Options for Add Vehicle Modal Dropdowns
 const VEHICLE_TYPE_OPTIONS = [
@@ -23,11 +33,11 @@ const VEHICLE_TYPE_OPTIONS = [
 ]
 
 const PURPOSE_OPTIONS = [
-  { value: 'Material Inward', label: 'Material Inward (GRN)' },
+  { value: 'Goods Delivery (GRN Inward)', label: 'Material Inward (GRN Inward)' },
   { value: 'Dispatch', label: 'Dispatch (Outward Delivery)' },
 ]
 
-const BAY_OPTIONS = [
+const DEFAULT_BAY_OPTIONS = [
   { value: 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)', label: 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)' },
   { value: 'Bay 2 (Shade 2: Edible Oils & Liquids - SH-02)', label: 'Bay 2 (Shade 2: Edible Oils & Liquids - SH-02)' },
   { value: 'Bay 3 (Shade 3: FMCG & Packaged Foods - SH-03)', label: 'Bay 3 (Shade 3: FMCG & Packaged Foods - SH-03)' },
@@ -38,7 +48,7 @@ const BAY_OPTIONS = [
   { value: 'Dock 2 (Dispatch Outward)', label: 'Dock 2 (Dispatch Outward)' },
 ]
 
-// Pure React Custom Select to completely eliminate OS native dropdown black-frame flicker
+// Pure React Custom Select to eliminate OS native dropdown flicker
 function CustomSelect({ label, value, onChange, options, required, zIndexClass = 'z-20' }) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef(null)
@@ -108,14 +118,48 @@ function CustomSelect({ label, value, onChange, options, required, zIndexClass =
   )
 }
 
+// Helpers for wait time calculation
+function getWaitInfo(inTime) {
+  if (!inTime) return { waitText: 'Just Arrived', waitMins: 0, isDelayed: false }
+  const diffMs = Math.max(0, Date.now() - new Date(inTime).getTime())
+  const diffMins = Math.floor(diffMs / (1000 * 60))
+  let waitText = 'Just Arrived'
+  if (diffMins >= 60) {
+    const hours = Math.floor(diffMins / 60)
+    const mins = diffMins % 60
+    waitText = `${hours}h ${mins}m`
+  } else if (diffMins >= 1) {
+    waitText = `${diffMins}m`
+  }
+  return { waitText, waitMins: diffMins, isDelayed: diffMins >= 60 }
+}
+
+function isIncomingPurpose(purpose) {
+  const p = (purpose || '').toLowerCase()
+  return p.includes('inward') || p.includes('goods delivery') || p.includes('receiving') || p.includes('grn')
+}
+
+function isOutgoingPurpose(purpose) {
+  const p = (purpose || '').toLowerCase()
+  return (
+    p.includes('dispatch') ||
+    p.includes('outward') ||
+    p.includes('customer') ||
+    (p.includes('delivery') && !p.includes('inward') && !p.includes('grn'))
+  )
+}
+
 export default function VehicleQueue() {
   const [activeTab, setActiveTab] = useState('all') // 'all', 'in-queue', 'processing', 'delayed', 'incoming', 'outgoing'
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [openActionMenuId, setOpenActionMenuId] = useState(null)
   const [toastMessage, setToastMessage] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [bayOptions, setBayOptions] = useState(DEFAULT_BAY_OPTIONS)
 
-  // Real-time Queue Data (Commercial Warehouse Logistics)
+  // Real-time Queue Data from MongoDB Gate Entries & Passes
   const [vehicles, setVehicles] = useState([])
 
   // New Vehicle Form State
@@ -125,25 +169,171 @@ export default function VehicleQueue() {
     driverName: '',
     driverPhone: '',
     supplier: '',
-    purpose: 'Material Inward',
+    challanNo: '',
+    purpose: 'Goods Delivery (GRN Inward)',
     bay: 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)',
   })
 
   // Toast trigger
   const triggerToast = (msg) => {
     setToastMessage(msg)
-    setTimeout(() => setToastMessage(null), 3500)
+    setTimeout(() => setToastMessage(null), 4000)
   }
 
-  // Filtered vehicles calculated from state
+  // Load backend shades for bay options
+  useEffect(() => {
+    fetchShades()
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const dynamicBays = data.map((s, idx) => ({
+            value: `Bay ${idx + 1} (${s.name} - ${s.code})`,
+            label: `Bay ${idx + 1} (${s.name} - ${s.code})`,
+          }))
+          dynamicBays.push({ value: 'Dock 1 (Dispatch Outward)', label: 'Dock 1 (Dispatch Outward)' })
+          dynamicBays.push({ value: 'Dock 2 (Dispatch Outward)', label: 'Dock 2 (Dispatch Outward)' })
+          setBayOptions(dynamicBays)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // Load and sync real-time queue data from MongoDB
+  const loadQueueData = useCallback(async (silent = false) => {
+    if (!silent) setRefreshing(true)
+    try {
+      const [gateRes, passRes] = await Promise.allSettled([
+        fetchGateEntries(),
+        fetchGatePasses(),
+      ])
+
+      const combined = []
+      const registeredVehicles = new Set()
+
+      // 1. Process Gate Entries (Primary gate security registry)
+      if (gateRes.status === 'fulfilled' && Array.isArray(gateRes.value)) {
+        gateRes.value.forEach((g) => {
+          const isCleared = g.status === 'Gate Out / Cleared' || g.status === 'Completed'
+          const wait = getWaitInfo(g.inTime || g.createdAt)
+
+          let displayStatus = 'In Queue'
+          if (isCleared) {
+            displayStatus = 'Completed'
+          } else if (g.status === 'Unloading at Bay' || g.status === 'GRN In Process' || g.status === 'Processing') {
+            displayStatus = 'Processing'
+          } else if (g.status === 'Delayed' || wait.isDelayed) {
+            displayStatus = 'Delayed'
+          } else {
+            displayStatus = 'In Queue'
+          }
+
+          const vehUpper = (g.vehicleNumber || '').trim().toUpperCase()
+          if (!isCleared) registeredVehicles.add(vehUpper)
+
+          combined.push({
+            id: g._id,
+            rawId: g._id,
+            source: 'gate-entry',
+            tokenNo: g.passNumber || `GE-${g._id.slice(-4).toUpperCase()}`,
+            vehicleNo: vehUpper || 'UNKNOWN',
+            type: g.vehicleType || 'Heavy Commercial Truck',
+            driverName: g.driverName || 'Driver',
+            driverPhone: g.driverContact || '—',
+            supplier: g.supplier || 'Direct Consignment',
+            purpose: g.purpose || 'Goods Delivery (GRN Inward)',
+            bay: g.assignedBay || 'Bay 1 (SH-01)',
+            inTime: g.inTime || g.createdAt,
+            arrivedAt: g.inTime
+              ? new Date(g.inTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+              : '—',
+            waitingTime: wait.waitText,
+            waitMins: wait.waitMins,
+            isDelayed: wait.isDelayed,
+            isInside: !isCleared,
+            isIncoming: isIncomingPurpose(g.purpose),
+            isOutgoing: isOutgoingPurpose(g.purpose),
+            status: displayStatus,
+          })
+        })
+      }
+
+      // 2. Process Active Outward Gate Passes (if not already represented in gate entries)
+      if (passRes.status === 'fulfilled' && Array.isArray(passRes.value)) {
+        passRes.value.forEach((gp) => {
+          const vehUpper = (gp.vehicleNo || '').trim().toUpperCase()
+          const isDeparted = gp.status === 'Departed' || gp.status === 'Gate Out / Cleared'
+          if (!isDeparted && !registeredVehicles.has(vehUpper)) {
+            const wait = getWaitInfo(gp.dateTime || gp.createdAt)
+            let displayStatus = 'Processing'
+            if (gp.status === 'Pending') displayStatus = 'In Queue'
+            else if (gp.status === 'Approved') displayStatus = 'Processing'
+            else if (wait.isDelayed) displayStatus = 'Delayed'
+
+            combined.push({
+              id: gp._id,
+              rawId: gp._id,
+              source: 'gate-pass',
+              tokenNo: gp.passNo || `GP-${gp._id.slice(-4).toUpperCase()}`,
+              vehicleNo: vehUpper,
+              type: gp.vehicleType || 'Heavy Commercial Truck',
+              driverName: gp.driverName || 'Driver',
+              driverPhone: gp.driverContact || gp.driverLicense || '—',
+              supplier: gp.receiverName || 'Direct Consignee',
+              purpose: 'Dispatch',
+              bay: gp.location || (gp.shadeId ? `Dock 1 (${gp.shadeId})` : 'Dock 1 (Dispatch Outward)'),
+              inTime: gp.dateTime || gp.createdAt,
+              arrivedAt: gp.dateTime
+                ? new Date(gp.dateTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+                : '—',
+              waitingTime: wait.waitText,
+              waitMins: wait.waitMins,
+              isDelayed: wait.isDelayed,
+              isInside: true,
+              isIncoming: false,
+              isOutgoing: true,
+              status: displayStatus,
+            })
+          }
+        })
+      }
+
+      setVehicles(combined)
+    } catch {
+      triggerToast('Unable to refresh vehicle queue data from server')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [])
+
+  // Auto-refresh interval (15 seconds) & window focus
+  useEffect(() => {
+    loadQueueData(false)
+    const interval = setInterval(() => {
+      loadQueueData(true)
+    }, 15000)
+
+    const handleFocus = () => loadQueueData(true)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [loadQueueData])
+
+  // Filtered vehicles calculated from active vehicles currently in-site
+  const activeInsideVehicles = useMemo(() => {
+    return vehicles.filter((v) => v.isInside)
+  }, [vehicles])
+
   const filteredVehicles = useMemo(() => {
-    return vehicles.filter((item) => {
+    return activeInsideVehicles.filter((item) => {
       // Tab filter
       if (activeTab === 'in-queue' && item.status !== 'In Queue') return false
       if (activeTab === 'processing' && item.status !== 'Processing') return false
-      if (activeTab === 'delayed' && item.status !== 'Delayed') return false
-      if (activeTab === 'incoming' && item.purpose !== 'Material Inward') return false
-      if (activeTab === 'outgoing' && item.purpose !== 'Dispatch') return false
+      if (activeTab === 'delayed' && item.status !== 'Delayed' && !item.isDelayed) return false
+      if (activeTab === 'incoming' && !item.isIncoming) return false
+      if (activeTab === 'outgoing' && !item.isOutgoing) return false
 
       // Search query filter
       if (searchQuery.trim()) {
@@ -158,62 +348,110 @@ export default function VehicleQueue() {
       }
       return true
     })
-  }, [vehicles, activeTab, searchQuery])
+  }, [activeInsideVehicles, activeTab, searchQuery])
 
-  // Add Vehicle handler
-  const handleAddVehicle = (e) => {
+  // Add Vehicle handler (Persists to MongoDB GateEntry)
+  const handleAddVehicle = async (e) => {
     e.preventDefault()
     if (!newVehicle.vehicleNo.trim() || !newVehicle.driverName.trim()) {
       triggerToast('Vehicle Number and Driver Name are required!')
       return
     }
 
-    const nextTokenNum = vehicles.length + 1
-    const tokenStr = `TKN-${String(nextTokenNum).padStart(3, '0')}`
-
-    const newItem = {
-      id: Date.now(),
-      tokenNo: tokenStr,
-      vehicleNo: newVehicle.vehicleNo.trim().toUpperCase(),
-      type: newVehicle.type,
-      driverName: newVehicle.driverName.trim(),
-      driverPhone: newVehicle.driverPhone.trim() || '—',
-      supplier: newVehicle.supplier.trim() || 'Direct Consignment',
-      purpose: newVehicle.purpose,
-      bay: newVehicle.bay,
-      arrivedAt: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
-      waitingTime: 'Just Arrived',
-      status: 'In Queue',
+    const cleanPhone = (newVehicle.driverPhone || '').replace(/\D/g, '')
+    if (cleanPhone.length > 0 && cleanPhone.length !== 10) {
+      triggerToast('Driver phone number must be exactly 10 digits!')
+      return
     }
 
-    setVehicles([newItem, ...vehicles])
-    setShowAddModal(false)
-    setNewVehicle({
-      vehicleNo: '',
-      type: 'Heavy Commercial Truck',
-      driverName: '',
-      driverPhone: '',
-      supplier: '',
-      purpose: 'Material Inward',
-      bay: 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)',
-    })
-    triggerToast(`Vehicle ${newItem.vehicleNo} added with Token ${tokenStr}`)
+    const payload = {
+      vehicleNumber: newVehicle.vehicleNo.trim().toUpperCase(),
+      vehicleType: newVehicle.type,
+      driverName: newVehicle.driverName.trim(),
+      driverContact: cleanPhone || '9876543210',
+      supplier: newVehicle.supplier.trim() || 'Direct Consignment',
+      challanNo: newVehicle.challanNo.trim() || `CH-Q-${Date.now().toString().slice(-6)}`,
+      poNumber: `PO-${Date.now().toString().slice(-6)}`,
+      purpose: newVehicle.purpose,
+      assignedBay: newVehicle.bay,
+      status: 'Waiting at Gate',
+      remarks: 'Added directly via Vehicle Queue Terminal',
+      officerRemark: 'Terminal Queue Check-in',
+      materialItems: [],
+    }
+
+    try {
+      const created = await createGateEntry(payload)
+      setShowAddModal(false)
+      setNewVehicle({
+        vehicleNo: '',
+        type: 'Heavy Commercial Truck',
+        driverName: '',
+        driverPhone: '',
+        supplier: '',
+        challanNo: '',
+        purpose: 'Goods Delivery (GRN Inward)',
+        bay: 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)',
+      })
+      triggerToast(`Vehicle ${created.vehicleNumber} checked in with Pass/Token ${created.passNumber}!`)
+      loadQueueData(false)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to add vehicle to queue')
+    }
   }
 
-  // Action status update
-  const handleStatusUpdate = (id, newStatus) => {
-    setVehicles(
-      vehicles.map((v) => (v.id === id ? { ...v, status: newStatus } : v))
-    )
-    setOpenActionMenuId(null)
-    triggerToast(`Vehicle status updated to ${newStatus}`)
+  // Action status update (Saves to MongoDB)
+  const handleStatusUpdate = async (item, newStatus) => {
+    try {
+      if (item.source === 'gate-entry') {
+        let dbStatus = 'Waiting at Gate'
+        if (newStatus === 'Processing') dbStatus = 'Unloading at Bay'
+        else if (newStatus === 'Completed') dbStatus = 'Gate Out / Cleared'
+        else if (newStatus === 'Delayed') dbStatus = 'Delayed'
+        else dbStatus = 'Waiting at Gate'
+
+        await updateGateEntryStatus(item.rawId, { status: dbStatus })
+      } else if (item.source === 'gate-pass') {
+        let dbPassStatus = 'Pending'
+        if (newStatus === 'Processing') dbPassStatus = 'Approved'
+        else if (newStatus === 'Completed') dbPassStatus = 'Gate Out / Cleared'
+        else dbPassStatus = 'Pending'
+
+        await updateGatePassStatus(item.rawId, dbPassStatus, 'Status updated from Vehicle Queue')
+      }
+
+      setOpenActionMenuId(null)
+      triggerToast(`Vehicle ${item.vehicleNo} marked as ${newStatus}`)
+      loadQueueData(true)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to update vehicle status')
+    }
   }
 
-  // Call Next Vehicle
+  // Voice announcement helper
+  const announceVehicle = (vehicleNo, tokenNo, bay) => {
+    const textMsg = `📢 Calling Vehicle ${vehicleNo} (${tokenNo}) to ${bay}!`
+    triggerToast(textMsg)
+
+    if ('speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel()
+        const voiceText = `Attention please. Vehicle ${vehicleNo}, Token ${tokenNo}, please proceed immediately to ${bay.split('(')[0]}.`
+        const utterance = new SpeechSynthesisUtterance(voiceText)
+        utterance.rate = 0.95
+        utterance.pitch = 1.0
+        window.speechSynthesis.speak(utterance)
+      } catch {
+        // Fallback gracefully to visual toast
+      }
+    }
+  }
+
+  // Call Next Vehicle in line
   const handleCallNext = () => {
-    const nextVeh = vehicles.find((v) => v.status === 'In Queue')
+    const nextVeh = activeInsideVehicles.find((v) => v.status === 'In Queue')
     if (nextVeh) {
-      triggerToast(`📢 Calling Vehicle ${nextVeh.vehicleNo} (${nextVeh.tokenNo}) to ${nextVeh.bay}!`)
+      announceVehicle(nextVeh.vehicleNo, nextVeh.tokenNo, nextVeh.bay)
     } else {
       triggerToast('No vehicles currently waiting in queue.')
     }
@@ -234,14 +472,14 @@ export default function VehicleQueue() {
       'Waiting Time',
       'Status',
     ]
-    const rows = vehicles.map((v) => [
+    const rows = activeInsideVehicles.map((v) => [
       v.tokenNo,
       v.vehicleNo,
       v.type,
       `"${v.driverName}"`,
       v.driverPhone,
       `"${v.supplier}"`,
-      v.purpose,
+      `"${v.purpose}"`,
       `"${v.bay}"`,
       v.arrivedAt,
       v.waitingTime,
@@ -257,7 +495,7 @@ export default function VehicleQueue() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    triggerToast('Vehicle queue exported to CSV successfully.')
+    triggerToast('Active vehicle queue exported to CSV successfully.')
   }
 
   // Status Badge Styling
@@ -278,10 +516,10 @@ export default function VehicleQueue() {
 
   // Waiting Time Color Coding
   const getWaitingTimeClass = (time) => {
-    if (time.includes('2h') || (time.includes('1h') && !time.includes('0m'))) {
+    if (time.includes('h')) {
       return 'text-rose-600 font-bold'
     }
-    if (time.includes('1h') || time.includes('4') || time.includes('5')) {
+    if (time.includes('3') || time.includes('4') || time.includes('5')) {
       return 'text-amber-700 font-semibold'
     }
     return 'text-emerald-700 font-semibold'
@@ -299,7 +537,7 @@ export default function VehicleQueue() {
         </div>
       )}
 
-      {/* 1. Header Banner - Clean, Modern & Professional */}
+      {/* 1. Header Banner */}
       <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs mt-0.5">
@@ -307,15 +545,21 @@ export default function VehicleQueue() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                ● Live Terminal Queue Active
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Live Terminal Queue Active
               </span>
+              {refreshing && (
+                <span className="text-xs font-medium text-slate-400 flex items-center gap-1">
+                  <RefreshCw className="w-3 h-3 animate-spin" /> Syncing...
+                </span>
+              )}
             </div>
             <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 leading-tight">
               Vehicle Queue Management
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 leading-relaxed">
-              Real-time monitoring of vehicle arrival, queue tokens, bay loading, and dispatch turnaround
+              Real-time monitoring of vehicles inside warehouse premises, token queue, dock bays, and gate turnaround
             </p>
           </div>
         </div>
@@ -329,6 +573,15 @@ export default function VehicleQueue() {
           >
             <Megaphone className="w-4 h-4 text-indigo-600 shrink-0" />
             <span>Call Next Vehicle</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => loadQueueData(false)}
+            className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer shadow-2xs"
+            title="Refresh Queue"
+          >
+            <RefreshCw className={`w-4 h-4 text-slate-600 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
 
           <button
@@ -351,9 +604,9 @@ export default function VehicleQueue() {
         </div>
       </div>
 
-      {/* 2. Dynamic KPI Stat Cards (Interactive Fleet Indicators) */}
+      {/* 2. Dynamic KPI Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
-        {/* Card 1: Total in Queue */}
+        {/* Card 1: Total Active in Terminal */}
         <button
           type="button"
           onClick={() => setActiveTab('all')}
@@ -368,18 +621,18 @@ export default function VehicleQueue() {
               <Truck className="w-4.5 h-4.5" />
             </div>
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60 truncate">
-              Registry
+              In-Site
             </span>
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-none">
-              {vehicles.length}
+              {activeInsideVehicles.length}
             </div>
             <div className="text-xs font-bold text-slate-800 mt-2 truncate">
               Total Active
             </div>
             <div className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
-              Vehicles in Terminal
+              Vehicles Inside Premises
             </div>
           </div>
         </button>
@@ -404,7 +657,7 @@ export default function VehicleQueue() {
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-black text-amber-600 tracking-tight leading-none">
-              {vehicles.filter((v) => v.status === 'In Queue').length}
+              {activeInsideVehicles.filter((v) => v.status === 'In Queue').length}
             </div>
             <div className="text-xs font-bold text-slate-800 mt-2 truncate">
               Waiting in Line
@@ -435,7 +688,7 @@ export default function VehicleQueue() {
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-black text-blue-600 tracking-tight leading-none">
-              {vehicles.filter((v) => v.status === 'Processing').length}
+              {activeInsideVehicles.filter((v) => v.status === 'Processing').length}
             </div>
             <div className="text-xs font-bold text-slate-800 mt-2 truncate">
               At Bay / Dock
@@ -466,7 +719,7 @@ export default function VehicleQueue() {
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-black text-emerald-600 tracking-tight leading-none">
-              {vehicles.filter((v) => v.purpose === 'Material Inward').length}
+              {activeInsideVehicles.filter((v) => v.isIncoming).length}
             </div>
             <div className="text-xs font-bold text-slate-800 mt-2 truncate">
               Inward Deliveries
@@ -497,7 +750,7 @@ export default function VehicleQueue() {
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-black text-rose-600 tracking-tight leading-none">
-              {vehicles.filter((v) => v.status === 'Delayed').length}
+              {activeInsideVehicles.filter((v) => v.status === 'Delayed' || v.isDelayed).length}
             </div>
             <div className="text-xs font-bold text-slate-800 mt-2 truncate">
               Delayed Vehicles
@@ -522,7 +775,7 @@ export default function VehicleQueue() {
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
-            All Vehicles ({vehicles.length})
+            All Active ({activeInsideVehicles.length})
           </button>
 
           <button
@@ -534,7 +787,7 @@ export default function VehicleQueue() {
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
-            In Queue ({vehicles.filter((v) => v.status === 'In Queue').length})
+            In Queue ({activeInsideVehicles.filter((v) => v.status === 'In Queue').length})
           </button>
 
           <button
@@ -546,7 +799,7 @@ export default function VehicleQueue() {
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
-            Processing ({vehicles.filter((v) => v.status === 'Processing').length})
+            Processing ({activeInsideVehicles.filter((v) => v.status === 'Processing').length})
           </button>
 
           <button
@@ -558,7 +811,7 @@ export default function VehicleQueue() {
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
-            Delayed ({vehicles.filter((v) => v.status === 'Delayed').length})
+            Delayed ({activeInsideVehicles.filter((v) => v.status === 'Delayed' || v.isDelayed).length})
           </button>
 
           <button
@@ -570,7 +823,7 @@ export default function VehicleQueue() {
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
-            Inward Deliveries ({vehicles.filter((v) => v.purpose === 'Material Inward').length})
+            Inward Deliveries ({activeInsideVehicles.filter((v) => v.isIncoming).length})
           </button>
 
           <button
@@ -582,7 +835,7 @@ export default function VehicleQueue() {
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
-            Dispatch Outward ({vehicles.filter((v) => v.purpose === 'Dispatch').length})
+            Dispatch Outward ({activeInsideVehicles.filter((v) => v.isOutgoing).length})
           </button>
         </div>
 
@@ -606,173 +859,193 @@ export default function VehicleQueue() {
             <h3 className="text-sm sm:text-base font-bold text-slate-900 flex flex-wrap items-center gap-2">
               <span>Active Vehicles &amp; Dock Turnaround Ledger</span>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 shrink-0">
-                {filteredVehicles.length} of {vehicles.length}
+                {filteredVehicles.length} of {activeInsideVehicles.length} Active
               </span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-              Sequence order based on token generation and priority bay allocation
+              Real-time sequence of registered vehicles currently inside warehouse terminal
             </p>
           </div>
 
-          <div className="text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg shrink-0 self-start sm:self-auto">
-            Auto-refresh active
+          <div className="flex items-center gap-2">
+            <div className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg shrink-0 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Auto-sync active (15s)
+            </div>
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-left text-sm min-w-[1050px]">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-bold">
-                <th className="py-3.5 px-3 w-10 text-center">#</th>
-                <th className="py-3.5 px-4 w-28">Token No.</th>
-                <th className="py-3.5 px-4 min-w-[150px]">Vehicle Reg.</th>
-                <th className="py-3.5 px-4 min-w-[170px]">Driver Details</th>
-                <th className="py-3.5 px-4 min-w-[180px]">Supplier / Party</th>
-                <th className="py-3.5 px-4 min-w-[140px]">Purpose</th>
-                <th className="py-3.5 px-4 min-w-[150px]">Assigned Bay</th>
-                <th className="py-3.5 px-4 w-28">Arrived</th>
-                <th className="py-3.5 px-4 w-32">Wait Time</th>
-                <th className="py-3.5 px-4 text-center w-28">Status</th>
-                <th className="py-3.5 px-5 text-right w-36">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {filteredVehicles.length === 0 ? (
-                <tr>
-                  <td colSpan="11" className="py-10 text-center text-slate-400 text-sm">
-                    No vehicles found matching current filter or search criteria.
-                  </td>
+        {loading ? (
+          <div className="py-16 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+            <p className="text-sm font-semibold text-slate-600">Loading terminal vehicles from database...</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left text-sm min-w-[1050px]">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-bold">
+                  <th className="py-3.5 px-3 w-10 text-center">#</th>
+                  <th className="py-3.5 px-4 w-28">Token / Pass</th>
+                  <th className="py-3.5 px-4 min-w-[150px]">Vehicle Reg.</th>
+                  <th className="py-3.5 px-4 min-w-[170px]">Driver Details</th>
+                  <th className="py-3.5 px-4 min-w-[180px]">Supplier / Party</th>
+                  <th className="py-3.5 px-4 min-w-[140px]">Purpose</th>
+                  <th className="py-3.5 px-4 min-w-[150px]">Assigned Bay</th>
+                  <th className="py-3.5 px-4 w-28">Arrived</th>
+                  <th className="py-3.5 px-4 w-32">Wait Time</th>
+                  <th className="py-3.5 px-4 text-center w-28">Status</th>
+                  <th className="py-3.5 px-5 text-right w-36">Action</th>
                 </tr>
-              ) : (
-                filteredVehicles.map((row, idx) => (
-                  <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-3 text-center text-slate-400 font-mono text-xs font-semibold">
-                      {idx + 1}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-indigo-700 whitespace-nowrap">
-                      {row.tokenNo}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="flex flex-col">
-                        <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 w-fit whitespace-nowrap shadow-2xs text-xs">
-                          {row.vehicleNo}
-                        </span>
-                        <span className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[160px]">
-                          {row.type}
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {filteredVehicles.length === 0 ? (
+                  <tr>
+                    <td colSpan="11" className="py-12 text-center text-slate-400 text-sm">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Truck className="w-10 h-10 text-slate-300 stroke-1" />
+                        <span className="font-semibold text-slate-600">No active vehicles currently inside matching criteria.</span>
+                        <span className="text-xs text-slate-400">
+                          Vehicles registered at Security Gate Entry will automatically appear here.
                         </span>
                       </div>
-                    </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <p className="font-bold text-slate-900">{row.driverName}</p>
-                      <p className="text-xs text-slate-500 font-mono">{row.driverPhone}</p>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-700">
-                      <p className="font-medium text-slate-900 truncate max-w-[180px]">{row.supplier}</p>
-                    </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span
-                        className={`text-xs font-semibold px-2 py-0.5 rounded-md border ${
-                          row.purpose === 'Material Inward'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-blue-50 text-blue-700 border-blue-200'
-                        }`}
-                      >
-                        {row.purpose}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-xs font-semibold text-slate-800 whitespace-nowrap">
-                      {row.bay}
-                    </td>
-                    <td className="py-3.5 px-4 text-xs text-slate-600 whitespace-nowrap">
-                      {row.arrivedAt}
-                    </td>
-                    <td className="py-3.5 px-4 text-xs whitespace-nowrap">
-                      <span className={getWaitingTimeClass(row.waitingTime)}>
-                        {row.waitingTime}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                      <span
-                        className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${getStatusBadge(
-                          row.status
-                        )}`}
-                      >
-                        {row.status}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-5 text-right relative whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            triggerToast(`📢 Calling ${row.vehicleNo} (${row.tokenNo}) to ${row.bay}!`)
-                          }}
-                          className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 transition cursor-pointer shadow-2xs"
-                          title="Call Vehicle to Dock"
-                        >
-                          <Megaphone className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setOpenActionMenuId(openActionMenuId === row.id ? null : row.id)
-                          }
-                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition cursor-pointer"
-                          title="Update Status"
-                        >
-                          Status ▾
-                        </button>
-                      </div>
-
-                      {/* Dropdown Menu */}
-                      {openActionMenuId === row.id && (
-                        <div className="absolute right-5 top-12 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-20 py-1 text-left text-xs font-medium">
-                          <button
-                            type="button"
-                            onClick={() => handleStatusUpdate(row.id, 'In Queue')}
-                            className="w-full px-3 py-2 hover:bg-amber-50 text-amber-800 flex items-center gap-2 cursor-pointer"
-                          >
-                            <Clock className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Mark In Queue</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleStatusUpdate(row.id, 'Processing')}
-                            className="w-full px-3 py-2 hover:bg-blue-50 text-blue-700 flex items-center gap-2 cursor-pointer"
-                          >
-                            <Zap className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Mark Processing (Bay)</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleStatusUpdate(row.id, 'Completed')}
-                            className="w-full px-3 py-2 hover:bg-emerald-50 text-emerald-700 flex items-center gap-2 cursor-pointer"
-                          >
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Mark Completed</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleStatusUpdate(row.id, 'Delayed')}
-                            className="w-full px-3 py-2 hover:bg-rose-50 text-rose-700 flex items-center gap-2 cursor-pointer"
-                          >
-                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                            <span>Mark Delayed</span>
-                          </button>
-                        </div>
-                      )}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  filteredVehicles.map((row, idx) => (
+                    <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3.5 px-3 text-center text-slate-400 font-mono text-xs font-semibold">
+                        {idx + 1}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-indigo-700 whitespace-nowrap">
+                        {row.tokenNo}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="flex flex-col">
+                          <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 w-fit whitespace-nowrap shadow-2xs text-xs">
+                            {row.vehicleNo}
+                          </span>
+                          <span className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[160px]">
+                            {row.type}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <p className="font-bold text-slate-900">{row.driverName}</p>
+                        <p className="text-xs text-slate-500 font-mono">{row.driverPhone}</p>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-700">
+                        <p className="font-medium text-slate-900 truncate max-w-[180px]">{row.supplier}</p>
+                      </td>
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span
+                          className={`text-xs font-semibold px-2 py-0.5 rounded-md border ${
+                            row.isIncoming
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-blue-50 text-blue-700 border-blue-200'
+                          }`}
+                        >
+                          {row.purpose}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-xs font-semibold text-slate-800 whitespace-nowrap">
+                        {row.bay}
+                      </td>
+                      <td className="py-3.5 px-4 text-xs text-slate-600 whitespace-nowrap font-medium">
+                        {row.arrivedAt}
+                      </td>
+                      <td className="py-3.5 px-4 text-xs whitespace-nowrap">
+                        <span className={getWaitingTimeClass(row.waitingTime)}>
+                          {row.waitingTime}
+                        </span>
+                        {row.isDelayed && (
+                          <span className="ml-1 text-[10px] bg-rose-100 text-rose-700 px-1 py-0.2 rounded font-bold">
+                            &gt;1h
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <span
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${getStatusBadge(
+                            row.status
+                          )}`}
+                        >
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-5 text-right relative whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => announceVehicle(row.vehicleNo, row.tokenNo, row.bay)}
+                            className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 transition cursor-pointer shadow-2xs"
+                            title="Call Vehicle to Dock"
+                          >
+                            <Megaphone className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOpenActionMenuId(openActionMenuId === row.id ? null : row.id)
+                            }
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition cursor-pointer"
+                            title="Update Status"
+                          >
+                            Status ▾
+                          </button>
+                        </div>
+
+                        {/* Dropdown Menu */}
+                        {openActionMenuId === row.id && (
+                          <div className="absolute right-5 top-12 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-20 py-1 text-left text-xs font-medium animate-scale-in">
+                            <button
+                              type="button"
+                              onClick={() => handleStatusUpdate(row, 'In Queue')}
+                              className="w-full px-3 py-2 hover:bg-amber-50 text-amber-800 flex items-center gap-2 cursor-pointer font-medium"
+                            >
+                              <Clock className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Mark In Queue</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStatusUpdate(row, 'Processing')}
+                              className="w-full px-3 py-2 hover:bg-blue-50 text-blue-700 flex items-center gap-2 cursor-pointer font-medium"
+                            >
+                              <Zap className="w-3.5 h-3.5 text-blue-600" />
+                              <span>Mark Processing (Bay)</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStatusUpdate(row, 'Delayed')}
+                              className="w-full px-3 py-2 hover:bg-rose-50 text-rose-700 flex items-center gap-2 cursor-pointer font-medium"
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Mark Delayed</span>
+                            </button>
+                            <div className="my-1 border-t border-slate-100"></div>
+                            <button
+                              type="button"
+                              onClick={() => handleStatusUpdate(row, 'Completed')}
+                              className="w-full px-3 py-2 hover:bg-emerald-50 text-emerald-700 flex items-center gap-2 cursor-pointer font-semibold"
+                            >
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Mark Completed (Gate Out)</span>
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* ========================================================= */}
-      {/* ADD VEHICLE TO QUEUE MODAL (PURE REACT DROPDOWNS - NO FLICKER) */}
+      {/* ADD VEHICLE TO QUEUE MODAL (SAVES TO MONGODB) */}
       {/* ========================================================= */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in">
@@ -784,8 +1057,8 @@ export default function VehicleQueue() {
                   <Truck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Add Vehicle to Queue</h3>
-                  <p className="text-xs text-slate-500">Issue queue token and assign bay dock</p>
+                  <h3 className="text-base font-bold text-slate-900">Add Vehicle to Terminal Queue</h3>
+                  <p className="text-xs text-slate-500">Check in vehicle to database and assign unloading bay</p>
                 </div>
               </div>
               <button
@@ -809,7 +1082,7 @@ export default function VehicleQueue() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. DL01 EF 4321"
+                    placeholder="e.g. DL 01 EF 4321"
                     value={newVehicle.vehicleNo}
                     onChange={(e) =>
                       setNewVehicle({ ...newVehicle, vehicleNo: e.target.value.toUpperCase() })
@@ -819,7 +1092,7 @@ export default function VehicleQueue() {
                 </div>
               </div>
 
-              {/* Row 1: Vehicle Type & Purpose (Custom Select with High Z-Index) */}
+              {/* Row 1: Vehicle Type & Purpose */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <CustomSelect
                   label="Vehicle Type"
@@ -856,19 +1129,23 @@ export default function VehicleQueue() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Driver Phone Contact
+                    Driver Phone Contact (10 Digits) <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="tel"
-                    placeholder="e.g. 98765 43210"
+                    required
+                    maxLength={10}
+                    placeholder="e.g. 9876543210"
                     value={newVehicle.driverPhone}
-                    onChange={(e) => setNewVehicle({ ...newVehicle, driverPhone: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    onChange={(e) =>
+                      setNewVehicle({ ...newVehicle, driverPhone: e.target.value.replace(/\D/g, '') })
+                    }
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono"
                   />
                 </div>
               </div>
 
-              {/* Row 3: Supplier & Assigned Bay (Custom Select for Bay) */}
+              {/* Row 3: Supplier & Challan Ref */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -883,11 +1160,27 @@ export default function VehicleQueue() {
                   />
                 </div>
 
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Challan / PO Ref No.
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Auto-generated if blank"
+                    value={newVehicle.challanNo}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, challanNo: e.target.value.toUpperCase() })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: Assigned Bay */}
+              <div>
                 <CustomSelect
                   label="Assigned Bay / Dock"
                   value={newVehicle.bay}
                   onChange={(val) => setNewVehicle({ ...newVehicle, bay: val })}
-                  options={BAY_OPTIONS}
+                  options={bayOptions}
                   zIndexClass="z-10"
                 />
               </div>
@@ -905,7 +1198,7 @@ export default function VehicleQueue() {
                   type="submit"
                   className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-xs cursor-pointer transition"
                 >
-                  Add Vehicle to Queue
+                  Check-in Vehicle
                 </button>
               </div>
             </form>
