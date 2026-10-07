@@ -58,6 +58,11 @@ export const createDispatch = (data) => apiRequest('/dispatch', { method: 'POST'
 export const updateDispatchStatus = (id, status, remarks) => apiRequest(`/dispatch/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, remarks }) })
 export const verifyDispatchScan = (id, scanData) => apiRequest(`/dispatch/${id}/verify-item`, { method: 'POST', body: JSON.stringify(scanData) })
 
+// 8. Stock Movements & Bin Relocations
+export const fetchStockMovements = () => apiRequest('/stock-movement')
+export const createStockMovement = (data) => apiRequest('/stock-movement', { method: 'POST', body: JSON.stringify(data) })
+export const deleteStockMovement = (id) => apiRequest(`/stock-movement/${id}`, { method: 'DELETE' })
+
 // 8. Stock Adjustments / Damage / Hold
 export const fetchStockAdjustments = () => apiRequest('/stock-adjust')
 export const createStockAdjustment = (data) => apiRequest('/stock-adjust', { method: 'POST', body: JSON.stringify(data) })

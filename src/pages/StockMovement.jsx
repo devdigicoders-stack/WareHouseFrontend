@@ -20,7 +20,12 @@ import {
   ChevronDown,
   FileText,
   Boxes,
+  Loader2,
+  AlertCircle,
+  MapPin,
+  Sparkles,
 } from 'lucide-react'
+import { apiRequest } from '../services/api'
 
 // Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -82,12 +87,23 @@ function CustomSelect({ value, onChange, options, placeholder = 'Select option..
   )
 }
 
+const fmt = (iso) => {
+  if (!iso) return '-'
+  return new Date(iso).toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export default function StockMovement() {
   // Toast state
   const [toastMessage, setToastMessage] = useState(null)
-  const triggerToast = (msg) => {
-    setToastMessage(msg)
-    setTimeout(() => setToastMessage(null), 3200)
+  const triggerToast = (msg, type = 'success') => {
+    setToastMessage({ msg, type })
+    setTimeout(() => setToastMessage(null), 3500)
   }
 
   // Active Tab for table
@@ -100,25 +116,122 @@ export default function StockMovement() {
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  // Master Data State from Backend
+  const [movementsData, setMovementsData] = useState([])
+  const [racks, setRacks] = useState([])
+  const [products, setProducts] = useState([])
 
   // New Movement Form state
   const [newMovement, setNewMovement] = useState({
     type: 'Internal',
-    productName: 'Parle-G Glucose Biscuits (50g)',
-    batchNo: 'BT-2026-FMCG-01',
-    fromLocation: 'SH03-R02-C04',
-    toLocation: 'SH03-R05-C08',
-    quantity: '1200',
-    unit: 'Pieces',
-    packagingSummary: '200 Gatta @ 6 pcs',
-    reason: 'Relocation to dispatch staging bay',
-    requestedBy: 'Rajesh Sharma (Storekeeper)',
+    productName: '',
+    sku: '',
+    batchNo: '',
+    fromLocation: '',
+    toLocation: '',
+    quantity: '1',
+    unit: 'Kg',
+    packagingSummary: '',
+    reason: 'Relocation to another storage bin',
+    requestedBy: 'Warehouse Manager',
   })
 
-  // Stock Movement Master Data
-  const [movementsData, setMovementsData] = useState([])
+  // Fetch real Stock Movements, Racks, and Products from Backend
+  const fetchMovements = async () => {
+    try {
+      setLoading(true)
+      const [movsRes, prodsRes, racksRes] = await Promise.allSettled([
+        apiRequest('/stock-movement'),
+        apiRequest('/product'),
+        apiRequest('/rack'),
+      ])
 
-  // Filtered rows
+      if (movsRes.status === 'fulfilled' && Array.isArray(movsRes.value)) {
+        setMovementsData(movsRes.value)
+      }
+      if (prodsRes.status === 'fulfilled' && Array.isArray(prodsRes.value)) {
+        setProducts(prodsRes.value)
+      }
+      if (racksRes.status === 'fulfilled' && Array.isArray(racksRes.value)) {
+        setRacks(racksRes.value)
+      }
+    } catch (err) {
+      console.error('Failed to load stock movements:', err)
+      triggerToast('Failed to load movements ledger from server', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchMovements()
+  }, [])
+
+  // Extract list of all currently occupied cells across racks for quick source selection
+  const occupiedBins = useMemo(() => {
+    const list = []
+    racks.forEach((r) => {
+      (r.cells || []).forEach((c) => {
+        if (c.status === 'Occupied' || c.currentStock > 0 || c.productName) {
+          const code = c.code || `${r.shadeCode}-${r.rackNumber}-R${c.row}-C${c.col}`
+          list.push({
+            code,
+            productName: c.productName || 'Stocked Item',
+            batchNo: c.batchNo || 'N/A',
+            currentStock: c.currentStock || 1,
+            shadeCode: r.shadeCode,
+            rackNumber: r.rackNumber,
+          })
+        }
+      })
+    })
+    return list
+  }, [racks])
+
+  // Extract list of all empty cells for destination selection
+  const emptyBins = useMemo(() => {
+    const list = []
+    racks.forEach((r) => {
+      (r.cells || []).forEach((c) => {
+        if (c.status === 'Empty' && (!c.currentStock || c.currentStock === 0)) {
+          const code = c.code || `${r.shadeCode}-${r.rackNumber}-R${c.row}-C${c.col}`
+          list.push({
+            code,
+            shadeCode: r.shadeCode,
+            rackNumber: r.rackNumber,
+            row: c.row,
+            col: c.col,
+          })
+        }
+      })
+    })
+    return list
+  }, [racks])
+
+  // When source bin is picked, auto-fill product details
+  const handleSelectSourceBin = (binCode) => {
+    const found = occupiedBins.find((b) => b.code === binCode)
+    if (found) {
+      const prod = products.find((p) => p.name === found.productName)
+      setNewMovement((prev) => ({
+        ...prev,
+        fromLocation: found.code,
+        productName: found.productName,
+        batchNo: found.batchNo,
+        quantity: String(found.currentStock),
+        unit: prod?.baseUnit || 'Kg',
+        sku: prod?.sku || '',
+        packagingSummary: `${found.currentStock} ${prod?.baseUnit || 'Kg'} (${prod?.outerPackaging || 'Packaged'})`,
+      }))
+    } else {
+      setNewMovement((prev) => ({ ...prev, fromLocation: binCode }))
+    }
+  }
+
+  // Filtered rows for movements ledger table
   const filteredMovements = useMemo(() => {
     return movementsData.filter((row) => {
       // Tab filter
@@ -134,12 +247,12 @@ export default function StockMovement() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
         return (
-          row.refNo.toLowerCase().includes(q) ||
-          row.productName.toLowerCase().includes(q) ||
-          row.batchNo.toLowerCase().includes(q) ||
-          row.fromLocation.toLowerCase().includes(q) ||
-          row.toLocation.toLowerCase().includes(q) ||
-          row.user.toLowerCase().includes(q)
+          (row.refNo || '').toLowerCase().includes(q) ||
+          (row.productName || '').toLowerCase().includes(q) ||
+          (row.batchNo || '').toLowerCase().includes(q) ||
+          (row.fromLocation || '').toLowerCase().includes(q) ||
+          (row.toLocation || '').toLowerCase().includes(q) ||
+          (row.user || '').toLowerCase().includes(q)
         )
       }
       return true
@@ -150,43 +263,55 @@ export default function StockMovement() {
   const totalPages = Math.max(1, Math.ceil(filteredMovements.length / perPage))
   const paginatedMovements = filteredMovements.slice((currentPage - 1) * perPage, currentPage * perPage)
 
-  // Dynamic KPI Stats
+  // Dynamic KPI Stats from MongoDB
   const stats = useMemo(() => {
     const total = movementsData.length
     const internal = movementsData.filter((m) => m.type === 'Internal').length
     const inward = movementsData.filter((m) => m.type === 'Inward').length
     const outward = movementsData.filter((m) => m.type === 'Outward').length
-    return { total, internal, inward, outward }
+    const adjustments = movementsData.filter((m) => m.type === 'Adjust').length
+    return { total, internal, inward, outward, adjustments }
   }, [movementsData])
 
-  // Handle Create Movement Submission
-  const handleCreateMovement = (e) => {
+  // Handle Create Movement Submission to Backend
+  const handleCreateMovement = async (e) => {
     e.preventDefault()
-    const newId = movementsData.length + 1
-    const refCode = `MOV-2026-${100 + newId}`
-    const now = new Date()
-    const dateFormatted = `${now.getDate()} Sep 2026, ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-
-    const record = {
-      id: newId,
-      dateTime: dateFormatted,
-      refNo: refCode,
-      type: newMovement.type,
-      productName: newMovement.productName,
-      sku: `PRD-${newMovement.batchNo.slice(3, 6)}-0${newId}`,
-      batchNo: newMovement.batchNo,
-      fromLocation: newMovement.fromLocation,
-      toLocation: newMovement.toLocation,
-      quantity: parseInt(newMovement.quantity, 10) || 100,
-      unit: newMovement.unit,
-      packagingSummary: newMovement.packagingSummary,
-      user: newMovement.requestedBy,
-      status: 'Completed',
+    if (!newMovement.productName.trim() || !newMovement.batchNo.trim() || !newMovement.toLocation.trim()) {
+      triggerToast('Product, Batch No, and Destination Bin are required', 'error')
+      return
     }
 
-    setMovementsData([record, ...movementsData])
-    setShowCreateModal(false)
-    triggerToast(`Movement ${refCode} successfully executed!`)
+    try {
+      setSubmitting(true)
+      const res = await apiRequest('/stock-movement', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: newMovement.type,
+          productName: newMovement.productName.trim(),
+          sku: newMovement.sku || '',
+          batchNo: newMovement.batchNo.trim(),
+          fromLocation: newMovement.fromLocation.trim() || 'Dock / Staging',
+          toLocation: newMovement.toLocation.trim(),
+          quantity: Number(newMovement.quantity) || 1,
+          unit: newMovement.unit || 'Kg',
+          packagingSummary: newMovement.packagingSummary || `${newMovement.quantity} ${newMovement.unit}`,
+          reason: newMovement.reason || 'Intra-warehouse bin relocation',
+          user: newMovement.requestedBy || 'Warehouse Manager',
+        }),
+      })
+
+      triggerToast(`✓ Movement ${res.movement?.refNo || 'Recorded'} successfully executed!`)
+      setShowCreateModal(false)
+      fetchMovements()
+
+      if (res.movement) {
+        setShowDetailModal(res.movement)
+      }
+    } catch (err) {
+      triggerToast(err.message || 'Failed to record stock movement', 'error')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   // Export to CSV
@@ -209,19 +334,19 @@ export default function StockMovement() {
     ]
     const rows = filteredMovements.map((r, i) => [
       i + 1,
-      `"${r.dateTime}"`,
+      `"${fmt(r.createdAt || r.dateTime)}"`,
       `"${r.refNo}"`,
       `"${r.type}"`,
-      `"${r.productName.replace(/"/g, '""')}"`,
-      `"${r.sku}"`,
-      `"${r.batchNo}"`,
-      `"${r.fromLocation}"`,
-      `"${r.toLocation}"`,
-      r.quantity,
-      `"${r.unit}"`,
-      `"${r.packagingSummary}"`,
-      `"${r.user}"`,
-      `"${r.status}"`,
+      `"${(r.productName || '').replace(/"/g, '""')}"`,
+      `"${r.sku || ''}"`,
+      `"${r.batchNo || ''}"`,
+      `"${r.fromLocation || ''}"`,
+      `"${r.toLocation || ''}"`,
+      r.quantity || 0,
+      `"${r.unit || 'Kg'}"`,
+      `"${(r.packagingSummary || '').replace(/"/g, '""')}"`,
+      `"${r.user || 'Officer'}"`,
+      `"${r.status || 'Completed'}"`,
     ])
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n')
     const encodedUri = encodeURI(csvContent)
@@ -254,9 +379,19 @@ export default function StockMovement() {
     <div className="space-y-5 pb-12">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-[9999] pointer-events-auto bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold animate-bounce border border-slate-700">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{toastMessage}</span>
+        <div
+          className={`fixed top-5 right-5 z-[9999] pointer-events-auto px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold border ${
+            toastMessage.type === 'error'
+              ? 'bg-rose-900 text-white border-rose-700'
+              : 'bg-slate-900 text-white border-slate-700'
+          }`}
+        >
+          {toastMessage.type === 'error' ? (
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          )}
+          <span>{toastMessage.msg}</span>
         </div>
       )}
 
@@ -269,7 +404,7 @@ export default function StockMovement() {
           <div className="min-w-0">
             <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight leading-tight">Stock Movement &amp; Relocation</h1>
             <p className="text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
-              Track intra-warehouse bin transfers, staging dispatch movements, and audit adjustments.
+              Track intra-warehouse bin transfers, staging dispatch movements, and live audit adjustments.
             </p>
           </div>
         </div>
@@ -285,7 +420,12 @@ export default function StockMovement() {
           </button>
           <button
             type="button"
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => {
+              if (occupiedBins.length > 0) {
+                handleSelectSourceBin(occupiedBins[0].code)
+              }
+              setShowCreateModal(true)
+            }}
             className="flex-1 sm:flex-none justify-center inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
           >
             <Plus className="w-4 h-4 shrink-0" />
@@ -301,24 +441,20 @@ export default function StockMovement() {
             <ArrowLeftRight className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Total Movements</p>
-            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
-              {stats.total}
-            </h3>
-            <p className="text-[11px] text-indigo-600 font-medium">Logged in ledger</p>
+            <div className="text-slate-400 text-xs font-medium">Total Movements</div>
+            <h3 className="text-xl font-bold text-slate-800 tracking-tight">{stats.total}</h3>
+            <p className="text-[11px] text-slate-500 font-medium">Logged in ledger</p>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
             <Boxes className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Internal Relocations</p>
-            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
-              {stats.internal}
-            </h3>
-            <p className="text-[11px] text-sky-600 font-medium">Bin-to-bin transfers</p>
+            <div className="text-slate-400 text-xs font-medium">Internal Relocations</div>
+            <h3 className="text-xl font-bold text-slate-800 tracking-tight">{stats.internal}</h3>
+            <p className="text-[11px] text-blue-600 font-medium">Bin-to-bin transfers</p>
           </div>
         </div>
 
@@ -327,10 +463,8 @@ export default function StockMovement() {
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Inward Dock Moves</p>
-            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
-              {stats.inward}
-            </h3>
+            <div className="text-slate-400 text-xs font-medium">Inward Dock Moves</div>
+            <h3 className="text-xl font-bold text-slate-800 tracking-tight">{stats.inward}</h3>
             <p className="text-[11px] text-emerald-600 font-medium">Check-in put-away</p>
           </div>
         </div>
@@ -340,243 +474,182 @@ export default function StockMovement() {
             <ArrowRight className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Outward Staging</p>
-            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
-              {stats.outward}
-            </h3>
+            <div className="text-slate-400 text-xs font-medium">Outward Staging</div>
+            <h3 className="text-xl font-bold text-slate-800 tracking-tight">{stats.outward}</h3>
             <p className="text-[11px] text-rose-600 font-medium">Pre-dispatch transfers</p>
           </div>
         </div>
       </div>
 
-      {/* 100% Full-Width Stock Movements Table */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
-        {/* Table Toolbar & Tabs */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 space-y-3.5">
-          {/* Movement Type Tabs */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar p-1 bg-slate-100 rounded-xl text-xs font-semibold max-w-full">
+      {/* Main Ledger Card */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200/80 space-y-4">
+        {/* Filter Toolbar */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+            {[
+              { id: 'ALL', label: `All Movements (${stats.total})` },
+              { id: 'INTERNAL', label: `Internal (${stats.internal})` },
+              { id: 'INWARD', label: `Inward (${stats.inward})` },
+              { id: 'OUTWARD', label: `Outward (${stats.outward})` },
+              { id: 'ADJUST', label: `Adjustments (${stats.adjustments})` },
+            ].map((tab) => (
               <button
+                key={tab.id}
                 type="button"
                 onClick={() => {
-                  setActiveTab('ALL')
+                  setActiveTab(tab.id)
                   setCurrentPage(1)
                 }}
-                className={`px-3.5 py-1.5 rounded-lg transition whitespace-nowrap cursor-pointer shrink-0 ${
-                  activeTab === 'ALL'
-                    ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                  activeTab === tab.id
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/60'
                 }`}
               >
-                All Movements ({movementsData.length})
+                {tab.label}
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('INTERNAL')
-                  setCurrentPage(1)
-                }}
-                className={`px-3.5 py-1.5 rounded-lg transition whitespace-nowrap cursor-pointer shrink-0 ${
-                  activeTab === 'INTERNAL'
-                    ? 'bg-white text-sky-700 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Internal ({movementsData.filter((m) => m.type === 'Internal').length})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('INWARD')
-                  setCurrentPage(1)
-                }}
-                className={`px-3.5 py-1.5 rounded-lg transition whitespace-nowrap cursor-pointer shrink-0 ${
-                  activeTab === 'INWARD'
-                    ? 'bg-white text-emerald-700 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Inward ({movementsData.filter((m) => m.type === 'Inward').length})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('OUTWARD')
-                  setCurrentPage(1)
-                }}
-                className={`px-3.5 py-1.5 rounded-lg transition whitespace-nowrap cursor-pointer shrink-0 ${
-                  activeTab === 'OUTWARD'
-                    ? 'bg-white text-rose-700 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Outward ({movementsData.filter((m) => m.type === 'Outward').length})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('ADJUST')
-                  setCurrentPage(1)
-                }}
-                className={`px-3.5 py-1.5 rounded-lg transition whitespace-nowrap cursor-pointer shrink-0 ${
-                  activeTab === 'ADJUST'
-                    ? 'bg-white text-purple-700 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Adjustments ({movementsData.filter((m) => m.type === 'Adjust').length})
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('ALL')
-                setFilterType('ALL')
-                setSearchQuery('')
-                setCurrentPage(1)
-                triggerToast('Filters reset to default.')
-              }}
-              className="text-xs font-semibold text-slate-500 hover:text-indigo-600 flex items-center gap-1.5 transition cursor-pointer self-end sm:self-auto shrink-0"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset Filters</span>
-            </button>
+            ))}
           </div>
 
-          {/* Search and Filters Bar */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-center text-xs">
-            <div className="lg:col-span-8 relative">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div className="relative min-w-[240px]">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setCurrentPage(1)
+                }}
                 placeholder="Search by Ref No, Product, Batch, From/To location, Operator..."
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
               />
             </div>
 
-            <div className="lg:col-span-4">
-              <CustomSelect
-                value={filterType}
-                onChange={setFilterType}
-                options={typeOptions}
-                zIndexClass="z-30"
-              />
-            </div>
+            <CustomSelect
+              value={filterType}
+              onChange={(val) => {
+                setFilterType(val)
+                setCurrentPage(1)
+              }}
+              options={typeOptions}
+              className="min-w-[190px]"
+            />
           </div>
         </div>
 
-        {/* Full-Width Table */}
-        <div className="overflow-x-auto w-full">
+        {/* Movements Table */}
+        <div className="overflow-x-auto">
           <table className="w-full text-left text-xs divide-y divide-slate-200">
             <thead className="bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
               <tr>
                 <th className="py-3.5 px-4 w-12 text-center">#</th>
-                <th className="py-3.5 px-4 min-w-[130px]">Date &amp; Time</th>
-                <th className="py-3.5 px-4 min-w-[125px]">Ref No.</th>
-                <th className="py-3.5 px-4 text-center min-w-[95px]">Type</th>
-                <th className="py-3.5 px-4 min-w-[200px]">Product Stored</th>
-                <th className="py-3.5 px-4 min-w-[120px]">Batch No.</th>
-                <th className="py-3.5 px-4 min-w-[140px]">From Location</th>
-                <th className="py-3.5 px-4 min-w-[140px]">To Location</th>
-                <th className="py-3.5 px-4 text-center min-w-[110px]">Quantity</th>
-                <th className="py-3.5 px-4 min-w-[140px]">Operator</th>
-                <th className="py-3.5 px-4 text-center w-24">Actions</th>
+                <th className="py-3.5 px-4 min-w-[140px]">Date &amp; Time</th>
+                <th className="py-3.5 px-4 min-w-[120px]">Ref No.</th>
+                <th className="py-3.5 px-4 min-w-[100px]">Type</th>
+                <th className="py-3.5 px-4 min-w-[180px]">Product Stored</th>
+                <th className="py-3.5 px-4 min-w-[110px]">Batch No.</th>
+                <th className="py-3.5 px-4 min-w-[130px]">From Location</th>
+                <th className="py-3.5 px-4 min-w-[130px]">To Location</th>
+                <th className="py-3.5 px-4 text-center min-w-[100px]">Quantity</th>
+                <th className="py-3.5 px-4 min-w-[120px]">Operator</th>
+                <th className="py-3.5 px-4 text-center w-24">Voucher</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {paginatedMovements.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td colSpan="11" className="py-10 text-center text-slate-400">
-                    No stock movement records found matching your filter criteria.
+                  <td colSpan="11" className="py-12 text-center text-slate-400">
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-indigo-600" />
+                    <span>Loading stock movements from database...</span>
+                  </td>
+                </tr>
+              ) : paginatedMovements.length === 0 ? (
+                <tr>
+                  <td colSpan="11" className="py-12 text-center text-slate-400 space-y-2">
+                    <p>No stock movement records found matching your filter criteria.</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 text-indigo-700 font-bold rounded-lg border border-indigo-200 hover:bg-indigo-100 transition cursor-pointer text-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Record First Movement</span>
+                    </button>
                   </td>
                 </tr>
               ) : (
-                paginatedMovements.map((row, idx) => (
-                  <tr key={row.id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-3.5 px-4 text-center text-slate-400 font-bold text-[11px]">
-                      {(currentPage - 1) * perPage + idx + 1}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
-                      {row.dateTime}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
-                      {row.refNo}
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          row.type === 'Internal'
-                            ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                            : row.type === 'Inward'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : row.type === 'Outward'
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : 'bg-purple-50 text-purple-700 border border-purple-200'
-                        }`}
-                      >
-                        {row.type}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-semibold text-slate-800">{row.productName}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">{row.packagingSummary}</div>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-semibold text-slate-700 text-[11px]">
-                      {row.batchNo}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-600 text-[11px]">
-                      {row.fromLocation}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-indigo-600 text-[11px]">
-                      {row.toLocation}
-                    </td>
-                    <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-900">
-                      {row.quantity > 0 ? `+${row.quantity}` : row.quantity} {row.unit}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-700 font-medium">
-                      {row.user}
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                paginatedMovements.map((row, idx) => {
+                  const isInternal = row.type === 'Internal'
+                  const isInward = row.type === 'Inward'
+                  const isOutward = row.type === 'Outward'
+
+                  const badgeClass = isInternal
+                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                    : isInward
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : isOutward
+                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : 'bg-amber-50 text-amber-700 border-amber-200'
+
+                  return (
+                    <tr key={row._id || row.refNo || idx} className="hover:bg-slate-50/80 transition">
+                      <td className="py-3.5 px-4 text-center text-slate-400 font-bold text-[11px]">
+                        {(currentPage - 1) * perPage + idx + 1}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-slate-600 whitespace-nowrap">
+                        {fmt(row.createdAt || row.dateTime)}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-indigo-600 whitespace-nowrap">
+                        {row.refNo}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}`}>
+                          {row.type}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-slate-800">
+                        {row.productName}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-slate-700 font-medium">
+                        {row.batchNo}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-medium text-slate-600">
+                        {row.fromLocation}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-indigo-700">
+                        {row.toLocation}
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-900">
+                        {row.quantity} {row.unit || 'Kg'}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600">
+                        {row.user || row.operator || 'Storekeeper'}
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
                         <button
                           type="button"
                           onClick={() => setShowDetailModal(row)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition"
-                          title="View Movement Voucher"
+                          className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition cursor-pointer"
+                          title="View & Print Transit Voucher"
                         >
-                          <FileText className="w-3.5 h-3.5" />
+                          <Eye className="w-4 h-4" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowDetailModal(row)
-                            setTimeout(() => {
-                              printSpecificElement('#printable-movement-voucher', `Movement Voucher - ${row.refNo}`)
-                            }, 300)
-                          }}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition"
-                          title="Print Movement Slip"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
         </div>
 
         {/* Pagination Footer */}
-        <div className="p-4 bg-slate-50/80 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 font-medium">
+        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 font-medium">
           <div>
             Showing <strong>{filteredMovements.length > 0 ? (currentPage - 1) * perPage + 1 : 0}</strong> to{' '}
             <strong>{Math.min(currentPage * perPage, filteredMovements.length)}</strong> of{' '}
-            <strong>{filteredMovements.length}</strong> movements
+            <strong>{filteredMovements.length}</strong> recorded movements
           </div>
 
           <div className="flex items-center gap-1">
@@ -588,20 +661,9 @@ export default function StockMovement() {
             >
               ‹ Prev
             </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setCurrentPage(p)}
-                className={`px-3 py-1 rounded-lg font-bold transition ${
-                  currentPage === p
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
+            <span className="px-2 text-slate-600 font-bold">
+              {currentPage} / {totalPages}
+            </span>
             <button
               type="button"
               disabled={currentPage === totalPages}
@@ -614,7 +676,7 @@ export default function StockMovement() {
         </div>
       </div>
 
-      {/* MODAL 1: Record Movement Modal */}
+      {/* MODAL 1: Record Stock Movement Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200">
@@ -625,13 +687,13 @@ export default function StockMovement() {
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-800">Record Stock Movement</h3>
-                  <p className="text-[11px] text-slate-500">Intra-depot transit and bin re-allocation</p>
+                  <p className="text-[11px] text-slate-500">Live bin relocation &amp; inventory transit in MongoDB</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -650,6 +712,36 @@ export default function StockMovement() {
                 />
               </div>
 
+              {/* Source Bin Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Source Origin Bin (Occupied Bin) <span className="text-rose-500">*</span>
+                </label>
+                {occupiedBins.length > 0 ? (
+                  <select
+                    value={newMovement.fromLocation}
+                    onChange={(e) => handleSelectSourceBin(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                  >
+                    <option value="">Select occupied source bin...</option>
+                    {occupiedBins.map((b) => (
+                      <option key={b.code} value={b.code}>
+                        {b.code} — {b.productName} ({b.currentStock} qty, Batch: {b.batchNo})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    required
+                    value={newMovement.fromLocation}
+                    onChange={(e) => setNewMovement({ ...newMovement, fromLocation: e.target.value })}
+                    placeholder="e.g. SH-01-RK-01-R1-C1"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                  />
+                )}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -660,6 +752,7 @@ export default function StockMovement() {
                     required
                     value={newMovement.productName}
                     onChange={(e) => setNewMovement({ ...newMovement, productName: e.target.value })}
+                    placeholder="e.g. Basmati Rice"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
@@ -673,42 +766,58 @@ export default function StockMovement() {
                     required
                     value={newMovement.batchNo}
                     onChange={(e) => setNewMovement({ ...newMovement, batchNo: e.target.value })}
+                    placeholder="e.g. BTH-11241"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Source Bin *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newMovement.fromLocation}
-                    onChange={(e) => setNewMovement({ ...newMovement, fromLocation: e.target.value })}
-                    placeholder="e.g. SH01-R01-C01"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Destination Bin *</label>
+              {/* Destination Bin Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Destination Target Bin <span className="text-rose-500">*</span>
+                </label>
+                {emptyBins.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <select
+                      value={newMovement.toLocation}
+                      onChange={(e) => setNewMovement({ ...newMovement, toLocation: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-mono font-bold text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                    >
+                      <option value="">Select available empty bin...</option>
+                      {emptyBins.map((b) => (
+                        <option key={b.code} value={b.code}>
+                          {b.code} (Shade {b.shadeCode} - {b.rackNumber} - R{b.row}•C{b.col})
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Or enter custom bin / staging bay name..."
+                      value={newMovement.toLocation}
+                      onChange={(e) => setNewMovement({ ...newMovement, toLocation: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-mono text-slate-700 focus:outline-none focus:bg-white"
+                    />
+                  </div>
+                ) : (
                   <input
                     type="text"
                     required
                     value={newMovement.toLocation}
                     onChange={(e) => setNewMovement({ ...newMovement, toLocation: e.target.value })}
-                    placeholder="e.g. SH03-R05-C02"
+                    placeholder="e.g. SH-01-RK-01-R1-C4 or Staging Bay 1"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
-                </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Quantity</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Quantity to Move *</label>
                   <input
                     type="number"
+                    required
+                    min="1"
                     value={newMovement.quantity}
                     onChange={(e) => setNewMovement({ ...newMovement, quantity: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
@@ -721,7 +830,7 @@ export default function StockMovement() {
                     type="text"
                     value={newMovement.packagingSummary}
                     onChange={(e) => setNewMovement({ ...newMovement, packagingSummary: e.target.value })}
-                    placeholder="e.g. 200 Gatta @ 6 pcs"
+                    placeholder="e.g. 5 Bags @ 25kg"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
@@ -733,7 +842,7 @@ export default function StockMovement() {
                   type="text"
                   value={newMovement.reason}
                   onChange={(e) => setNewMovement({ ...newMovement, reason: e.target.value })}
-                  placeholder="e.g. Dispatch staging re-allocation"
+                  placeholder="e.g. Re-location to dispatch staging bay"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                 />
               </div>
@@ -748,9 +857,11 @@ export default function StockMovement() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 sm:flex-none justify-center bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition cursor-pointer text-center"
+                  disabled={submitting}
+                  className="flex-1 sm:flex-none justify-center bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-5 py-2 rounded-xl text-xs font-bold transition cursor-pointer text-center flex items-center gap-1.5"
                 >
-                  Execute Movement
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  <span>Execute Movement</span>
                 </button>
               </div>
             </form>
@@ -775,7 +886,7 @@ export default function StockMovement() {
               <button
                 type="button"
                 onClick={() => setShowDetailModal(null)}
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -790,7 +901,7 @@ export default function StockMovement() {
                 </div>
                 <div className="text-right font-mono text-[11px]">
                   <strong className="text-slate-900 block">{showDetailModal.refNo}</strong>
-                  <span className="text-slate-400 text-[10px]">{showDetailModal.dateTime}</span>
+                  <span className="text-slate-400 text-[10px]">{fmt(showDetailModal.createdAt || showDetailModal.dateTime)}</span>
                 </div>
               </div>
 
@@ -821,10 +932,10 @@ export default function StockMovement() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Quantity Transferred:</span>
-                  <strong className="font-mono text-slate-900">{showDetailModal.quantity} {showDetailModal.unit}</strong>
+                  <strong className="font-mono text-slate-900">{showDetailModal.quantity} {showDetailModal.unit || 'Kg'}</strong>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Packaging Ratio:</span>
+                  <span className="text-slate-500">Packaging Summary:</span>
                   <span className="text-slate-700 font-medium">{showDetailModal.packagingSummary}</span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-slate-100">
