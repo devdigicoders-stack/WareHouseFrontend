@@ -167,33 +167,37 @@ export default function LocationMaster() {
     })
 
     racks.forEach((rack) => {
-      const shadeObj = shades.find((s) => s._id === rack.shadeId || s.code === rack.shadeCode)
+      const shadeObj = shades.find((s) => String(s._id) === String(rack.shadeId) || s.code === rack.shadeCode)
       const shadeName = shadeObj ? shadeObj.name : rack.shadeCode
-      const cleanShadeCode = rack.shadeCode ? rack.shadeCode.replace(/[^a-zA-Z0-9]/g, '') : 'SH01'
+      const rawCells = rack.cells && Array.isArray(rack.cells) ? rack.cells : []
 
-      const rawCells = rack.cells && rack.cells.length > 0 ? rack.cells : []
-
-      for (let r = 1; r <= (rack.rows || 4); r++) {
-        for (let c = 1; c <= (rack.columns || 5); c++) {
+      for (let r = 1; r <= (Number(rack.rows) || 4); r++) {
+        for (let c = 1; c <= (Number(rack.columns) || 5); c++) {
           const defaultCode = `${rack.shadeCode}-${rack.rackNumber}-R${r}-C${c}`
-          const existingCell = rawCells.find((cell) => cell.row === r && cell.col === c)
+          const existingCell = rawCells.find((cell) => Number(cell.row) === r && Number(cell.col) === c)
 
           let status = existingCell?.status || 'Empty'
           let productName = existingCell?.productName || ''
           let batchNo = existingCell?.batchNo || ''
-          let currentStock = existingCell?.currentStock || 0
+          let currentStock = Number(existingCell?.currentStock) || 0
           let cellCode = existingCell?.code || defaultCode
 
-          // Check GRN allocations matching cell code or (shade, row, col)
+          if (existingCell && (existingCell.status === 'Occupied' || existingCell.status === 'Full' || Number(existingCell.currentStock) > 0)) {
+            status = existingCell.status || 'Occupied'
+            productName = existingCell.productName
+            batchNo = existingCell.batchNo
+            currentStock = Number(existingCell.currentStock) || 1
+          }
+
+          // Also check GRN allocations matching cell code or (shade, row, col)
           const matchingGrn = allocatedFromGrn.find((a) => {
             if (!a.location) return false
             if (a.location === cellCode || a.location.toLowerCase() === defaultCode.toLowerCase()) return true
             
-            // Match pattern like SH-01-R01-C01 or SH01-R1-C1
             const sMatch = a.location.match(/SH[-_]?0?(\d+)/i)
             const rMatch = a.location.match(/R0?(\d+)/i)
             const cMatch = a.location.match(/C0?(\d+)/i)
-            const rackSMatch = rack.shadeCode.match(/SH[-_]?0?(\d+)/i)
+            const rackSMatch = (rack.shadeCode || '').match(/SH[-_]?0?(\d+)/i)
 
             if (sMatch && rMatch && cMatch && rackSMatch) {
               return (
@@ -205,34 +209,11 @@ export default function LocationMaster() {
             return false
           })
 
-          // Check Product catalog matching binLocation
-          const matchingProd = products.find((p) => {
-            if (!p.binLocation) return false
-            if (p.binLocation === cellCode || p.binLocation.toLowerCase() === defaultCode.toLowerCase()) return true
-            const sMatch = p.binLocation.match(/SH[-_]?0?(\d+)/i)
-            const rMatch = p.binLocation.match(/R0?(\d+)/i)
-            const cMatch = p.binLocation.match(/C0?(\d+)/i)
-            const rackSMatch = rack.shadeCode.match(/SH[-_]?0?(\d+)/i)
-            if (sMatch && rMatch && cMatch && rackSMatch) {
-              return (
-                parseInt(sMatch[1]) === parseInt(rackSMatch[1]) &&
-                parseInt(rMatch[1]) === r &&
-                parseInt(cMatch[1]) === c
-              )
-            }
-            return false
-          })
-
-          if (matchingGrn) {
+          if (matchingGrn && status === 'Empty') {
             status = 'Occupied'
             productName = matchingGrn.productName
             batchNo = matchingGrn.batchNo
-            currentStock = matchingGrn.quantity
-          } else if (matchingProd && matchingProd.currentStock > 0) {
-            status = 'Occupied'
-            productName = matchingProd.name
-            batchNo = matchingProd.batchNo || ''
-            currentStock = matchingProd.currentStock
+            currentStock = Number(matchingGrn.quantity) || 1
           }
 
           cellsList.push({
@@ -594,7 +575,11 @@ export default function LocationMaster() {
         ) : (
           <div className="space-y-6">
             {activeShadeRacks.map((rack) => {
-              const rackCells = allLiveCells.filter((c) => c.rackId === rack._id || (c.shadeCode === rack.shadeCode && c.rackNumber === rack.rackNumber))
+              const rackCells = allLiveCells.filter(
+                (c) =>
+                  String(c.rackId) === String(rack._id) ||
+                  (c.shadeCode === rack.shadeCode && c.rackNumber === rack.rackNumber)
+              )
 
               return (
                 <div key={rack._id} className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
@@ -639,14 +624,19 @@ export default function LocationMaster() {
                                 {Array.from({ length: rack.columns }).map((_, cIdx) => {
                                   const colNum = cIdx + 1
                                   const cellCode = `${rack.shadeCode}-${rack.rackNumber}-R${rowNum}-C${colNum}`
-                                  const cell = rackCells.find((c) => c.row === rowNum && c.col === colNum) || {
-                                    code: cellCode,
-                                    row: rowNum,
-                                    col: colNum,
-                                    status: 'Empty',
-                                    currentStock: 0,
-                                    rackId: rack._id,
-                                  }
+                                  const cell =
+                                    rackCells.find(
+                                      (c) =>
+                                        Number(c.row) === Number(rowNum) &&
+                                        Number(c.col) === Number(colNum)
+                                    ) || {
+                                      code: cellCode,
+                                      row: rowNum,
+                                      col: colNum,
+                                      status: 'Empty',
+                                      currentStock: 0,
+                                      rackId: rack._id,
+                                    }
 
                                   const isOccupied = cell.status === 'Occupied' || cell.currentStock > 0
                                   const isFull = cell.status === 'Full'
