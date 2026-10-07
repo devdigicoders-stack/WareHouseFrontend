@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import QRCode from 'qrcode'
 import { printSpecificElement } from '../utils/printHelper'
 import {
   ArrowLeftRight,
@@ -24,6 +25,8 @@ import {
   AlertCircle,
   MapPin,
   Sparkles,
+  QrCode,
+  Tag,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
 
@@ -116,6 +119,8 @@ export default function StockMovement() {
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
+  const [modalQrUrl, setModalQrUrl] = useState('')
+  const [activeModalTab, setActiveModalTab] = useState('voucher') // 'voucher' | 'tag'
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -169,6 +174,18 @@ export default function StockMovement() {
   useEffect(() => {
     fetchMovements()
   }, [])
+
+  // Generate real QR Code Data URL whenever detail modal item changes
+  useEffect(() => {
+    if (showDetailModal) {
+      const payload = `REF: ${showDetailModal.refNo || ''}\nITEM: ${showDetailModal.productName || ''}\nBATCH: ${showDetailModal.batchNo || ''}\nFROM: ${showDetailModal.fromLocation || ''}\nTO: ${showDetailModal.toLocation || ''}\nQTY: ${showDetailModal.quantity || ''} ${showDetailModal.unit || 'Kg'}\nTYPE: ${showDetailModal.type || 'Internal'}\nTIME: ${showDetailModal.createdAt || showDetailModal.dateTime || new Date().toISOString()}`
+      QRCode.toDataURL(payload, { width: 240, margin: 1 })
+        .then((url) => setModalQrUrl(url))
+        .catch((err) => console.error('QR generation error:', err))
+    } else {
+      setModalQrUrl('')
+    }
+  }, [showDetailModal])
 
   // Extract list of all currently occupied cells across racks for quick source selection
   const occupiedBins = useMemo(() => {
@@ -553,7 +570,7 @@ export default function StockMovement() {
                 <th className="py-3.5 px-4 min-w-[130px]">To Location</th>
                 <th className="py-3.5 px-4 text-center min-w-[100px]">Quantity</th>
                 <th className="py-3.5 px-4 min-w-[120px]">Operator</th>
-                <th className="py-3.5 px-4 text-center w-24">Voucher</th>
+                <th className="py-3.5 px-4 text-center w-28">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -627,14 +644,30 @@ export default function StockMovement() {
                         {row.user || row.operator || 'Storekeeper'}
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setShowDetailModal(row)}
-                          className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition cursor-pointer"
-                          title="View & Print Transit Voucher"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
+                        <div className="inline-flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowDetailModal(row)
+                              setActiveModalTab('voucher')
+                            }}
+                            className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition cursor-pointer"
+                            title="View & Print Transit Voucher"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowDetailModal(row)
+                              setActiveModalTab('tag')
+                            }}
+                            className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition cursor-pointer"
+                            title="View & Print Pallet QR Tag"
+                          >
+                            <QrCode className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -869,18 +902,23 @@ export default function StockMovement() {
         </div>
       )}
 
-      {/* MODAL 2: Stock Movement Transit Slip */}
+      {/* MODAL 2: Stock Movement Transit Slip & Destination QR Tag */}
       {showDetailModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4">
+            {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
                   MOV
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-slate-800">Stock Movement Transit Voucher</h3>
-                  <p className="text-[11px] text-slate-500">Authorized Intra-Depot Movement • {showDetailModal.refNo}</p>
+                  <h3 className="font-bold text-sm text-slate-800">
+                    {activeModalTab === 'voucher' ? 'Stock Movement Transit Voucher' : 'Destination Bin / Pallet QR Tag'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    {showDetailModal.refNo} • {showDetailModal.toLocation}
+                  </p>
                 </div>
               </div>
               <button
@@ -892,64 +930,139 @@ export default function StockMovement() {
               </button>
             </div>
 
-            {/* Printable Voucher Card */}
-            <div id="printable-movement-voucher" className="printable-area border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-3.5 text-xs font-sans">
-              <div className="flex items-start justify-between border-b pb-2.5 border-slate-200">
-                <div>
-                  <h4 className="text-xs font-black uppercase text-slate-900">CENTRAL WAREHOUSE LOGISTICS</h4>
-                  <p className="text-[10px] text-slate-500">Internal Inventory Transfer Slip</p>
-                </div>
-                <div className="text-right font-mono text-[11px]">
-                  <strong className="text-slate-900 block">{showDetailModal.refNo}</strong>
-                  <span className="text-slate-400 text-[10px]">{fmt(showDetailModal.createdAt || showDetailModal.dateTime)}</span>
-                </div>
-              </div>
-
-              {/* Transit Route Visualization */}
-              <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200">
-                <div className="text-center">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Origin</span>
-                  <strong className="font-mono text-xs text-slate-800">{showDetailModal.fromLocation}</strong>
-                </div>
-                <div className="flex flex-col items-center">
-                  <span className="text-[10px] text-indigo-600 font-bold mb-0.5">{showDetailModal.type}</span>
-                  <ArrowRight className="w-5 h-5 text-indigo-600" />
-                </div>
-                <div className="text-center">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Destination</span>
-                  <strong className="font-mono text-xs text-indigo-700">{showDetailModal.toLocation}</strong>
-                </div>
-              </div>
-
-              <div className="space-y-1 text-[11px] bg-white p-3 rounded-xl border border-slate-200">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Product:</span>
-                  <strong className="text-slate-800">{showDetailModal.productName}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Batch Number:</span>
-                  <strong className="font-mono text-slate-800">{showDetailModal.batchNo}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Quantity Transferred:</span>
-                  <strong className="font-mono text-slate-900">{showDetailModal.quantity} {showDetailModal.unit || 'Kg'}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Packaging Summary:</span>
-                  <span className="text-slate-700 font-medium">{showDetailModal.packagingSummary}</span>
-                </div>
-                <div className="flex justify-between pt-1 border-t border-slate-100">
-                  <span className="text-slate-500">Authorized By:</span>
-                  <span className="text-slate-800 font-semibold">{showDetailModal.user}</span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
-                <span>Voucher Hash: SHA256-{showDetailModal.refNo}</span>
-                <span>Status: Confirmed &amp; Updated in Bin Ledger</span>
-              </div>
+            {/* View Mode Switcher */}
+            <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+              <button
+                type="button"
+                onClick={() => setActiveModalTab('voucher')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  activeModalTab === 'voucher'
+                    ? 'bg-white text-indigo-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Transit Voucher</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveModalTab('tag')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  activeModalTab === 'tag'
+                    ? 'bg-white text-emerald-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Pallet / Bin QR Tag</span>
+              </button>
             </div>
 
+            {/* VIEW 1: Printable Voucher Card with Embedded Scannable QR Code */}
+            {activeModalTab === 'voucher' && (
+              <div id="printable-movement-voucher" className="printable-area border border-slate-200 rounded-xl p-4 bg-white space-y-3.5 text-xs font-sans">
+                <div className="flex items-start justify-between border-b pb-2.5 border-slate-200">
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-slate-900 tracking-wider">CENTRAL WAREHOUSE LOGISTICS</h4>
+                    <p className="text-[10px] text-slate-500">Intra-Depot Stock Relocation Voucher</p>
+                  </div>
+                  <div className="text-right font-mono text-[11px]">
+                    <strong className="text-slate-900 block">{showDetailModal.refNo}</strong>
+                    <span className="text-slate-400 text-[10px]">{fmt(showDetailModal.createdAt || showDetailModal.dateTime)}</span>
+                  </div>
+                </div>
+
+                {/* Transit Route Visualization */}
+                <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <div className="text-center">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase block">Source Bin</span>
+                    <strong className="font-mono text-xs text-slate-800">{showDetailModal.fromLocation}</strong>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] text-indigo-600 font-bold mb-0.5">{showDetailModal.type} Transfer</span>
+                    <ArrowRight className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div className="text-center">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase block">Target Bin</span>
+                    <strong className="font-mono text-xs text-emerald-700">{showDetailModal.toLocation}</strong>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 items-center bg-slate-50/60 p-3 rounded-xl border border-slate-200">
+                  <div className="col-span-2 space-y-1.5 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Product:</span>
+                      <strong className="text-slate-900 text-right truncate max-w-[180px]">{showDetailModal.productName}</strong>
+                    </div>
+                    {showDetailModal.sku && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">SKU:</span>
+                        <strong className="font-mono text-slate-800">{showDetailModal.sku}</strong>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Batch Number:</span>
+                      <strong className="font-mono text-slate-800">{showDetailModal.batchNo}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Transferred Qty:</span>
+                      <strong className="font-mono text-slate-900">{showDetailModal.quantity} {showDetailModal.unit || 'Kg'}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Packaging:</span>
+                      <span className="text-slate-700 font-medium">{showDetailModal.packagingSummary || `${showDetailModal.quantity} ${showDetailModal.unit}`}</span>
+                    </div>
+                    <div className="flex justify-between pt-1 border-t border-slate-200">
+                      <span className="text-slate-500">Authorized By:</span>
+                      <span className="text-slate-800 font-semibold">{showDetailModal.user}</span>
+                    </div>
+                  </div>
+
+                  {/* Embedded QR Code */}
+                  <div className="flex flex-col items-center justify-center p-1.5 bg-white rounded-lg border border-slate-300">
+                    {modalQrUrl ? (
+                      <img src={modalQrUrl} alt="Movement QR" className="w-24 h-24 object-contain" />
+                    ) : (
+                      <QrCode className="w-16 h-16 text-slate-300 animate-pulse" />
+                    )}
+                    <span className="text-[8px] font-mono text-slate-400 mt-0.5 uppercase tracking-tighter">Scan Verification</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100 font-mono">
+                  <span>Voucher: {showDetailModal.refNo}</span>
+                  <span className="text-emerald-600 font-bold">✓ Relocated &amp; Logged in MongoDB</span>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 2: Physical Printable QR Sticker Tag (Matches Check-in / Put-Away Format Exactly) */}
+            {activeModalTab === 'tag' && (
+              <div id="printable-movement-tag" className="printable-area border-2 border-slate-900 rounded-xl p-4 bg-white space-y-2 text-center">
+                <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+                  CENTRAL WAREHOUSE • RELOCATION / PALLET TAG
+                </div>
+                <div className="text-xl font-black font-mono tracking-widest text-slate-900 py-1 bg-slate-50 rounded border border-dashed border-slate-300">
+                  {showDetailModal.toLocation}
+                </div>
+                <div className="w-32 h-32 mx-auto border border-slate-300 p-1.5 rounded-lg flex items-center justify-center bg-white shadow-xs">
+                  {modalQrUrl ? (
+                    <img src={modalQrUrl} alt="Relocation QR" className="w-full h-full object-contain" />
+                  ) : (
+                    <QrCode className="w-16 h-16 text-slate-300 animate-pulse" />
+                  )}
+                </div>
+                <p className="text-xs font-bold text-slate-900 truncate">{showDetailModal.productName}</p>
+                <div className="text-[10px] text-slate-600 font-mono">
+                  Batch: {showDetailModal.batchNo} • {showDetailModal.quantity} {showDetailModal.unit || 'Kg'}
+                </div>
+                <div className="text-[9px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 inline-block">
+                  Relocation Status: Completed &amp; Occupied
+                </div>
+              </div>
+            )}
+
+            {/* Modal Actions */}
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
@@ -958,14 +1071,25 @@ export default function StockMovement() {
               >
                 Close
               </button>
-              <button
-                type="button"
-                onClick={() => printSpecificElement('#printable-movement-voucher', `Movement Voucher - ${showDetailModal.refNo}`)}
-                className="flex-1 sm:flex-none justify-center inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition cursor-pointer text-center"
-              >
-                <Printer className="w-4 h-4 shrink-0" />
-                <span>Print Transit Voucher</span>
-              </button>
+              {activeModalTab === 'voucher' ? (
+                <button
+                  type="button"
+                  onClick={() => printSpecificElement('#printable-movement-voucher', `Movement Voucher - ${showDetailModal.refNo}`)}
+                  className="flex-1 sm:flex-none justify-center inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition cursor-pointer text-center"
+                >
+                  <Printer className="w-4 h-4 shrink-0" />
+                  <span>Print Transit Voucher</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => printSpecificElement('#printable-movement-tag', `Relocation Tag - ${showDetailModal.toLocation}`)}
+                  className="flex-1 sm:flex-none justify-center inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition cursor-pointer text-center"
+                >
+                  <Printer className="w-4 h-4 shrink-0" />
+                  <span>Print QR Pallet Tag</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
