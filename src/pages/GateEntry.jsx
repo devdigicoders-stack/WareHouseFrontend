@@ -6,7 +6,8 @@ import { apiRequest } from '../services/api'
 import {
   Truck, FileText, ClipboardList, Package, Trash2, Check,
   Printer, ChevronDown, Search, ArrowRight, QrCode, LogOut, Clock,
-  Plus, Warehouse, AlertCircle, CheckCircle2, ShieldCheck, X, Loader2
+  Plus, Warehouse, AlertCircle, CheckCircle2, ShieldCheck, X, Loader2,
+  ArrowUpRight, Lock, Unlock, AlertTriangle
 } from 'lucide-react'
 
 const fmt = (iso) => {
@@ -36,6 +37,7 @@ export default function GateEntry() {
   const [loading, setLoading] = useState(false)
   const [allEntries, setAllEntries] = useState([])
   const [products, setProducts] = useState([])
+  const [grns, setGrns] = useState([])
   const [activePassModal, setActivePassModal] = useState(null)
   const [passQrDataUrl, setPassQrDataUrl] = useState('')
   const [logSearch, setLogSearch] = useState('')
@@ -49,6 +51,7 @@ export default function GateEntry() {
   const [gateOutRemark, setGateOutRemark] = useState('')
   const [gateOutOfficerName, setGateOutOfficerName] = useState('Security Officer')
   const [gateOutOfficerId, setGateOutOfficerId] = useState('SEC-01')
+  const [forceBypassGateOut, setForceBypassGateOut] = useState(false)
 
   // Form state
   const [vehicleNumber, setVehicleNumber] = useState('')
@@ -111,6 +114,12 @@ export default function GateEntry() {
         if (Array.isArray(data)) setAllEntries(data)
       })
       .catch(() => triggerToast('Failed to load gate entries', 'error'))
+
+    apiRequest('/grn')
+      .then((data) => {
+        if (Array.isArray(data)) setGrns(data)
+      })
+      .catch(() => {})
   }
 
   useEffect(() => {
@@ -122,6 +131,75 @@ export default function GateEntry() {
       if (Array.isArray(data) && data.length > 0) setBackendShades(data)
     }).catch(() => {})
   }, [])
+
+  // Helper: Live Inward verification pipeline status (GRN -> Put-Away -> Clearance)
+  const getGateEntryInwardStatus = (entry) => {
+    if (!entry) return { stage: 'UNKNOWN', canGateOut: false, label: 'Unknown' }
+
+    if (entry.status === 'Gate Out / Cleared') {
+      return {
+        stage: 'CLEARED',
+        label: 'Gate Out / Cleared',
+        badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
+        canGateOut: false,
+        reason: 'Vehicle has already exited warehouse premises.',
+        grn: null,
+      }
+    }
+
+    const cleanVeh = (entry.vehicleNumber || '').trim().toLowerCase()
+    const cleanChallan = (entry.challanNo || '').trim().toLowerCase()
+    const cleanPo = (entry.poNumber || '').trim().toLowerCase()
+
+    const matchingGrn = grns.find((g) => {
+      if (g.gateEntryId && String(g.gateEntryId) === String(entry._id)) return true
+      if (g.vehicleNo && g.vehicleNo.trim().toLowerCase() === cleanVeh) return true
+      if (cleanPo && g.poNo && g.poNo.trim().toLowerCase() === cleanPo) return true
+      return false
+    })
+
+    if (!matchingGrn) {
+      return {
+        stage: 'PENDING_GRN',
+        label: 'GRN Pending',
+        badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
+        canGateOut: false,
+        reason: `Goods Receiving (GRN) has not been created yet for vehicle ${entry.vehicleNumber} (Challan: ${entry.challanNo || 'N/A'}).`,
+        grn: null,
+        pendingItemsCount: 0,
+        totalItemsCount: 0,
+      }
+    }
+
+    const materials = matchingGrn.materials || []
+    const pendingPutAway = materials.filter(
+      (m) => m.putAwayStatus !== 'Completed' && !m.location
+    )
+
+    if (pendingPutAway.length > 0) {
+      return {
+        stage: 'PENDING_PUTAWAY',
+        label: `Put-Away Pending (${materials.length - pendingPutAway.length}/${materials.length})`,
+        badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+        canGateOut: false,
+        reason: `${pendingPutAway.length} item(s) in GRN (${matchingGrn.grnNo}) are still pending Put-Away check-in.`,
+        grn: matchingGrn,
+        pendingItemsCount: pendingPutAway.length,
+        totalItemsCount: materials.length,
+      }
+    }
+
+    return {
+      stage: 'READY_FOR_OUT',
+      label: 'Ready for Gate Out',
+      badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      canGateOut: true,
+      reason: `GRN (${matchingGrn.grnNo}) and all ${materials.length} items checked into warehouse bins.`,
+      grn: matchingGrn,
+      pendingItemsCount: 0,
+      totalItemsCount: materials.length,
+    }
+  }
 
   // Generate QR Code for Pass Modal
   useEffect(() => {
@@ -286,13 +364,26 @@ export default function GateEntry() {
   // Handle Gate Out with Confirmation
   const handleOpenGateOutModal = (entry) => {
     setGateOutConfirmModal(entry)
-    setGateOutRemark(`Vehicle unloaded and inspected. Cleared for exit from ${entry.assignedBay}.`)
+    const inward = getGateEntryInwardStatus(entry)
+    if (inward.canGateOut) {
+      setGateOutRemark(`Vehicle unloaded and inspected. GRN (${inward.grn?.grnNo || 'Verified'}) put-away completed. Cleared for exit from ${entry.assignedBay}.`)
+    } else {
+      setGateOutRemark(`Gate Out Clearance Notice: ${inward.reason}`)
+    }
     setGateOutOfficerName('Security Officer')
     setGateOutOfficerId('SEC-01')
+    setForceBypassGateOut(false)
   }
 
   const handleConfirmGateOut = async () => {
     if (!gateOutConfirmModal) return
+    const inward = getGateEntryInwardStatus(gateOutConfirmModal)
+
+    if (!inward.canGateOut && !forceBypassGateOut) {
+      triggerToast(`Cannot Gate Out: ${inward.reason}`, 'error')
+      return
+    }
+
     if (!gateOutRemark.trim()) {
       triggerToast('Gate Out Remark is required', 'error')
       return
@@ -302,6 +393,7 @@ export default function GateEntry() {
       const updated = await apiRequest(`/gate-entry/${gateOutConfirmModal._id}/gate-out`, {
         method: 'PATCH',
         body: JSON.stringify({
+          forceGateOut: forceBypassGateOut,
           gateOutRemark: gateOutRemark.trim(),
           gateOutOfficerName: gateOutOfficerName.trim(),
           gateOutOfficerId: gateOutOfficerId.trim(),
@@ -311,6 +403,7 @@ export default function GateEntry() {
       setAllEntries((p) => p.map((e) => (e._id === gateOutConfirmModal._id ? updated : e)))
       triggerToast(`Vehicle ${gateOutConfirmModal.vehicleNumber} cleared for Gate Out!`)
       setGateOutConfirmModal(null)
+      fetchEntries()
     } catch (err) {
       triggerToast(err.message || 'Failed to process Gate Out', 'error')
     }
@@ -707,7 +800,7 @@ export default function GateEntry() {
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-100">
-              <table className="w-full text-left text-sm min-w-[900px]">
+              <table className="w-full text-left text-sm min-w-[950px]">
                 <thead>
                   <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-bold">
                     <th className="py-4 px-4">Pass No.</th>
@@ -715,60 +808,100 @@ export default function GateEntry() {
                     <th className="py-4 px-4">Driver</th>
                     <th className="py-4 px-4">Supplier / Challan</th>
                     <th className="py-4 px-4">Bay</th>
-                    <th className="py-4 px-4">Officer Remark</th>
                     <th className="py-4 px-4">In Time</th>
-                    <th className="py-4 px-4 text-center">Status</th>
+                    <th className="py-4 px-4 text-center">Inward &amp; Clearance Status</th>
                     <th className="py-4 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {activeVehicles.map((v) => (
-                    <tr key={v._id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-4 px-4 font-mono font-bold text-indigo-700">{v.passNumber}</td>
-                      <td className="py-4 px-4">
-                        <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
-                          {v.vehicleNumber}
-                        </span>
-                        <span className="block text-xs text-slate-500 mt-1">{v.vehicleType}</span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <p className="font-bold text-slate-900">{v.driverName}</p>
-                        <p className="text-xs text-slate-500 font-mono">{v.driverContact}</p>
-                      </td>
-                      <td className="py-4 px-4">
-                        <p className="font-medium text-slate-800">{v.supplier}</p>
-                        <p className="text-xs text-slate-500 font-mono">Ref: {v.challanNo}</p>
-                      </td>
-                      <td className="py-4 px-4 text-xs font-semibold text-slate-700 bg-slate-50">{v.assignedBay}</td>
-                      <td className="py-4 px-4 text-xs text-slate-600 max-w-xs truncate" title={v.officerRemark || v.remarks}>
-                        {v.officerRemark || v.remarks || '—'}
-                      </td>
-                      <td className="py-4 px-4 text-xs font-mono text-slate-500">{fmt(v.inTime)}</td>
-                      <td className="py-4 px-4 text-center">
-                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                          {v.status}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setActivePassModal(v)}
-                            className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
-                          >
-                            Pass Slip
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenGateOutModal(v)}
-                            className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer flex items-center gap-1.5 transition-colors shadow-xs"
-                          >
-                            <LogOut className="w-3.5 h-3.5" /> Gate Out
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {activeVehicles.map((v) => {
+                    const inward = getGateEntryInwardStatus(v)
+                    return (
+                      <tr key={v._id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-4 px-4 font-mono font-bold text-indigo-700">{v.passNumber}</td>
+                        <td className="py-4 px-4">
+                          <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                            {v.vehicleNumber}
+                          </span>
+                          <span className="block text-xs text-slate-500 mt-1">{v.vehicleType}</span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <p className="font-bold text-slate-900">{v.driverName}</p>
+                          <p className="text-xs text-slate-500 font-mono">{v.driverContact}</p>
+                        </td>
+                        <td className="py-4 px-4">
+                          <p className="font-medium text-slate-800">{v.supplier}</p>
+                          <p className="text-xs text-slate-500 font-mono">Ref: {v.challanNo}</p>
+                        </td>
+                        <td className="py-4 px-4 text-xs font-semibold text-slate-700 bg-slate-50">{v.assignedBay}</td>
+                        <td className="py-4 px-4 text-xs font-mono text-slate-500">{fmt(v.inTime)}</td>
+                        <td className="py-4 px-4 text-center">
+                          <div className="inline-flex flex-col items-center">
+                            <span
+                              className={`text-xs font-bold px-2.5 py-1 rounded-full border inline-flex items-center gap-1.5 ${inward.badgeClass}`}
+                            >
+                              {inward.stage === 'READY_FOR_OUT' ? (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : inward.stage === 'PENDING_PUTAWAY' ? (
+                                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                              ) : (
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                              )}
+                              <span>{inward.label}</span>
+                            </span>
+
+                            {inward.stage === 'PENDING_GRN' && (
+                              <Link
+                                to="/grn"
+                                className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline flex items-center gap-0.5 mt-1"
+                              >
+                                <span>Create GRN</span>
+                                <ArrowUpRight className="w-3 h-3" />
+                              </Link>
+                            )}
+                            {inward.stage === 'PENDING_PUTAWAY' && (
+                              <Link
+                                to="/put-away"
+                                className="text-[10px] text-amber-700 hover:text-amber-900 font-bold hover:underline flex items-center gap-0.5 mt-1"
+                              >
+                                <span>Check-In Bins</span>
+                                <ArrowUpRight className="w-3 h-3" />
+                              </Link>
+                            )}
+                            {inward.stage === 'READY_FOR_OUT' && (
+                              <span className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                {inward.grn?.grnNo || 'GRN Verified'}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setActivePassModal(v)}
+                              className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
+                            >
+                              Pass Slip
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenGateOutModal(v)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer flex items-center gap-1.5 transition-colors shadow-xs ${
+                                inward.canGateOut
+                                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
+                              }`}
+                              title={inward.canGateOut ? 'Clear Vehicle for Exit' : inward.reason}
+                            >
+                              {inward.canGateOut ? <LogOut className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5 text-rose-500" />}
+                              <span>Gate Out</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -969,76 +1102,144 @@ export default function GateEntry() {
               </button>
             </div>
 
-            <div className="bg-amber-50 p-3.5 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-1">
-              <div className="flex justify-between">
-                <span>Pass Number:</span>
-                <strong className="font-mono">{gateOutConfirmModal.passNumber}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Vehicle:</span>
-                <strong className="font-mono">{gateOutConfirmModal.vehicleNumber}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Driver:</span>
-                <span>{gateOutConfirmModal.driverName}</span>
-              </div>
-            </div>
+            {/* Inward Pipeline Verification Card */}
+            {(() => {
+              const inward = getGateEntryInwardStatus(gateOutConfirmModal)
+              return (
+                <div className="space-y-3">
+                  {!inward.canGateOut ? (
+                    <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center gap-2 text-rose-800 font-bold text-xs">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>Gate Out Blocked — Inward Checklist Incomplete</span>
+                      </div>
+                      <p className="text-xs text-rose-700 leading-relaxed font-medium">
+                        {inward.reason}
+                      </p>
+                      <div className="pt-1 flex flex-wrap items-center gap-2">
+                        {inward.stage === 'PENDING_GRN' && (
+                          <Link
+                            to="/grn"
+                            className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs"
+                          >
+                            <span>1. Create Goods Receiving (GRN)</span>
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </Link>
+                        )}
+                        {inward.stage === 'PENDING_PUTAWAY' && (
+                          <Link
+                            to="/put-away"
+                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs"
+                          >
+                            <span>2. Complete Put-Away Check-In ({inward.pendingItemsCount} items)</span>
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2.5 text-xs text-emerald-800 font-medium">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>✓ Inward Verified: GRN ({inward.grn?.grnNo}) and Put-Away Check-In are 100% completed. Ready for exit clearance.</span>
+                    </div>
+                  )}
 
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Gate Officer Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={gateOutOfficerName}
-                    onChange={(e) => setGateOutOfficerName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-slate-800 space-y-1.5">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Pass Number:</span>
+                      <strong className="font-mono">{gateOutConfirmModal.passNumber}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Vehicle:</span>
+                      <strong className="font-mono">{gateOutConfirmModal.vehicleNumber}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Driver:</span>
+                      <span className="font-semibold">{gateOutConfirmModal.driverName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Assigned Bay:</span>
+                      <span>{gateOutConfirmModal.assignedBay}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Gate Officer Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={gateOutOfficerName}
+                          onChange={(e) => setGateOutOfficerName(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Officer Badge ID *</label>
+                        <input
+                          type="text"
+                          required
+                          value={gateOutOfficerId}
+                          onChange={(e) => setGateOutOfficerId(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        Gate Out Clearance Remarks <span className="text-rose-500">*</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        required
+                        value={gateOutRemark}
+                        onChange={(e) => setGateOutRemark(e.target.value)}
+                        placeholder="Reason for clearance, empty load inspection, etc."
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+
+                    {!inward.canGateOut && (
+                      <label className="flex items-center gap-2 p-2 rounded-xl bg-amber-50 border border-amber-200 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={forceBypassGateOut}
+                          onChange={(e) => setForceBypassGateOut(e.target.checked)}
+                          className="rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+                        />
+                        <span className="text-[11px] font-bold text-amber-900">
+                          Security Officer Manual Override (Emergency / Non-unloaded Exit)
+                        </span>
+                      </label>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setGateOutConfirmModal(null)}
+                      className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!inward.canGateOut && !forceBypassGateOut}
+                      onClick={handleConfirmGateOut}
+                      className={`px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition ${
+                        inward.canGateOut || forceBypassGateOut
+                          ? 'bg-rose-600 hover:bg-rose-700 text-white cursor-pointer'
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <LogOut className="w-4 h-4" /> Confirm Gate Out
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Officer Badge ID *</label>
-                  <input
-                    type="text"
-                    required
-                    value={gateOutOfficerId}
-                    onChange={(e) => setGateOutOfficerId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Gate Out Clearance Remarks <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  rows={2}
-                  required
-                  value={gateOutRemark}
-                  onChange={(e) => setGateOutRemark(e.target.value)}
-                  placeholder="Reason for clearance, empty load inspection, etc."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setGateOutConfirmModal(null)}
-                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmGateOut}
-                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm"
-              >
-                <LogOut className="w-4 h-4" /> Confirm Gate Out
-              </button>
-            </div>
+              )
+            })()}
           </div>
         </div>
       )}
