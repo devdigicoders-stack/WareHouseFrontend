@@ -353,16 +353,17 @@ export default function LabTesting() {
 
     const newId = samplesData.length + 1
     const sId = `QC-2026-${String(newId).padStart(4, '0')}`
-    const certNumber = `COA-2026-${String(newId + 100).padStart(5, '0')}`
-
     const payload = {
       qcNumber: sId,
       grnNo: selectedModalGrnNo,
       productName: newTest.productName,
       sku: newTest.sku,
       batchNo: newTest.batchNo,
+      testProtocol: newTest.testType,
       sampleSize: newTest.sampleQty,
       testedBy: newTest.testedBy,
+      expectedDate: newTest.expectedDate,
+      storageZone: newTest.storageZone,
       status: 'Quarantine / Under Test',
       remarks: newTest.remarks,
       certificateNo: certNumber,
@@ -372,8 +373,9 @@ export default function LabTesting() {
       ],
     }
 
+    let savedQc = null
     try {
-      await apiRequest('/qc', {
+      savedQc = await apiRequest('/qc', {
         method: 'POST',
         body: JSON.stringify(payload),
       })
@@ -382,8 +384,8 @@ export default function LabTesting() {
     }
 
     const newRecord = {
-      id: newId,
-      sampleId: sId,
+      id: savedQc?._id || newId,
+      sampleId: savedQc?.qcNumber || sId,
       grnNo: selectedModalGrnNo,
       batchNo: newTest.batchNo,
       productName: newTest.productName,
@@ -399,7 +401,7 @@ export default function LabTesting() {
         { param: 'Visual & Physical Appearance', standard: 'Uniform / Defect Free', result: 'Verified Normal', status: 'Pass' },
       ],
       remarks: newTest.remarks,
-      certificateNo: certNumber,
+      certificateNo: savedQc?.certificateNo || certNumber,
     }
 
     setSamplesData([newRecord, ...samplesData])
@@ -1086,14 +1088,13 @@ export default function LabTesting() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Batch Number <span className="text-rose-500">*</span>
+                      Batch Number (From GRN) <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
-                      required
+                      readOnly
                       value={newTest.batchNo}
-                      onChange={(e) => setNewTest({ ...newTest, batchNo: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                      className="w-full bg-slate-100 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 cursor-not-allowed"
                     />
                   </div>
                 </div>
