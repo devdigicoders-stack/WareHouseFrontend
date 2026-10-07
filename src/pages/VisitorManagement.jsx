@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import QRCode from 'qrcode'
 import { printSpecificElement } from '../utils/printHelper'
 import {
   Users,
@@ -15,7 +16,17 @@ import {
   Building2,
   ShieldCheck,
   QrCode,
+  Loader2,
+  RefreshCw,
+  Trash2,
 } from 'lucide-react'
+import {
+  fetchVisitors,
+  createVisitor,
+  checkOutVisitor,
+  updateVisitorStatus,
+  deleteVisitor,
+} from '../services/api'
 
 // Options for Visitor Registration Dropdowns
 const PURPOSE_OPTIONS = [
@@ -27,13 +38,7 @@ const PURPOSE_OPTIONS = [
   { value: 'Audit & Compliance', label: 'Quality & Safety Compliance' },
 ]
 
-const HOST_OPTIONS = [
-  { value: 'Anil Sharma (Warehouse Manager)', label: 'Anil Sharma (Warehouse Manager)' },
-  { value: 'Rajesh Verma (Quality & Lab Lead)', label: 'Rajesh Verma (Quality & Lab Lead)' },
-  { value: 'Pooja Rana (Inventory Supervisor)', label: 'Pooja Rana (Inventory Supervisor)' },
-  { value: 'Suresh Chauhan (Logistics Officer)', label: 'Suresh Chauhan (Logistics Officer)' },
-  { value: 'Dr. S. Patel (Compliance Head)', label: 'Dr. S. Patel (Compliance Head)' },
-]
+
 
 const ID_PROOF_OPTIONS = [
   { value: 'Aadhaar Card', label: 'Aadhaar Card' },
@@ -113,14 +118,30 @@ function CustomSelect({ label, value, onChange, options, required, zIndexClass =
   )
 }
 
+
+function formatTime(timeVal) {
+  if (!timeVal) return '—'
+  try {
+    const d = new Date(timeVal)
+    if (isNaN(d.getTime())) return timeVal
+    return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+  } catch {
+    return timeVal
+  }
+}
+
 export default function VisitorManagement() {
   const [activeTab, setActiveTab] = useState('all') // 'all', 'inside', 'checked_out', 'pending'
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [toastMessage, setToastMessage] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [badgeQrDataUrl, setBadgeQrDataUrl] = useState('')
 
-  // Real-time Commercial Warehouse Visitor Registry
+  // Real-time Commercial Warehouse Visitor Registry from MongoDB
   const [visitors, setVisitors] = useState([])
 
   // Selected Visitor for Print Badge Modal
@@ -132,7 +153,7 @@ export default function VisitorManagement() {
     company: '',
     contactNo: '',
     purpose: 'Material Inspection',
-    personToMeet: 'Anil Sharma (Warehouse Manager)',
+    personToMeet: '',
     idProof: 'Aadhaar Card',
     idNumber: '',
   })
@@ -143,7 +164,62 @@ export default function VisitorManagement() {
     setTimeout(() => setToastMessage(null), 3500)
   }
 
-  // Filtered visitors
+  // Load visitors from backend API
+  const loadVisitors = useCallback(async (silent = false) => {
+    if (!silent) setRefreshing(true)
+    try {
+      const data = await fetchVisitors()
+      if (Array.isArray(data)) {
+        setVisitors(data)
+      }
+    } catch {
+      triggerToast('Failed to load visitor records from database')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [])
+
+  // Initial fetch and auto-sync
+  useEffect(() => {
+    loadVisitors(false)
+    const interval = setInterval(() => {
+      loadVisitors(true)
+    }, 20000)
+
+    const handleFocus = () => loadVisitors(true)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [loadVisitors])
+
+  // Generate dynamic QR code for printable pass badge
+  useEffect(() => {
+    if (selectedVisitor) {
+      const payload = JSON.stringify({
+        type: 'VISITOR_PASS',
+        passNo: selectedVisitor.passNo,
+        visitor: selectedVisitor.visitorName,
+        company: selectedVisitor.company,
+        contact: selectedVisitor.contactNo,
+        host: selectedVisitor.personToMeet,
+        purpose: selectedVisitor.purpose,
+        idProof: `${selectedVisitor.idProof || 'ID'} (${selectedVisitor.idNumber || 'VERIFIED'})`,
+        entry: formatTime(selectedVisitor.entryTime || selectedVisitor.createdAt),
+        status: selectedVisitor.status,
+      })
+      QRCode.toDataURL(payload, { width: 140, margin: 1 })
+        .then(setBadgeQrDataUrl)
+        .catch(() => setBadgeQrDataUrl(''))
+    } else {
+      setBadgeQrDataUrl('')
+    }
+  }, [selectedVisitor])
+
+  // Filtered visitors based on active tab and search
   const filteredVisitors = useMemo(() => {
     return visitors.filter((item) => {
       // Tab filter
@@ -155,87 +231,105 @@ export default function VisitorManagement() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
         return (
-          item.visitorName.toLowerCase().includes(q) ||
-          item.company.toLowerCase().includes(q) ||
-          item.contactNo.includes(q) ||
-          item.passNo.toLowerCase().includes(q) ||
-          item.personToMeet.toLowerCase().includes(q) ||
-          item.purpose.toLowerCase().includes(q)
+          (item.visitorName || '').toLowerCase().includes(q) ||
+          (item.company || '').toLowerCase().includes(q) ||
+          (item.contactNo || '').includes(q) ||
+          (item.passNo || '').toLowerCase().includes(q) ||
+          (item.personToMeet || '').toLowerCase().includes(q) ||
+          (item.purpose || '').toLowerCase().includes(q)
         )
       }
       return true
     })
   }, [visitors, activeTab, searchQuery])
 
-  // Register New Visitor
-  const handleRegisterVisitor = (e) => {
+  // Register New Visitor (Persists to MongoDB)
+  const handleRegisterVisitor = async (e) => {
     e.preventDefault()
     if (!newVisitor.visitorName.trim() || !newVisitor.contactNo.trim()) {
       triggerToast('Please provide Visitor Name and Contact Number!')
       return
     }
 
-    const nextPassNum = visitors.length + 1
-    const passStr = `V-2026-${String(nextPassNum).padStart(3, '0')}`
-    const currentTime = new Date().toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    })
-
-    const newObj = {
-      id: Date.now(),
-      passNo: passStr,
-      visitorName: newVisitor.visitorName.trim(),
-      company: newVisitor.company.trim() || 'Direct Client Representative',
-      contactNo: newVisitor.contactNo.trim(),
-      purpose: newVisitor.purpose,
-      personToMeet: newVisitor.personToMeet,
-      entryTime: currentTime,
-      exitTime: '—',
-      status: 'Inside',
-      validTill: 'Today, 06:00 PM',
-      idProof: newVisitor.idProof,
-      idNumber: newVisitor.idNumber.trim() || 'VERIFIED-ON-GATE',
+    if (!newVisitor.personToMeet.trim()) {
+      triggerToast('Please enter or select Person to Meet (Host)!')
+      return
     }
 
-    setVisitors([newObj, ...visitors])
-    setSelectedVisitor(newObj)
-    setShowAddModal(false)
-    setShowPrintModal(true)
-    setNewVisitor({
-      visitorName: '',
-      company: '',
-      contactNo: '',
-      purpose: 'Material Inspection',
-      personToMeet: 'Anil Sharma (Warehouse Manager)',
-      idProof: 'Aadhaar Card',
-      idNumber: '',
-    })
-    triggerToast(`Visitor Pass ${passStr} issued to ${newObj.visitorName}`)
+    const cleanPhone = (newVisitor.contactNo || '').replace(/\D/g, '')
+    if (cleanPhone.length !== 10) {
+      triggerToast('Contact Phone Number must be exactly 10 digits!')
+      return
+    }
+
+    try {
+      setSubmitting(true)
+      const payload = {
+        visitorName: newVisitor.visitorName.trim(),
+        company: newVisitor.company.trim() || 'Direct Client Representative',
+        contactNo: cleanPhone,
+        purpose: newVisitor.purpose,
+        personToMeet: newVisitor.personToMeet.trim(),
+        idProof: newVisitor.idProof,
+        idNumber: newVisitor.idNumber.trim() || 'VERIFIED-ON-GATE',
+        status: 'Inside',
+        validTill: 'Today, 06:00 PM',
+      }
+
+      const created = await createVisitor(payload)
+      setShowAddModal(false)
+      setSelectedVisitor(created)
+      setShowPrintModal(true)
+      setNewVisitor({
+        visitorName: '',
+        company: '',
+        contactNo: '',
+        purpose: 'Material Inspection',
+        personToMeet: '',
+        idProof: 'Aadhaar Card',
+        idNumber: '',
+      })
+      triggerToast(`Visitor Pass ${created.passNo} issued to ${created.visitorName}!`)
+      loadVisitors(true)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to issue visitor pass')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  // Check-Out Visitor
-  const handleCheckOut = (id) => {
-    const currentTime = new Date().toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    })
-    setVisitors(
-      visitors.map((v) =>
-        v.id === id ? { ...v, status: 'Checked Out', exitTime: currentTime } : v
-      )
-    )
-    triggerToast('Visitor checked out successfully.')
+  // Check-Out Visitor (Persists to MongoDB)
+  const handleCheckOut = async (id) => {
+    try {
+      await checkOutVisitor(id)
+      triggerToast('Visitor checked out successfully.')
+      loadVisitors(true)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to check out visitor')
+    }
   }
 
-  // Approve Pending Visitor
-  const handleApprove = (id) => {
-    setVisitors(
-      visitors.map((v) => (v.id === id ? { ...v, status: 'Inside' } : v))
-    )
-    triggerToast('Visitor approved and admitted into premises.')
+  // Approve Pending Visitor (Persists to MongoDB)
+  const handleApprove = async (id) => {
+    try {
+      await updateVisitorStatus(id, 'Inside', 'Admitted through Gate 01')
+      triggerToast('Visitor approved and admitted into premises.')
+      loadVisitors(true)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to approve visitor')
+    }
+  }
+
+  // Delete visitor record
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this visitor log record?')) return
+    try {
+      await deleteVisitor(id)
+      triggerToast('Visitor record deleted successfully.')
+      loadVisitors(true)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to delete record')
+    }
   }
 
   // Export CSV
@@ -247,6 +341,8 @@ export default function VisitorManagement() {
       'Contact No',
       'Purpose',
       'Host Person',
+      'ID Proof',
+      'ID Number',
       'Entry Time',
       'Exit Time',
       'Status',
@@ -258,8 +354,10 @@ export default function VisitorManagement() {
       v.contactNo,
       `"${v.purpose}"`,
       `"${v.personToMeet}"`,
-      v.entryTime,
-      v.exitTime,
+      `"${v.idProof}"`,
+      `"${v.idNumber}"`,
+      formatTime(v.entryTime || v.createdAt),
+      formatTime(v.exitTime),
       v.status,
     ])
     const csvContent =
@@ -268,7 +366,7 @@ export default function VisitorManagement() {
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement('a')
     link.setAttribute('href', encodedUri)
-    link.setAttribute('download', 'Warehouse_Visitor_Log.csv')
+    link.setAttribute('download', `Warehouse_Visitor_Log_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -301,7 +399,7 @@ export default function VisitorManagement() {
         </div>
       )}
 
-      {/* 1. Header Banner - Clean, Modern & Professional */}
+      {/* 1. Header Banner */}
       <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs mt-0.5">
@@ -309,9 +407,15 @@ export default function VisitorManagement() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                ● Visitor Access Active
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Visitor Access Active
               </span>
+              {refreshing && (
+                <span className="text-xs font-medium text-slate-400 flex items-center gap-1">
+                  <RefreshCw className="w-3 h-3 animate-spin" /> Syncing...
+                </span>
+              )}
             </div>
             <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 leading-tight">
               Visitor Management
@@ -324,6 +428,15 @@ export default function VisitorManagement() {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+          <button
+            type="button"
+            onClick={() => loadVisitors(false)}
+            className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer shadow-2xs"
+            title="Refresh Visitor Log"
+          >
+            <RefreshCw className={`w-4 h-4 text-slate-600 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+
           <button
             type="button"
             onClick={handleExport}
@@ -344,14 +457,14 @@ export default function VisitorManagement() {
         </div>
       </div>
 
-      {/* 2. Dynamic KPI Stat Cards (Real State Calculations) */}
+      {/* 2. Dynamic KPI Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Card 1: Total Visitors Registered */}
         <div className="bg-white rounded-2xl p-4.5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Visitors</p>
             <p className="text-2xl font-extrabold text-slate-900 mt-1">{visitors.length}</p>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">Today's Total Log</p>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">Database Registry</p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
             <Users className="w-5 h-5" />
@@ -487,116 +600,138 @@ export default function VisitorManagement() {
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-left text-sm min-w-[1050px]">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-bold">
-                <th className="py-3.5 px-3 w-10 text-center">#</th>
-                <th className="py-3.5 px-4 w-28">Pass No.</th>
-                <th className="py-3.5 px-4 min-w-[170px]">Visitor Details</th>
-                <th className="py-3.5 px-4 min-w-[180px]">Company / Organization</th>
-                <th className="py-3.5 px-4 min-w-[170px]">Purpose of Visit</th>
-                <th className="py-3.5 px-4 min-w-[190px]">Person to Meet (Host)</th>
-                <th className="py-3.5 px-4 w-24">Entry</th>
-                <th className="py-3.5 px-4 w-24">Exit</th>
-                <th className="py-3.5 px-4 text-center w-28">Status</th>
-                <th className="py-3.5 px-5 text-right w-44">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {filteredVisitors.length === 0 ? (
-                <tr>
-                  <td colSpan="10" className="py-10 text-center text-slate-400 text-sm">
-                    No visitor records match the current filter or search criteria.
-                  </td>
+        {loading ? (
+          <div className="py-16 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+            <p className="text-sm font-semibold text-slate-600">Loading visitors from database...</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left text-sm min-w-[1050px]">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-bold">
+                  <th className="py-3.5 px-3 w-10 text-center">#</th>
+                  <th className="py-3.5 px-4 w-28">Pass No.</th>
+                  <th className="py-3.5 px-4 min-w-[170px]">Visitor Details</th>
+                  <th className="py-3.5 px-4 min-w-[180px]">Company / Organization</th>
+                  <th className="py-3.5 px-4 min-w-[170px]">Purpose of Visit</th>
+                  <th className="py-3.5 px-4 min-w-[190px]">Person to Meet (Host)</th>
+                  <th className="py-3.5 px-4 w-24">Entry</th>
+                  <th className="py-3.5 px-4 w-24">Exit</th>
+                  <th className="py-3.5 px-4 text-center w-28">Status</th>
+                  <th className="py-3.5 px-5 text-right w-48">Actions</th>
                 </tr>
-              ) : (
-                filteredVisitors.map((v, idx) => (
-                  <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-3 text-center text-slate-400 font-mono text-xs font-semibold">
-                      {idx + 1}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-indigo-700 whitespace-nowrap">
-                      {v.passNo}
-                    </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <p className="font-bold text-slate-900">{v.visitorName}</p>
-                      <p className="text-xs text-slate-500 font-mono">{v.contactNo}</p>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-700">
-                      <p className="font-medium text-slate-900 truncate max-w-[180px]">{v.company}</p>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap font-medium text-xs">
-                      {v.purpose}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap">
-                      <p className="font-semibold text-slate-900 text-xs">{v.personToMeet}</p>
-                    </td>
-                    <td className="py-3.5 px-4 text-xs text-slate-700 font-semibold whitespace-nowrap">
-                      {v.entryTime}
-                    </td>
-                    <td className="py-3.5 px-4 text-xs text-slate-500 whitespace-nowrap">
-                      {v.exitTime}
-                    </td>
-                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                      <span
-                        className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${getStatusBadge(
-                          v.status
-                        )}`}
-                      >
-                        {v.status}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-5 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {v.status === 'Inside' && (
-                          <button
-                            type="button"
-                            onClick={() => handleCheckOut(v.id)}
-                            className="px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-600 text-orange-700 hover:text-white border border-orange-200 hover:border-orange-600 text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1"
-                            title="Check-Out Visitor"
-                          >
-                            <LogOut className="w-3 h-3" />
-                            <span>Check Out</span>
-                          </button>
-                        )}
-
-                        {v.status === 'Pending' && (
-                          <button
-                            type="button"
-                            onClick={() => handleApprove(v.id)}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1"
-                            title="Approve Entry"
-                          >
-                            <Check className="w-3 h-3" />
-                            <span>Approve</span>
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedVisitor(v)
-                            setShowPrintModal(true)
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1"
-                          title="Print Pass Badge"
-                        >
-                          <Printer className="w-3 h-3" />
-                          <span>Pass Badge</span>
-                        </button>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {filteredVisitors.length === 0 ? (
+                  <tr>
+                    <td colSpan="10" className="py-12 text-center text-slate-400 text-sm">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Users className="w-10 h-10 text-slate-300 stroke-1" />
+                        <span className="font-semibold text-slate-600">No visitor records match the current filter or search criteria.</span>
+                        <span className="text-xs text-slate-400">
+                          Click "Register New Visitor" to issue a security pass.
+                        </span>
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  filteredVisitors.map((v, idx) => (
+                    <tr key={v._id || v.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3.5 px-3 text-center text-slate-400 font-mono text-xs font-semibold">
+                        {idx + 1}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-indigo-700 whitespace-nowrap">
+                        {v.passNo}
+                      </td>
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <p className="font-bold text-slate-900">{v.visitorName}</p>
+                        <p className="text-xs text-slate-500 font-mono">{v.contactNo}</p>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-700">
+                        <p className="font-medium text-slate-900 truncate max-w-[180px]">{v.company}</p>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap font-medium text-xs">
+                        {v.purpose}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap">
+                        <p className="font-semibold text-slate-900 text-xs">{v.personToMeet}</p>
+                      </td>
+                      <td className="py-3.5 px-4 text-xs text-slate-700 font-semibold whitespace-nowrap">
+                        {formatTime(v.entryTime || v.createdAt)}
+                      </td>
+                      <td className="py-3.5 px-4 text-xs text-slate-500 whitespace-nowrap">
+                        {formatTime(v.exitTime)}
+                      </td>
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <span
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${getStatusBadge(
+                            v.status
+                          )}`}
+                        >
+                          {v.status}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {v.status === 'Inside' && (
+                            <button
+                              type="button"
+                              onClick={() => handleCheckOut(v._id || v.id)}
+                              className="px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-600 text-orange-700 hover:text-white border border-orange-200 hover:border-orange-600 text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1"
+                              title="Check-Out Visitor"
+                            >
+                              <LogOut className="w-3 h-3" />
+                              <span>Check Out</span>
+                            </button>
+                          )}
+
+                          {v.status === 'Pending' && (
+                            <button
+                              type="button"
+                              onClick={() => handleApprove(v._id || v.id)}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1"
+                              title="Approve Entry"
+                            >
+                              <Check className="w-3 h-3" />
+                              <span>Approve</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedVisitor(v)
+                              setShowPrintModal(true)
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1"
+                            title="Print Pass Badge"
+                          >
+                            <Printer className="w-3 h-3" />
+                            <span>Pass Badge</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(v._id || v.id)}
+                            className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                            title="Delete Record"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* ========================================================= */}
-      {/* REGISTER NEW VISITOR MODAL (CUSTOM PURE REACT SELECTS)    */}
+      {/* REGISTER NEW VISITOR MODAL (PERSISTS TO MONGODB)          */}
       {/* ========================================================= */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in">
@@ -609,7 +744,7 @@ export default function VisitorManagement() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Register New Visitor</h3>
-                  <p className="text-xs text-slate-500">Generate access token and security pass slip</p>
+                  <p className="text-xs text-slate-500">Save to database and issue official gate pass badge</p>
                 </div>
               </div>
               <button
@@ -659,17 +794,18 @@ export default function VisitorManagement() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Contact Phone Number <span className="text-rose-500">*</span>
+                    Contact Phone Number (10 Digits) <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="tel"
                     required
-                    placeholder="e.g. 98765 43210"
+                    maxLength={10}
+                    placeholder="e.g. 9876543210"
                     value={newVisitor.contactNo}
                     onChange={(e) =>
-                      setNewVisitor({ ...newVisitor, contactNo: e.target.value })
+                      setNewVisitor({ ...newVisitor, contactNo: e.target.value.replace(/\D/g, '') })
                     }
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono"
                   />
                 </div>
 
@@ -682,13 +818,21 @@ export default function VisitorManagement() {
                 />
               </div>
 
-              <CustomSelect
-                label="Person to Meet (Host)"
-                value={newVisitor.personToMeet}
-                onChange={(val) => setNewVisitor({ ...newVisitor, personToMeet: val })}
-                options={HOST_OPTIONS}
-                zIndexClass="z-20"
-              />
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Person to Meet (Host Name) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter host / officer name (e.g. Ramesh Kumar, Anil Sharma, Plant Head...)"
+                  value={newVisitor.personToMeet}
+                  onChange={(e) =>
+                    setNewVisitor({ ...newVisitor, personToMeet: e.target.value })
+                  }
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs font-medium"
+                />
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <CustomSelect
@@ -726,9 +870,11 @@ export default function VisitorManagement() {
                 </button>
                 <button
                   type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-xs cursor-pointer transition"
+                  disabled={submitting}
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-bold shadow-xs cursor-pointer transition flex items-center gap-1.5"
                 >
-                  Issue Visitor Pass
+                  {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>Issue Visitor Pass</span>
                 </button>
               </div>
             </form>
@@ -776,8 +922,12 @@ export default function VisitorManagement() {
                     {selectedVisitor.passNo}
                   </p>
                 </div>
-                <div className="w-14 h-14 bg-slate-50 border border-slate-200 rounded-xl p-1 flex flex-col items-center justify-center">
-                  <QrCode className="w-10 h-10 text-slate-800" />
+                <div className="w-16 h-16 bg-white border border-slate-200 rounded-xl p-1 flex flex-col items-center justify-center shadow-2xs shrink-0">
+                  {badgeQrDataUrl ? (
+                    <img src={badgeQrDataUrl} alt="Visitor QR" className="w-14 h-14 object-contain" />
+                  ) : (
+                    <QrCode className="w-10 h-10 text-slate-800" />
+                  )}
                 </div>
               </div>
 
@@ -804,12 +954,16 @@ export default function VisitorManagement() {
                   <span className="col-span-2 text-slate-700">{selectedVisitor.purpose}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
+                  <span className="text-slate-500 font-medium">ID Proof:</span>
+                  <span className="col-span-2 text-slate-700">{selectedVisitor.idProof} ({selectedVisitor.idNumber})</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
                   <span className="text-slate-500 font-medium">Entry Time:</span>
-                  <span className="col-span-2 font-semibold text-slate-800">{selectedVisitor.entryTime}</span>
+                  <span className="col-span-2 font-semibold text-slate-800">{formatTime(selectedVisitor.entryTime || selectedVisitor.createdAt)}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <span className="text-slate-500 font-medium">Validity:</span>
-                  <span className="col-span-2 text-slate-600">{selectedVisitor.validTill}</span>
+                  <span className="col-span-2 text-slate-600">{selectedVisitor.validTill || 'Today, 06:00 PM'}</span>
                 </div>
               </div>
 

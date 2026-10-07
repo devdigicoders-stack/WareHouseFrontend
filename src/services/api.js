@@ -74,3 +74,10 @@ export const fetchGatePasses = (params = '') => apiRequest(`/gate-pass${params}`
 export const createGatePass = (data) => apiRequest('/gate-pass', { method: 'POST', body: JSON.stringify(data) })
 export const updateGatePassStatus = (id, status, remarks) => apiRequest(`/gate-pass/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, remarks }) })
 export const deleteGatePass = (id) => apiRequest(`/gate-pass/${id}`, { method: 'DELETE' })
+
+// 12. Visitor Management (Security Check-in & Passes)
+export const fetchVisitors = () => apiRequest('/visitor')
+export const createVisitor = (data) => apiRequest('/visitor', { method: 'POST', body: JSON.stringify(data) })
+export const checkOutVisitor = (id) => apiRequest(`/visitor/${id}/checkout`, { method: 'PATCH' })
+export const updateVisitorStatus = (id, status, remarks) => apiRequest(`/visitor/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, remarks }) })
+export const deleteVisitor = (id) => apiRequest(`/visitor/${id}`, { method: 'DELETE' })
