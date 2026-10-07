@@ -31,6 +31,7 @@ import {
   XCircle,
   ShieldCheck,
   ArrowRight,
+  Loader2,
 } from 'lucide-react'
 
 // Custom Accessible Select Dropdown
@@ -122,6 +123,7 @@ export default function LabTesting() {
   const [showCertModal, setShowCertModal] = useState(null)
   const [showLabelModal, setShowLabelModal] = useState(null)
   const [showNewTestModal, setShowNewTestModal] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [certQrDataUrl, setCertQrDataUrl] = useState('')
   const [labelQrDataUrl, setLabelQrDataUrl] = useState('')
 
@@ -342,6 +344,8 @@ export default function LabTesting() {
   // Create New Test Handler (Strictly GRN-Linked)
   const handleCreateTest = async (e) => {
     e.preventDefault()
+    if (isSubmitting) return
+
     if (!selectedModalGrnNo) {
       triggerToast('Please select a valid received GRN consignment first', 'error')
       return
@@ -351,8 +355,11 @@ export default function LabTesting() {
       return
     }
 
+    setIsSubmitting(true)
     const newId = samplesData.length + 1
     const sId = `QC-2026-${String(newId).padStart(4, '0')}`
+    const certNumber = `COA-2026-${String(newId + 100).padStart(5, '0')}`
+
     const payload = {
       qcNumber: sId,
       grnNo: selectedModalGrnNo,
@@ -381,6 +388,8 @@ export default function LabTesting() {
       })
     } catch (err) {
       console.warn('QC backend notice:', err)
+    } finally {
+      setIsSubmitting(false)
     }
 
     const newRecord = {
@@ -1169,9 +1178,19 @@ export default function LabTesting() {
                   </button>
                   <button
                     type="submit"
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
+                    disabled={isSubmitting}
+                    className={`bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                      isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
                   >
-                    Queue Test Request
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Queueing Test Request...</span>
+                      </>
+                    ) : (
+                      <span>Queue Test Request</span>
+                    )}
                   </button>
                 </div>
               </form>
