@@ -8,7 +8,7 @@ import {
   ChevronDown, Check, Printer, Plus, LayoutGrid, AlertCircle, Eye, ArrowUpRight
 } from 'lucide-react'
 
-const API = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '')
+import { apiRequest } from '../services/api'
 
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
   const [isOpen, setIsOpen] = useState(false)
@@ -77,6 +77,8 @@ export default function LocationMaster() {
   // Live Database State
   const [shades, setShades] = useState([])
   const [racks, setRacks] = useState([])
+  const [grns, setGrns] = useState([])
+  const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Active Selected Shade Code (e.g. SH-01)
@@ -104,20 +106,26 @@ export default function LocationMaster() {
     currentStock: 0,
   })
 
-  // Fetch real Shade & Rack data from Mongo Backend API
+  // Fetch real Shade, Rack, GRN, & Product data from Mongo Backend API
   const fetchMasterData = async () => {
     try {
       setLoading(true)
-      const [shadesRes, racksRes] = await Promise.all([
-        fetch(`${API}/api/shade`),
-        fetch(`${API}/api/rack`),
+      const [shadesRes, racksRes, grnsRes, prodsRes] = await Promise.allSettled([
+        apiRequest('/shade'),
+        apiRequest('/rack'),
+        apiRequest('/grn'),
+        apiRequest('/product'),
       ])
 
-      const shadesData = shadesRes.ok ? await shadesRes.json() : []
-      const racksData = racksRes.ok ? await racksRes.json() : []
+      const shadesData = shadesRes.status === 'fulfilled' && Array.isArray(shadesRes.value) ? shadesRes.value : []
+      const racksData = racksRes.status === 'fulfilled' && Array.isArray(racksRes.value) ? racksRes.value : []
+      const grnsData = grnsRes.status === 'fulfilled' && Array.isArray(grnsRes.value) ? grnsRes.value : []
+      const prodsData = prodsRes.status === 'fulfilled' && Array.isArray(prodsRes.value) ? prodsRes.value : []
 
       setShades(shadesData)
       setRacks(racksData)
+      setGrns(grnsData)
+      setProducts(prodsData)
 
       if (shadesData.length > 0 && !activeShadeCode) {
         setActiveShadeCode(shadesData[0].code)
@@ -134,49 +142,99 @@ export default function LocationMaster() {
     fetchMasterData()
   }, [])
 
-  // Flatten all cells from all live racks with metadata
+  // Flatten all cells from all live racks with metadata & merge with GRN/Product allocated inventory
   const allLiveCells = useMemo(() => {
     const cellsList = []
-    racks.forEach((rack) => {
-      const shadeObj = shades.find((s) => s._id === rack.shadeId || s.code === rack.shadeCode)
-      const shadeName = shadeObj ? shadeObj.name : rack.shadeCode
 
-      if (rack.cells && rack.cells.length > 0) {
-        rack.cells.forEach((cell) => {
+    // Build lookup map of allocated materials from GRNs
+    const allocatedFromGrn = []
+    grns.forEach((g) => {
+      if (g.materials && Array.isArray(g.materials)) {
+        g.materials.forEach((m) => {
+          if (m.location || m.putAwayStatus === 'Completed') {
+            allocatedFromGrn.push({
+              grnNo: g.grnNo,
+              location: m.location || '',
+              shade: g.shade || '',
+              productName: m.productName,
+              sku: m.sku,
+              batchNo: m.batchNo,
+              quantity: m.totalBaseQty || m.packageQty || 1,
+            })
+          }
+        })
+      }
+    })
+
+    racks.forEach((rack) => {
+      const shadeObj = shades.find((s) => String(s._id) === String(rack.shadeId) || s.code === rack.shadeCode)
+      const shadeName = shadeObj ? shadeObj.name : rack.shadeCode
+      const rawCells = rack.cells && Array.isArray(rack.cells) ? rack.cells : []
+
+      for (let r = 1; r <= (Number(rack.rows) || 4); r++) {
+        for (let c = 1; c <= (Number(rack.columns) || 5); c++) {
+          const defaultCode = `${rack.shadeCode}-${rack.rackNumber}-R${r}-C${c}`
+          const existingCell = rawCells.find((cell) => Number(cell.row) === r && Number(cell.col) === c)
+
+          let status = existingCell?.status || 'Empty'
+          let productName = existingCell?.productName || ''
+          let batchNo = existingCell?.batchNo || ''
+          let currentStock = Number(existingCell?.currentStock) || 0
+          let cellCode = existingCell?.code || defaultCode
+
+          if (existingCell && (existingCell.status === 'Occupied' || existingCell.status === 'Full' || Number(existingCell.currentStock) > 0)) {
+            status = existingCell.status || 'Occupied'
+            productName = existingCell.productName
+            batchNo = existingCell.batchNo
+            currentStock = Number(existingCell.currentStock) || 1
+          }
+
+          // Also check GRN allocations matching cell code or (shade, row, col)
+          const matchingGrn = allocatedFromGrn.find((a) => {
+            if (!a.location) return false
+            if (a.location === cellCode || a.location.toLowerCase() === defaultCode.toLowerCase()) return true
+            
+            const sMatch = a.location.match(/SH[-_]?0?(\d+)/i)
+            const rMatch = a.location.match(/R0?(\d+)/i)
+            const cMatch = a.location.match(/C0?(\d+)/i)
+            const rackSMatch = (rack.shadeCode || '').match(/SH[-_]?0?(\d+)/i)
+
+            if (sMatch && rMatch && cMatch && rackSMatch) {
+              return (
+                parseInt(sMatch[1]) === parseInt(rackSMatch[1]) &&
+                parseInt(rMatch[1]) === r &&
+                parseInt(cMatch[1]) === c
+              )
+            }
+            return false
+          })
+
+          if (matchingGrn && status === 'Empty') {
+            status = 'Occupied'
+            productName = matchingGrn.productName
+            batchNo = matchingGrn.batchNo
+            currentStock = Number(matchingGrn.quantity) || 1
+          }
+
           cellsList.push({
-            ...cell,
+            code: cellCode,
+            row: r,
+            col: c,
+            status,
+            productName,
+            batchNo,
+            currentStock,
             rackId: rack._id,
             rackNumber: rack.rackNumber,
             shadeCode: rack.shadeCode,
             shadeId: rack.shadeId,
             shadeName,
           })
-        })
-      } else {
-        // Fallback synthetic cells if rack cells array is missing
-        for (let r = 1; r <= rack.rows; r++) {
-          for (let c = 1; c <= rack.columns; c++) {
-            cellsList.push({
-              code: `${rack.shadeCode}-${rack.rackNumber}-R${r}-C${c}`,
-              row: r,
-              col: c,
-              status: 'Empty',
-              productId: null,
-              productName: '',
-              batchNo: '',
-              currentStock: 0,
-              rackId: rack._id,
-              rackNumber: rack.rackNumber,
-              shadeCode: rack.shadeCode,
-              shadeId: rack.shadeId,
-              shadeName,
-            })
-          }
         }
       }
     })
     return cellsList
-  }, [racks, shades])
+  }, [racks, shades, grns, products])
 
   // Live KPI Stats calculated from Mongo DB
   const stats = useMemo(() => {
@@ -275,22 +333,16 @@ export default function LocationMaster() {
 
     setSavingCell(true)
     try {
-      const res = await fetch(`${API}/api/rack/${cellFormData.rackId}/cell`, {
+      await apiRequest(`/rack/${cellFormData.rackId}/cell`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cellFormData),
       })
-
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.message || 'Failed to update cell')
-      }
 
       await fetchMasterData()
       triggerToast(`Cell ${cellFormData.cellCode} updated successfully.`)
       setShowEditCellModal(false)
     } catch (err) {
-      triggerToast(err.message, 'error')
+      triggerToast(err.message || 'Failed to update cell', 'error')
     } finally {
       setSavingCell(false)
     }
@@ -523,7 +575,11 @@ export default function LocationMaster() {
         ) : (
           <div className="space-y-6">
             {activeShadeRacks.map((rack) => {
-              const rackCells = allLiveCells.filter((c) => c.rackId === rack._id || (c.shadeCode === rack.shadeCode && c.rackNumber === rack.rackNumber))
+              const rackCells = allLiveCells.filter(
+                (c) =>
+                  String(c.rackId) === String(rack._id) ||
+                  (c.shadeCode === rack.shadeCode && c.rackNumber === rack.rackNumber)
+              )
 
               return (
                 <div key={rack._id} className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
@@ -568,14 +624,19 @@ export default function LocationMaster() {
                                 {Array.from({ length: rack.columns }).map((_, cIdx) => {
                                   const colNum = cIdx + 1
                                   const cellCode = `${rack.shadeCode}-${rack.rackNumber}-R${rowNum}-C${colNum}`
-                                  const cell = rackCells.find((c) => c.row === rowNum && c.col === colNum) || {
-                                    code: cellCode,
-                                    row: rowNum,
-                                    col: colNum,
-                                    status: 'Empty',
-                                    currentStock: 0,
-                                    rackId: rack._id,
-                                  }
+                                  const cell =
+                                    rackCells.find(
+                                      (c) =>
+                                        Number(c.row) === Number(rowNum) &&
+                                        Number(c.col) === Number(colNum)
+                                    ) || {
+                                      code: cellCode,
+                                      row: rowNum,
+                                      col: colNum,
+                                      status: 'Empty',
+                                      currentStock: 0,
+                                      rackId: rack._id,
+                                    }
 
                                   const isOccupied = cell.status === 'Occupied' || cell.currentStock > 0
                                   const isFull = cell.status === 'Full'
