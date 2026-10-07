@@ -164,13 +164,30 @@ export default function LabelGeneration() {
 
         if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
           setProducts(prodRes.value)
-          if (prodRes.value.length > 0 && !selectedProductSku) {
-            setSelectedProductSku(prodRes.value[0].sku)
-            setStorageLocation(prodRes.value[0].storageZone || 'Shade 1')
-          }
         }
         if (grnRes.status === 'fulfilled' && Array.isArray(grnRes.value)) {
           setGrnList(grnRes.value)
+          // Check if URL query params match a GRN
+          const paramBatch = searchParams.get('batch')
+          const paramSku = searchParams.get('sku')
+          if (paramBatch || paramSku) {
+            const matchedGrn = grnRes.value.find((g) =>
+              g.materials?.some((m) => (paramBatch && m.batchNo === paramBatch) || (paramSku && m.sku === paramSku))
+            )
+            if (matchedGrn) {
+              setSelectedGrnNo(matchedGrn.grnNo)
+              setSelectedGrnObject(matchedGrn)
+              const mat = matchedGrn.materials.find((m) => (paramBatch && m.batchNo === paramBatch) || (paramSku && m.sku === paramSku)) || matchedGrn.materials[0]
+              if (mat) {
+                if (mat.sku) setSelectedProductSku(mat.sku)
+                if (mat.batchNo) setSelectedBatchNo(mat.batchNo)
+                if (mat.packageQty) setQuantity(String(mat.packageQty))
+                if (mat.mfgDate) setMfgDate(mat.mfgDate)
+                if (mat.expiryDate) setExpDate(mat.expiryDate)
+                if (matchedGrn.shade) setStorageLocation(matchedGrn.shade)
+              }
+            }
+          }
         }
         if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value)) {
           setShades(shadeRes.value)
@@ -182,50 +199,30 @@ export default function LabelGeneration() {
       }
     }
     fetchData()
-  }, [])
-
-  // Handle URL query params
-  useEffect(() => {
-    const paramBatch = searchParams.get('batch')
-    const paramSku = searchParams.get('sku')
-    const paramQty = searchParams.get('qty')
-    if (paramBatch) setSelectedBatchNo(paramBatch)
-    if (paramSku) setSelectedProductSku(paramSku)
-    if (paramQty) setQuantity(paramQty)
   }, [searchParams])
 
-  // Active Selected Product Details (Prioritizes selected GRN's material info)
+  // Active Selected Product Details (Only populated when a GRN is selected)
   const activeProduct = useMemo(() => {
     if (selectedGrnObject && selectedGrnObject.materials && selectedGrnObject.materials.length > 0) {
-      const grnMat = selectedGrnObject.materials.find((m) => m.sku === selectedProductSku)
-      const found = products.find((p) => p.sku === selectedProductSku)
+      const grnMat = selectedGrnObject.materials.find((m) => m.sku === selectedProductSku) || selectedGrnObject.materials[0]
+      const found = products.find((p) => p.sku === (grnMat?.sku || selectedProductSku))
       if (grnMat) {
         return {
           name: grnMat.productName || found?.name || grnMat.sku,
           sku: grnMat.sku,
+          batchNo: grnMat.batchNo || selectedBatchNo || '',
           category: found?.category || 'General Inward Commodity',
-          baseUnit: found?.baseUnit || 'Kg',
-          outerPackaging: grnMat.outerPackaging || found?.outerPackaging || 'Bag',
-          packSize: found?.packSize || 1,
+          baseUnit: grnMat.baseUnit || found?.baseUnit || 'Kg',
+          outerPackaging: grnMat.packagingUnit || grnMat.outerPackaging || found?.outerPackaging || 'Bag',
+          packSize: grnMat.packSize || found?.packSize || 1,
           storageZone: selectedGrnObject.shade || found?.storageZone || 'Shade 1',
         }
       }
     }
-    const found = products.find((p) => p.sku === selectedProductSku)
-    if (found) return found
-    if (products.length > 0) return products[0]
-    return {
-      name: 'Basmati Rice (Grade 1 Special 25kg)',
-      sku: 'PRD-RIC-001',
-      category: 'Grains & Pulses',
-      baseUnit: 'Kg',
-      outerPackaging: 'Bag',
-      packSize: 25,
-      storageZone: 'Shade 2 (Food & Grains)',
-    }
-  }, [selectedProductSku, products, selectedGrnObject])
+    return null
+  }, [selectedProductSku, products, selectedGrnObject, selectedBatchNo])
 
-  // Dropdown Options: Strictly filtered to the selected GRN's SKUs when a GRN is active!
+  // Dropdown Options: Strictly filtered to the selected GRN's SKUs
   const productOptions = useMemo(() => {
     if (selectedGrnObject && selectedGrnObject.materials && selectedGrnObject.materials.length > 0) {
       return selectedGrnObject.materials.map((mat, idx) => {
@@ -233,7 +230,7 @@ export default function LabelGeneration() {
         return {
           value: mat.sku,
           label: `${mat.productName || prod?.name || mat.sku} (${mat.sku})`,
-          sublabel: `GRN Item #${idx + 1} • Inward Qty: ${mat.packageQty || 1} ${mat.outerPackaging || 'Bags'} • Mfg: ${mat.mfgDate || 'N/A'} • Exp: ${mat.expiryDate || 'N/A'}`,
+          sublabel: `GRN Item #${idx + 1} • Inward Qty: ${mat.packageQty || 1} ${mat.outerPackaging || 'Bags'} • Batch: ${mat.batchNo || 'N/A'} • Exp: ${mat.expiryDate || 'N/A'}`,
         }
       })
     }
@@ -245,34 +242,21 @@ export default function LabelGeneration() {
         sublabel: `${p.category} • 1 ${p.outerPackaging} = ${p.packSize} ${p.baseUnit}`,
       }))
     }
-    return [
-      {
-        value: 'PRD-RIC-001',
-        label: 'Basmati Rice (Grade 1 Special 25kg) (PRD-RIC-001)',
-        sublabel: 'Grains & Pulses • 1 Bag = 25 Kg',
-      },
-    ]
+    return []
   }, [products, selectedGrnObject])
 
-  // Generate Real Scannable QR Code Data & Barcode
+  // Generate Real Scannable QR Code Data & Barcode (Multi-line readable format for all mobile phone scanners)
   useEffect(() => {
     const isLocation = labelCategory === 'Location Label'
+    if (!isLocation && !activeProduct) {
+      setQrCodeDataUrl('')
+      setBarcodeDataUrl('')
+      return
+    }
+
     const qrPayload = isLocation
-      ? JSON.stringify({
-          type: 'WMS_LOCATION',
-          loc: rackBinCode || 'SH01-RK01-R1-C1',
-          shade: selectedZone,
-        })
-      : JSON.stringify({
-          type: 'WMS_ITEM',
-          sku: activeProduct.sku,
-          name: activeProduct.name,
-          qty: Number(quantity) || 1,
-          mfg: mfgDate,
-          exp: expDate,
-          loc: storageLocation,
-          grn: selectedGrnNo || undefined,
-        })
+      ? `=== CENTRAL WAREHOUSE LOCATION TAG ===\nLocation: ${rackBinCode || 'SH01-RK01-R1-C1'}\nStorage Zone: ${selectedZone}\nInfo: ${additionalInfo || 'Warehouse Storage Cell'}`
+      : `=== CENTRAL WAREHOUSE WMS ===\nProduct: ${activeProduct?.name || ''}\nSKU: ${activeProduct?.sku || ''}\nBatch No: ${selectedBatchNo || activeProduct?.batchNo || 'N/A'}\nGRN No: ${selectedGrnNo || 'N/A'}\nQuantity: ${quantity} ${activeProduct?.outerPackaging || 'Units'}\nStorage Zone: ${storageLocation || activeProduct?.storageZone || ''}\nMfg Date: ${mfgDate}\nExpiry Date: ${expDate}\nStatus: VERIFIED INWARD STOCK`
 
     QRCode.toDataURL(qrPayload, {
       width: 260,
@@ -286,7 +270,7 @@ export default function LabelGeneration() {
     // Render Barcode SVG & DataURL for multi-stickers
     const barcodeText = isLocation
       ? `LOC-${(rackBinCode || 'SH01').replace(/[^A-Za-z0-9]/g, '')}`
-      : `${activeProduct.sku}`
+      : `${activeProduct?.sku || 'ITEM'}`
 
     if (barcodeSvgRef.current) {
       try {
@@ -408,9 +392,9 @@ export default function LabelGeneration() {
   const handleQueuePrint = () => {
     const newEntry = {
       id: Date.now(),
-      productName: labelCategory === 'Location Label' ? `Location Tag: ${rackBinCode}` : activeProduct.name,
-      sku: labelCategory === 'Location Label' ? `LOC-${rackBinCode.replace(/[^a-zA-Z0-9]/g, '')}` : activeProduct.sku,
-      batchNo: labelCategory === 'Location Label' ? selectedZone.split(' ')[0] : (selectedBatchNo || 'STD-01'),
+      productName: labelCategory === 'Location Label' ? `Location Tag: ${rackBinCode}` : (activeProduct?.name || 'Item Tag'),
+      sku: labelCategory === 'Location Label' ? `LOC-${rackBinCode.replace(/[^a-zA-Z0-9]/g, '')}` : (activeProduct?.sku || 'SKU'),
+      batchNo: labelCategory === 'Location Label' ? selectedZone.split(' ')[0] : (selectedBatchNo || activeProduct?.batchNo || 'STD-01'),
       labelType: labelCategory,
       size: labelSize.replace('mm x ', ' × '),
       quantity: Number(quantity) || 1,
@@ -427,16 +411,16 @@ export default function LabelGeneration() {
     return Array.from({ length: count }).map((_, idx) => ({
       index: idx + 1,
       total: count,
-      productName: labelCategory === 'Location Label' ? `Location Tag: ${rackBinCode}` : activeProduct.name,
-      sku: labelCategory === 'Location Label' ? `LOC-${(rackBinCode || 'SH01').replace(/[^a-zA-Z0-9]/g, '')}` : activeProduct.sku,
-      category: activeProduct.category,
-      outerPackaging: activeProduct.outerPackaging || 'Bag',
-      packSize: activeProduct.packSize || 1,
-      baseUnit: activeProduct.baseUnit || 'Kg',
+      productName: labelCategory === 'Location Label' ? `Location Tag: ${rackBinCode}` : (activeProduct?.name || 'Product'),
+      sku: labelCategory === 'Location Label' ? `LOC-${(rackBinCode || 'SH01').replace(/[^a-zA-Z0-9]/g, '')}` : (activeProduct?.sku || 'SKU'),
+      category: activeProduct?.category || 'General Inward Commodity',
+      outerPackaging: activeProduct?.outerPackaging || 'Bag',
+      packSize: activeProduct?.packSize || 1,
+      baseUnit: activeProduct?.baseUnit || 'Kg',
       mfgDate: mfgDate,
       expiryDate: expDate,
       packQty: quantity,
-      storageZone: storageLocation || activeProduct.storageZone,
+      storageZone: storageLocation || activeProduct?.storageZone || 'Shade 1',
       notes: additionalInfo,
       qrUrl: qrCodeDataUrl,
       barcodeUrl: barcodeDataUrl,
@@ -527,7 +511,7 @@ export default function LabelGeneration() {
 
       await printSpecificElement(
         '#printable-multi-stickers-container',
-        `Stickers (${printItemsList.length}) - ${activeProduct.sku}`,
+        `Stickers (${printItemsList.length}) - ${activeProduct?.sku || 'Labels'}`,
         customPrintStyle
       )
       triggerToast(`Sent ${printItemsList.length} labels to print (${printLayoutMode === 'a4' ? 'A4 Grid' : 'Thermal Roll'})!`)
@@ -540,11 +524,11 @@ export default function LabelGeneration() {
 
   // Download label preview as high-res PNG image
   const handleDownloadImage = () => {
-    if (isDownloading) return
+    if (isDownloading || (!activeProduct && labelCategory !== 'Location Label')) return
     setIsDownloading(true)
     try {
       const link = document.createElement('a')
-      link.download = `Label_${activeProduct.sku}_${labelSize.replace(/\s+/g, '')}.png`
+      link.download = `Label_${activeProduct?.sku || 'QR'}_${labelSize.replace(/\s+/g, '')}.png`
       link.href = qrCodeDataUrl
       link.click()
       triggerToast('Label QR asset downloaded successfully!')
@@ -730,7 +714,7 @@ export default function LabelGeneration() {
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {selectedGrnObject.materials.map((mat, idx) => {
-                      const isSelected = selectedItemIndex === idx && activeProduct.sku === mat.sku
+                      const isSelected = selectedItemIndex === idx && activeProduct?.sku === mat.sku
                       return (
                         <button
                           key={idx}
@@ -904,8 +888,8 @@ export default function LabelGeneration() {
                     zIndexClass="z-40"
                   />
                   <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 font-medium px-1">
-                    <span>Category: <strong>{activeProduct.category}</strong></span>
-                    <span className="text-indigo-600 font-semibold">1 {activeProduct.outerPackaging} = {activeProduct.packSize} {activeProduct.baseUnit}</span>
+                    <span>Category: <strong>{activeProduct?.category || 'General'}</strong></span>
+                    <span className="text-indigo-600 font-semibold">1 {activeProduct?.outerPackaging || 'Unit'} = {activeProduct?.packSize || 1} {activeProduct?.baseUnit || ''}</span>
                   </div>
                 </div>
 
@@ -1057,129 +1041,147 @@ export default function LabelGeneration() {
           </div>
 
           {/* Realistic High-Contrast Thermal Label Canvas */}
-          <div className="border-2 border-dashed border-slate-300 rounded-2xl p-4 bg-slate-50/50 flex items-center justify-center">
-            <div id="printable-thermal-label-preview" className="printable-area w-full max-w-[390px] min-h-[380px] aspect-square bg-white border-2 border-slate-900 rounded-xl p-4 shadow-md flex flex-col justify-between font-sans">
-              {labelCategory === 'Location Label' ? (
-                /* Location & Rack Bin Sticker Preview */
-                <div className="flex flex-col justify-between h-full space-y-3">
-                  <div className="flex items-center justify-between border-b pb-2 border-slate-900">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                        WH
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-slate-900 text-xs tracking-wider uppercase">CENTRAL WAREHOUSE</h3>
-                        <p className="text-[9px] font-semibold text-slate-500">BIN &amp; RACK LOCATOR TAG</p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded border border-slate-200">
-                      4" × 4"
-                    </span>
-                  </div>
-
-                  <div className="bg-slate-100/70 rounded-lg p-3 border border-slate-300 text-center space-y-1 my-auto">
-                    <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{selectedZone}</p>
-                    <div className="text-xl font-black text-slate-900 font-mono tracking-wider py-1.5 bg-white rounded border border-dashed border-slate-400">
-                      {rackBinCode || 'SH01-RK01-R1-C1'}
-                    </div>
-                    {additionalInfo && (
-                      <p className="text-[10px] text-slate-700 font-medium pt-0.5">{additionalInfo}</p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-200">
-                    {includeQr && qrCodeDataUrl && (
-                      <div className="w-18 h-18 bg-white border border-slate-400 p-1 rounded shrink-0 flex items-center justify-center">
-                        <img src={qrCodeDataUrl} alt="Location QR Code" className="w-full h-full object-contain" />
-                      </div>
-                    )}
-
-                    {includeBarcode && (
-                      <div className="flex-1 text-center">
-                        <svg ref={barcodeSvgRef} className="max-w-[190px] mx-auto"></svg>
-                      </div>
-                    )}
-                  </div>
+          <div className="border-2 border-dashed border-slate-300 rounded-2xl p-4 bg-slate-50/50 flex items-center justify-center min-h-[420px]">
+            {labelCategory !== 'Location Label' && !activeProduct ? (
+              <div className="text-center py-12 px-6 max-w-sm flex flex-col items-center justify-center">
+                <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-3 shadow-2xs">
+                  <QrCode className="w-8 h-8 stroke-[1.5]" />
                 </div>
-              ) : (
-                /* Product Thermal Sticker Preview (4" x 4" Balanced Layout) */
-                <div className="flex flex-col justify-between h-full space-y-2">
-                  <div className="flex items-start justify-between border-b pb-2 border-slate-900">
-                    {includeLogo ? (
+                <h3 className="text-sm font-bold text-slate-800 mb-1">No GRN Selected</h3>
+                <p className="text-xs text-slate-500 leading-relaxed mb-4">
+                  Please select a Goods Receiving Note (GRN) from the left dropdown to preview and generate 4" × 4" scannable thermal labels.
+                </p>
+                {grnList.length > 0 && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-600 font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{grnList.length} Received GRN{grnList.length > 1 ? 's' : ''} available</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div id="printable-thermal-label-preview" className="printable-area w-full max-w-[390px] min-h-[380px] aspect-square bg-white border-2 border-slate-900 rounded-xl p-4 shadow-md flex flex-col justify-between font-sans">
+                {labelCategory === 'Location Label' ? (
+                  /* Location & Rack Bin Sticker Preview */
+                  <div className="flex flex-col justify-between h-full space-y-3">
+                    <div className="flex items-center justify-between border-b pb-2 border-slate-900">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
                           WH
                         </div>
                         <div>
                           <h3 className="font-bold text-slate-900 text-xs tracking-wider uppercase">CENTRAL WAREHOUSE</h3>
-                          <p className="text-[8px] font-semibold text-slate-500 uppercase tracking-wider">
-                            INVENTORY &amp; COMMODITY TAG
-                          </p>
+                          <p className="text-[9px] font-semibold text-slate-500">BIN &amp; RACK LOCATOR TAG</p>
                         </div>
                       </div>
-                    ) : (
-                      <div className="text-xs font-bold text-slate-900 uppercase">INVENTORY TAG</div>
-                    )}
+                      <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded border border-slate-200">
+                        4" × 4"
+                      </span>
+                    </div>
 
-                    {includeQr && qrCodeDataUrl && (
-                      <div className="w-16 h-16 bg-white border border-slate-400 p-0.5 rounded shrink-0 flex items-center justify-center">
-                        <img src={qrCodeDataUrl} alt="Product QR Code" className="w-full h-full object-contain" />
+                    <div className="bg-slate-100/70 rounded-lg p-3 border border-slate-300 text-center space-y-1 my-auto">
+                      <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{selectedZone}</p>
+                      <div className="text-xl font-black text-slate-900 font-mono tracking-wider py-1.5 bg-white rounded border border-dashed border-slate-400">
+                        {rackBinCode || 'SH01-RK01-R1-C1'}
                       </div>
-                    )}
-                  </div>
+                      {additionalInfo && (
+                        <p className="text-[10px] text-slate-700 font-medium pt-0.5">{additionalInfo}</p>
+                      )}
+                    </div>
 
-                  <div>
-                    <h4 className="text-xs font-black text-slate-900 leading-snug">
-                      {activeProduct.name}
-                    </h4>
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                      <span className="bg-slate-900 text-white font-mono text-[9px] px-1.5 py-0.5 rounded font-bold">
-                        {activeProduct.sku}
-                      </span>
-                      <span className="bg-slate-100 text-slate-700 border border-slate-300 text-[9px] px-1.5 py-0.5 rounded font-semibold">
-                        {activeProduct.category}
-                      </span>
-                      <span className="bg-slate-100 text-slate-700 border border-slate-300 text-[9px] px-1.5 py-0.5 rounded font-bold">
-                        1 {activeProduct.outerPackaging} = {activeProduct.packSize} {activeProduct.baseUnit}
-                      </span>
+                    <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-200">
+                      {includeQr && qrCodeDataUrl && (
+                        <div className="w-18 h-18 bg-white border border-slate-400 p-1 rounded shrink-0 flex items-center justify-center">
+                          <img src={qrCodeDataUrl} alt="Location QR Code" className="w-full h-full object-contain" />
+                        </div>
+                      )}
+
+                      {includeBarcode && (
+                        <div className="flex-1 text-center">
+                          <svg ref={barcodeSvgRef} className="max-w-[190px] mx-auto"></svg>
+                        </div>
+                      )}
                     </div>
                   </div>
+                ) : (
+                  /* Product Thermal Sticker Preview (4" x 4" Balanced Layout) */
+                  <div className="flex flex-col justify-between h-full space-y-2">
+                    <div className="flex items-start justify-between border-b pb-2 border-slate-900">
+                      {includeLogo ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                            WH
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-900 text-xs tracking-wider uppercase">CENTRAL WAREHOUSE</h3>
+                            <p className="text-[8px] font-semibold text-slate-500 uppercase tracking-wider">
+                              INVENTORY &amp; COMMODITY TAG
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs font-bold text-slate-900 uppercase">INVENTORY TAG</div>
+                      )}
 
-                  <div className="space-y-1 text-[10px] font-mono text-slate-800 bg-slate-100/70 p-2.5 rounded-lg border border-slate-300">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-sans">Mfg Date:</span>
-                      <span className="font-bold">{mfgDate}</span>
+                      {includeQr && qrCodeDataUrl && (
+                        <div className="w-16 h-16 bg-white border border-slate-400 p-0.5 rounded shrink-0 flex items-center justify-center">
+                          <img src={qrCodeDataUrl} alt="Product QR Code" className="w-full h-full object-contain" />
+                        </div>
+                      )}
                     </div>
-                    {includeExpiryDate && (
+
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 leading-snug">
+                        {activeProduct?.name || ''}
+                      </h4>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <span className="bg-slate-900 text-white font-mono text-[9px] px-1.5 py-0.5 rounded font-bold">
+                          {activeProduct?.sku || ''}
+                        </span>
+                        <span className="bg-slate-100 text-slate-700 border border-slate-300 text-[9px] px-1.5 py-0.5 rounded font-semibold">
+                          {activeProduct?.category || ''}
+                        </span>
+                        <span className="bg-slate-100 text-slate-700 border border-slate-300 text-[9px] px-1.5 py-0.5 rounded font-bold">
+                          1 {activeProduct?.outerPackaging || 'Unit'} = {activeProduct?.packSize || 1} {activeProduct?.baseUnit || ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 text-[10px] font-mono text-slate-800 bg-slate-100/70 p-2.5 rounded-lg border border-slate-300">
                       <div className="flex justify-between">
-                        <span className="text-slate-500 font-sans">Expiry Date:</span>
-                        <span className="font-bold text-rose-700">{expDate}</span>
+                        <span className="text-slate-500 font-sans">Mfg Date:</span>
+                        <span className="font-bold">{mfgDate}</span>
                       </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-sans">Pack Qty:</span>
-                      <span className="font-bold">{quantity} {activeProduct.outerPackaging || 'Units'}</span>
+                      {includeExpiryDate && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-sans">Expiry Date:</span>
+                          <span className="font-bold text-rose-700">{expDate}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 font-sans">Pack Qty:</span>
+                        <span className="font-bold">{quantity} {activeProduct?.outerPackaging || 'Units'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 font-sans">Assigned Zone:</span>
+                        <span className="font-bold text-emerald-800">{storageLocation || activeProduct?.storageZone}</span>
+                      </div>
+                      {additionalInfo && (
+                        <div className="flex justify-between pt-1 border-t border-slate-300 text-slate-700 font-sans font-medium text-[9px]">
+                          <span>Note:</span>
+                          <span className="truncate ml-2">{additionalInfo}</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-sans">Assigned Zone:</span>
-                      <span className="font-bold text-emerald-800">{storageLocation || activeProduct.storageZone}</span>
-                    </div>
-                    {additionalInfo && (
-                      <div className="flex justify-between pt-1 border-t border-slate-300 text-slate-700 font-sans font-medium text-[9px]">
-                        <span>Note:</span>
-                        <span className="truncate ml-2">{additionalInfo}</span>
+
+                    {includeBarcode && (
+                      <div className="text-center pt-0.5">
+                        <svg ref={barcodeSvgRef} className="max-w-[240px] mx-auto"></svg>
                       </div>
                     )}
                   </div>
-
-                  {includeBarcode && (
-                    <div className="text-center pt-0.5">
-                      <svg ref={barcodeSvgRef} className="max-w-[240px] mx-auto"></svg>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Print Target / Paper Layout Selector */}
@@ -1220,10 +1222,10 @@ export default function LabelGeneration() {
           <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
             <button
               type="button"
-              disabled={isPrintingSingle}
+              disabled={isPrintingSingle || (!activeProduct && labelCategory !== 'Location Label')}
               onClick={handlePrintLabels}
               className={`flex-1 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition cursor-pointer ${
-                isPrintingSingle ? 'opacity-80 cursor-not-allowed' : ''
+                isPrintingSingle || (!activeProduct && labelCategory !== 'Location Label') ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
               {isPrintingSingle ? (
@@ -1243,11 +1245,11 @@ export default function LabelGeneration() {
 
             <button
               type="button"
-              disabled={isDownloading}
+              disabled={isDownloading || (!activeProduct && labelCategory !== 'Location Label')}
               onClick={handleDownloadImage}
               title="Download High-Res QR Code PNG"
               className={`w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
-                isDownloading ? 'opacity-80 cursor-not-allowed' : ''
+                isDownloading || (!activeProduct && labelCategory !== 'Location Label') ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
               {isDownloading ? (
