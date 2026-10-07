@@ -55,6 +55,8 @@ export const updateQCStatus = (id, status, remarks) => apiRequest(`/qc/${id}/sta
 // 7. Outward Dispatches & Picklist
 export const fetchDispatches = () => apiRequest('/dispatch')
 export const createDispatch = (data) => apiRequest('/dispatch', { method: 'POST', body: JSON.stringify(data) })
+export const updateDispatch = (id, data) => apiRequest(`/dispatch/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const deleteDispatch = (id) => apiRequest(`/dispatch/${id}`, { method: 'DELETE' })
 export const updateDispatchStatus = (id, status, remarks) => apiRequest(`/dispatch/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, remarks }) })
 export const verifyDispatchScan = (id, scanData) => apiRequest(`/dispatch/${id}/verify-item`, { method: 'POST', body: JSON.stringify(scanData) })
 

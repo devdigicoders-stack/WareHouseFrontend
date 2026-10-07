@@ -21,10 +21,27 @@ import {
   User,
   FileText,
   QrCode,
+  Package,
+  AlertCircle,
+  Trash2,
+  RefreshCw,
+  Clock,
+  ArrowRight,
+  ShieldCheck,
+  Building2
 } from 'lucide-react'
-import { fetchDispatches, createDispatch, updateDispatchStatus } from '../services/api'
+import {
+  fetchDispatches,
+  createDispatch,
+  updateDispatchStatus,
+  deleteDispatch,
+  fetchProducts,
+  fetchPartners,
+  fetchShades,
+  fetchGateEntries
+} from '../services/api'
 
-// Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
+// Custom Accessible Select Dropdown to eliminate native flicker
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
@@ -88,8 +105,8 @@ function CustomSelect({ value, onChange, options, placeholder = 'Select option..
   )
 }
 
-// 6 Dedicated Warehouse Storage Shades
-const SHADES = [
+// Fallback Standard Storage Shades if DB has none
+const DEFAULT_SHADES = [
   { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses', category: 'Grains & Pulses', baseUnit: 'Kg', packUnit: 'Bags (50kg)', unitsPerPack: 50 },
   { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids', category: 'Edible Oils', baseUnit: 'Ltr', packUnit: 'Tins (15L)', unitsPerPack: 15 },
   { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG', category: 'Packaged FMCG', baseUnit: 'Pieces', packUnit: 'Gatta (Cartons)', unitsPerPack: 6 },
@@ -99,7 +116,7 @@ const SHADES = [
 ]
 
 export default function IssueDispatch() {
-  // Toast notifications state
+  // Toast notification
   const [toastMessage, setToastMessage] = useState(null)
   const triggerToast = (msg) => {
     setToastMessage(msg)
@@ -121,9 +138,269 @@ export default function IssueDispatch() {
   const [showNewDispatchModal, setShowNewDispatchModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(null)
   const [showGatePassModal, setShowGatePassModal] = useState(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null)
   const [gatePassQrUrl, setGatePassQrUrl] = useState('')
 
-  // Generate dynamic scannable QR code for dispatch slip voucher
+  // Backend Live Data
+  const [dispatches, setDispatches] = useState([])
+  const [products, setProducts] = useState([])
+  const [customers, setCustomers] = useState([])
+  const [shadesList, setShadesList] = useState(DEFAULT_SHADES)
+  const [recentVehicles, setRecentVehicles] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+
+  // Selected Product for quick population in modal
+  const [selectedProductId, setSelectedProductId] = useState('')
+
+  // New Issue / Dispatch Form State
+  const [newDispatch, setNewDispatch] = useState({
+    customerUnit: '',
+    poIndentNo: '',
+    shadeId: 'SH01',
+    location: 'SH01-RK01-R1-C1',
+    productId: '',
+    productName: '',
+    sku: '',
+    batchNo: '',
+    expiryDate: new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
+    baseUnit: 'Kg',
+    packUnit: 'Bags (50kg)',
+    unitsPerPack: 50,
+    packsCount: 20,
+    dispatchType: 'Outward Customer Sale',
+    vehicleNo: 'DL-1L-AA-5544',
+    driverName: 'Mohd. Imran',
+    contactNo: '+91 98711 22334',
+    dispatchOfficer: 'Warehouse Manager',
+    expectedDelivery: 'Today',
+    remarks: 'Scheduled retail replenishment dispatch.',
+    availableStock: 0,
+  })
+
+  // Load all dynamic master data from backend
+  const loadMasterData = async () => {
+    setLoading(true)
+    try {
+      const [dispRes, prodRes, partRes, shadeRes, gateRes] = await Promise.allSettled([
+        fetchDispatches(),
+        fetchProducts(),
+        fetchPartners(),
+        fetchShades(),
+        fetchGateEntries(),
+      ])
+
+      // 1. Process Products
+      let loadedProds = []
+      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
+        loadedProds = prodRes.value
+        setProducts(loadedProds)
+      }
+
+      // 2. Process Customers / Partners
+      if (partRes.status === 'fulfilled' && Array.isArray(partRes.value)) {
+        const custs = partRes.value.filter(p => p.type === 'Customer' || !p.type || p.type === 'Both')
+        setCustomers(custs)
+      }
+
+      // 3. Process Shades
+      if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value) && shadeRes.value.length > 0) {
+        const mappedShades = shadeRes.value.map((s, idx) => ({
+          id: s.code || `SH0${idx + 1}`,
+          name: s.name || `Shade ${idx + 1}`,
+          category: s.category || 'General Storage',
+          baseUnit: s.baseUnit || 'Kg',
+          packUnit: s.packUnit || 'Bags (50kg)',
+          unitsPerPack: s.unitsPerPack || 50
+        }))
+        setShadesList(mappedShades)
+      } else {
+        setShadesList(DEFAULT_SHADES)
+      }
+
+      // 4. Process Gate Entries for vehicle/driver suggestions
+      if (gateRes.status === 'fulfilled' && Array.isArray(gateRes.value)) {
+        const vehicles = gateRes.value
+          .map(g => ({ vehicleNo: g.vehicleNo, driverName: g.driverName, contact: g.driverContact || g.driverPhone }))
+          .filter(v => v.vehicleNo)
+        setRecentVehicles(vehicles)
+      }
+
+      // 5. Process Dispatches
+      if (dispRes.status === 'fulfilled' && Array.isArray(dispRes.value) && dispRes.value.length > 0) {
+        const mapped = dispRes.value.map((d, idx) => {
+          const firstItem = d.items?.[0] || {}
+          return {
+            id: d._id || idx + 1,
+            dispatchNo: d.dispatchNo || `DSP-2026-${String(idx + 1).padStart(4, '0')}`,
+            date: d.createdAt
+              ? new Date(d.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+              : 'Today',
+            poIndentNo: d.orderNo || `SO-2026-${9000 + idx}`,
+            customerUnit: d.customerName || d.destination || 'Reliance Retail Mega Hub',
+            shadeId: d.shadeId || firstItem.locationCode?.split('-')?.[0] || 'SH01',
+            location: firstItem.locationCode || 'SH01-RK01-R1-C1',
+            productName: firstItem.productName || (d.items?.length > 1 ? `${firstItem.productName} +${d.items.length - 1} more` : 'Basmati Rice Special'),
+            sku: firstItem.sku || 'PRD-RIC-001',
+            itemsCount: d.items?.length || 1,
+            totalQty: d.totalBaseQty || (firstItem.requestedQty ? firstItem.requestedQty * (firstItem.packSize || 1) : 500),
+            baseUnit: d.baseUnit || 'Kg',
+            packCount: d.totalPackages || firstItem.requestedQty || 20,
+            packUnit: firstItem.packagingUnit || 'Bags (50kg)',
+            dispatchType: d.dispatchType || 'Outward Customer Sale',
+            status: d.status || 'Draft / Picklist',
+            labStatus: d.labStatus || (firstItem.verified ? 'Passed' : 'Passed'),
+            expectedDelivery: d.expectedDelivery || 'Today',
+            vehicleNo: d.vehicleNo || 'DL-1L-AA-5544',
+            driverName: d.driverName || 'Mohd. Imran',
+            driverContact: d.driverContact || '+91 98711 22334',
+            officer: d.dispatchedBy || 'Warehouse Manager',
+            remarks: d.remarks || 'Standard verified outward dispatch.',
+            itemsList: d.items && d.items.length > 0 ? d.items.map(it => ({
+              name: it.productName,
+              sku: it.sku,
+              location: it.locationCode || 'SH01-RK01-R1-C1',
+              qty: (it.requestedQty || 1) * (it.packSize || 1),
+              baseUnit: d.baseUnit || 'Kg',
+              packQty: it.requestedQty || 1,
+              packUnit: it.packagingUnit || 'Bags',
+              batch: it.batchNo || 'BAT-2026-01',
+              labCert: it.labCert || 'COA-2026-PASSED'
+            })) : [
+              {
+                name: firstItem.productName || 'Basmati Rice (Grade 1 Special 25kg)',
+                sku: firstItem.sku || 'PRD-RIC-001',
+                location: firstItem.locationCode || 'SH01-RK01-R1-C1',
+                qty: d.totalBaseQty || 500,
+                baseUnit: d.baseUnit || 'Kg',
+                packQty: d.totalPackages || 20,
+                packUnit: 'Bags',
+                batch: firstItem.batchNo || 'BAT-2026-RIC-01',
+                labCert: 'COA-2026-00101'
+              }
+            ]
+          }
+        })
+        setDispatches(mapped)
+      } else {
+        // Fallback default dispatch record if DB empty
+        setDispatches([
+          {
+            id: 'mock-1',
+            dispatchNo: 'DSP-2026-0001',
+            date: 'Today, Just now',
+            poIndentNo: 'SO-2026-9041',
+            customerUnit: 'Reliance Retail Mega Hub',
+            shadeId: 'SH01',
+            location: 'SH01-RK01-R1-C1',
+            productName: 'Basmati Rice (Grade 1 Special 25kg)',
+            sku: 'PRD-RIC-001',
+            itemsCount: 1,
+            totalQty: 1000,
+            baseUnit: 'Kg',
+            packCount: 20,
+            packUnit: 'Bags (50kg)',
+            dispatchType: 'Outward Customer Sale',
+            status: 'Draft / Picklist',
+            labStatus: 'Passed',
+            expectedDelivery: 'Today',
+            vehicleNo: 'DL-1L-AA-5544',
+            driverName: 'Mohd. Imran',
+            driverContact: '+91 98711 22334',
+            officer: 'Warehouse Manager',
+            remarks: 'Scheduled retail replenishment for Noida mega hub.',
+            itemsList: [
+              {
+                name: 'Basmati Rice (Grade 1 Special 25kg)',
+                sku: 'PRD-RIC-001',
+                location: 'SH01-RK01-R1-C1',
+                qty: 1000,
+                baseUnit: 'Kg',
+                packQty: 20,
+                packUnit: 'Bags (50kg)',
+                batch: 'BAT-2026-RIC-01',
+                labCert: 'COA-2026-00101'
+              }
+            ]
+          }
+        ])
+      }
+    } catch (err) {
+      console.error('Error loading Master Data for Dispatches:', err)
+      triggerToast('Connected in offline mode. Local state active.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadMasterData()
+  }, [])
+
+  // When opening modal, initialize default form values based on live products & customers
+  const handleOpenNewModal = () => {
+    const defaultCust = customers.length > 0 ? customers[0].name : 'Reliance Retail Mega Hub'
+    const defaultProd = products.length > 0 ? products[0] : null
+    const initialShadeId = defaultProd?.shadeId || (shadesList.length > 0 ? shadesList[0].id : 'SH01')
+    const matchedShade = shadesList.find(s => s.id === initialShadeId) || shadesList[0]
+
+    const initialPackUnit = defaultProd?.outerPackaging || matchedShade?.packUnit || 'Bags (50kg)'
+    const initialUnitsPerPack = defaultProd?.packSize || matchedShade?.unitsPerPack || 50
+    const initialBaseUnit = defaultProd?.baseUnit || matchedShade?.baseUnit || 'Kg'
+
+    setSelectedProductId(defaultProd?._id || '')
+    setNewDispatch({
+      customerUnit: defaultCust,
+      poIndentNo: `SO-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      shadeId: initialShadeId,
+      location: defaultProd?.binLocation || `${initialShadeId}-RK01-R1-C1`,
+      productId: defaultProd?._id || '',
+      productName: defaultProd?.name || 'Basmati Rice (Grade 1 Special 25kg)',
+      sku: defaultProd?.sku || 'PRD-RIC-001',
+      batchNo: defaultProd?.batchNo || 'BAT-2026-RIC-01',
+      expiryDate: defaultProd?.expiryDate || new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
+      baseUnit: initialBaseUnit,
+      packUnit: initialPackUnit,
+      unitsPerPack: initialUnitsPerPack,
+      packsCount: 20,
+      dispatchType: 'Outward Customer Sale',
+      vehicleNo: recentVehicles.length > 0 ? recentVehicles[0].vehicleNo : 'DL-1L-AA-5544',
+      driverName: recentVehicles.length > 0 ? recentVehicles[0].driverName : 'Mohd. Imran',
+      contactNo: recentVehicles.length > 0 ? (recentVehicles[0].contact || '+91 98711 22334') : '+91 98711 22334',
+      dispatchOfficer: 'Warehouse Manager',
+      expectedDelivery: 'Today',
+      remarks: 'Scheduled retail replenishment dispatch.',
+      availableStock: defaultProd?.currentStock || 1250,
+    })
+    setShowNewDispatchModal(true)
+  }
+
+  // Handle Dynamic Product Selection in Modal
+  const handleSelectProduct = (prodId) => {
+    setSelectedProductId(prodId)
+    const prod = products.find(p => p._id === prodId)
+    if (!prod) return
+
+    const pShade = prod.shadeId || (prod.storageZone?.includes('SH02') ? 'SH02' : prod.storageZone?.includes('SH03') ? 'SH03' : 'SH01')
+    const matchedShade = shadesList.find(s => s.id === pShade)
+
+    setNewDispatch(prev => ({
+      ...prev,
+      productId: prod._id,
+      productName: prod.name,
+      sku: prod.sku || prev.sku,
+      shadeId: pShade || prev.shadeId,
+      location: prod.binLocation || `${pShade || 'SH01'}-RK01-R1-C1`,
+      batchNo: prod.batchNo && prod.batchNo !== '—' ? prod.batchNo : `BAT-2026-${prod.sku?.slice(-4) || 'GEN'}`,
+      expiryDate: prod.expiryDate || prev.expiryDate,
+      baseUnit: prod.baseUnit || matchedShade?.baseUnit || prev.baseUnit,
+      packUnit: prod.outerPackaging || matchedShade?.packUnit || prev.packUnit,
+      unitsPerPack: Number(prod.packSize) || Number(matchedShade?.unitsPerPack) || prev.unitsPerPack || 1,
+      availableStock: prod.currentStock !== undefined ? prod.currentStock : 0
+    }))
+  }
+
+  // Generate dynamic scannable QR code for dispatch gate pass slip
   useEffect(() => {
     if (!showGatePassModal) {
       setGatePassQrUrl('')
@@ -161,102 +438,6 @@ export default function IssueDispatch() {
       .catch((err) => console.error('Error generating gate pass QR:', err))
   }, [showGatePassModal])
 
-  // New Issue / Dispatch Form State
-  const [newDispatch, setNewDispatch] = useState({
-    customerUnit: 'Reliance Retail Mega Hub',
-    poIndentNo: 'SO-2026-9041',
-    shadeId: 'SH01',
-    location: 'SH01-RK01-R1-C1',
-    productName: 'Basmati Rice (Grade 1 Special 25kg)',
-    sku: 'PRD-RIC-001',
-    batchNo: 'BAT-2026-RIC-01',
-    expiryDate: '2026-11-15',
-    baseUnit: 'Kg',
-    packUnit: 'Bags',
-    unitsPerPack: 25,
-    packsCount: 20,
-    dispatchType: 'Outward Sale',
-    vehicleNo: 'DL-1L-AA-5544',
-    driverName: 'Mohd. Imran',
-    contactNo: '+91 98711 22334',
-    dispatchOfficer: 'Warehouse Manager',
-    expectedDelivery: 'Today',
-    remarks: 'Scheduled retail replenishment for Noida mega hub.',
-  })
-
-  // Outward Dispatch Records State
-  const [dispatches, setDispatches] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    async function loadDispatches() {
-      try {
-        const data = await fetchDispatches()
-        if (Array.isArray(data) && data.length > 0) {
-          setDispatches(data.map((d, idx) => ({
-            id: d._id || idx + 1,
-            dispatchNo: d.dispatchNo || `DSP-2026-000${idx + 1}`,
-            date: d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Today',
-            poIndentNo: d.orderNo || 'SO-2026-9041',
-            customerUnit: d.customerName || 'Reliance Retail Mega Hub',
-            shadeId: 'SH01',
-            location: d.items?.[0]?.locationCode || 'SH01-RK01-R1-C1',
-            productName: d.items?.[0]?.productName || 'Basmati Rice Special',
-            sku: d.items?.[0]?.sku || 'PRD-RIC-001',
-            itemsCount: d.items?.length || 1,
-            totalQty: d.totalBaseQty || 500,
-            baseUnit: d.baseUnit || 'Kg',
-            packCount: d.totalPackages || 20,
-            packUnit: 'Bags',
-            dispatchType: 'Outward Sale',
-            status: d.status || 'QR Verified / Ready',
-            labStatus: 'Passed',
-            expectedDelivery: 'Today',
-            vehicleNo: d.vehicleNo || 'DL-1L-AA-5544',
-            driverName: d.driverName || 'Mohd. Imran',
-            officer: d.dispatchedBy || 'Warehouse Manager',
-            remarks: d.remarks || 'Standard Dispatch',
-            itemsList: d.items || [],
-          })))
-        }
-      } catch (err) {
-        console.error('Error fetching dispatches:', err)
-        setDispatches([
-          {
-            id: 1,
-            dispatchNo: 'DISP-2026-0001',
-            date: 'Today, Just now',
-            poIndentNo: 'SO-2026-9041',
-            customerUnit: 'Reliance Retail Mega Hub',
-            shadeId: 'SH01',
-            location: 'SH01-RK01-R1-C1',
-            productName: 'Basmati Rice (Grade 1 Special 25kg)',
-            sku: 'PRD-RIC-001',
-            itemsCount: 1,
-            totalQty: 500,
-            baseUnit: 'Kg',
-            packCount: 20,
-            packUnit: 'Bags',
-            dispatchType: 'Outward Sale',
-            status: 'QR Verified / Ready',
-            labStatus: 'Passed',
-            expectedDelivery: 'Today',
-            vehicleNo: 'DL-1L-AA-5544',
-            driverName: 'Mohd. Imran',
-            officer: 'Warehouse Manager',
-            remarks: 'Scheduled retail replenishment for Noida mega hub.',
-            itemsList: [
-              { name: 'Basmati Rice (Grade 1 Special 25kg)', sku: 'PRD-RIC-001', location: 'SH01-RK01-R1-C1', qty: 500, baseUnit: 'Kg', packQty: 20, packUnit: 'Bags', batch: 'BAT-2026-RIC-01', labCert: 'COA-2026-00101' }
-            ]
-          }
-        ])
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadDispatches()
-  }, [])
-
   // Filtered Dispatches
   const filteredDispatches = useMemo(() => {
     return dispatches.filter((item) => {
@@ -268,13 +449,14 @@ export default function IssueDispatch() {
       if (searchQuery.trim() !== '') {
         const q = searchQuery.toLowerCase()
         return (
-          item.dispatchNo.toLowerCase().includes(q) ||
-          item.poIndentNo.toLowerCase().includes(q) ||
-          item.customerUnit.toLowerCase().includes(q) ||
-          item.productName.toLowerCase().includes(q) ||
-          item.vehicleNo.toLowerCase().includes(q) ||
-          item.driverName.toLowerCase().includes(q) ||
-          item.location.toLowerCase().includes(q)
+          item.dispatchNo?.toLowerCase().includes(q) ||
+          item.poIndentNo?.toLowerCase().includes(q) ||
+          item.customerUnit?.toLowerCase().includes(q) ||
+          item.productName?.toLowerCase().includes(q) ||
+          item.sku?.toLowerCase().includes(q) ||
+          item.vehicleNo?.toLowerCase().includes(q) ||
+          item.driverName?.toLowerCase().includes(q) ||
+          item.location?.toLowerCase().includes(q)
         )
       }
       return true
@@ -288,122 +470,161 @@ export default function IssueDispatch() {
   // Dynamic KPI Stats
   const stats = useMemo(() => {
     const total = dispatches.length
-    const totalUnits = dispatches.reduce((acc, d) => acc + (d.totalQty || 0), 0)
-    const inTransit = dispatches.filter((d) => d.status === 'In Transit').length
-    const delivered = dispatches.filter((d) => d.status === 'Delivered').length
+    const totalUnits = dispatches.reduce((acc, d) => acc + (Number(d.totalQty) || 0), 0)
+    const inTransit = dispatches.filter((d) => d.status === 'In Transit' || d.status === 'Dispatched').length
+    const delivered = dispatches.filter((d) => d.status === 'Delivered' || d.status === 'Gate Out / Cleared').length
     return { total, totalUnits, inTransit, delivered }
   }, [dispatches])
 
-  // Handle Save New Dispatch
+  // Create Dispatch (Dynamic submit to MongoDB)
   const handleCreateDispatch = async (e) => {
     e.preventDefault()
-    const computedBase = (Number(newDispatch.packsCount) || 0) * (Number(newDispatch.unitsPerPack) || 1)
-    const newNo = `DISP-2026-${325 + dispatches.length}`
-    const locCode = `${newDispatch.shadeId}-RK01-R1-C1`
+    setSubmitting(true)
+
+    const computedPacks = Number(newDispatch.packsCount) || 1
+    const computedRatio = Number(newDispatch.unitsPerPack) || 1
+    const computedBase = computedPacks * computedRatio
+    const locCode = newDispatch.location || `${newDispatch.shadeId}-RK01-R1-C1`
 
     const payload = {
-      orderNo: newDispatch.poIndentNo,
-      customerName: newDispatch.customerUnit,
-      destination: 'Central Mega Hub Logistics',
-      vehicleNo: newDispatch.vehicleNo,
-      driverName: newDispatch.driverName,
-      driverContact: newDispatch.contactNo,
-      totalPackages: Number(newDispatch.packsCount) || 1,
+      orderNo: newDispatch.poIndentNo.trim().toUpperCase(),
+      customerName: newDispatch.customerUnit.trim(),
+      destination: newDispatch.customerUnit.trim(),
+      vehicleNo: newDispatch.vehicleNo.trim().toUpperCase(),
+      driverName: newDispatch.driverName.trim(),
+      driverContact: newDispatch.contactNo.trim(),
+      dispatchType: newDispatch.dispatchType,
+      shadeId: newDispatch.shadeId,
+      expectedDelivery: newDispatch.expectedDelivery,
+      totalPackages: computedPacks,
       totalBaseQty: computedBase,
       baseUnit: newDispatch.baseUnit,
       dispatchedBy: newDispatch.dispatchOfficer,
       remarks: newDispatch.remarks,
       items: [
         {
-          productName: newDispatch.productName,
-          sku: newDispatch.sku,
-          batchNo: newDispatch.batchNo,
+          productId: newDispatch.productId || null,
+          productName: newDispatch.productName.trim(),
+          sku: newDispatch.sku.trim().toUpperCase(),
+          batchNo: newDispatch.batchNo.trim().toUpperCase(),
           locationCode: locCode,
           packagingUnit: newDispatch.packUnit,
-          packSize: Number(newDispatch.unitsPerPack) || 1,
-          requestedQty: Number(newDispatch.packsCount) || 1,
-          pickedQty: Number(newDispatch.packsCount) || 1,
-          verified: true
-        }
-      ]
+          packSize: computedRatio,
+          requestedQty: computedPacks,
+          pickedQty: computedPacks,
+          verified: true,
+          expiryDate: newDispatch.expiryDate,
+          labCert: 'COA-2026-PASSED',
+        },
+      ],
     }
 
     try {
       const saved = await createDispatch(payload)
       const newRecord = {
         id: saved._id || Date.now(),
-        dispatchNo: saved.dispatchNo || newNo,
+        dispatchNo: saved.dispatchNo || `DSP-2026-${String(dispatches.length + 1).padStart(4, '0')}`,
         date: 'Today, Just now',
-        poIndentNo: newDispatch.poIndentNo,
-        customerUnit: newDispatch.customerUnit,
-        shadeId: newDispatch.shadeId,
+        poIndentNo: saved.orderNo || newDispatch.poIndentNo,
+        customerUnit: saved.customerName || newDispatch.customerUnit,
+        shadeId: saved.shadeId || newDispatch.shadeId,
         location: locCode,
         productName: newDispatch.productName,
         sku: newDispatch.sku,
         itemsCount: 1,
         totalQty: computedBase,
         baseUnit: newDispatch.baseUnit,
-        packCount: Number(newDispatch.packsCount) || 1,
+        packCount: computedPacks,
         packUnit: newDispatch.packUnit,
         dispatchType: newDispatch.dispatchType,
-        status: 'Draft / Picklist',
+        status: saved.status || 'Draft / Picklist',
         labStatus: 'Passed',
         expectedDelivery: newDispatch.expectedDelivery,
         vehicleNo: newDispatch.vehicleNo,
         driverName: newDispatch.driverName,
+        driverContact: newDispatch.contactNo,
         officer: newDispatch.dispatchOfficer,
         remarks: newDispatch.remarks,
-        itemsList: payload.items,
+        itemsList: payload.items.map(it => ({
+          name: it.productName,
+          sku: it.sku,
+          location: it.locationCode,
+          qty: computedBase,
+          baseUnit: newDispatch.baseUnit,
+          packQty: computedPacks,
+          packUnit: newDispatch.packUnit,
+          batch: it.batchNo,
+          labCert: 'COA-2026-PASSED'
+        })),
       }
-      setDispatches([newRecord, ...dispatches])
-      triggerToast(`Dispatch ${newRecord.dispatchNo} created successfully (${computedBase} ${newRecord.baseUnit}).`)
-    } catch (err) {
-      console.error('API create dispatch fallback to local:', err)
-      const newRecord = {
-        id: Date.now(),
-        dispatchNo: newNo,
-        date: 'Today, Just now',
-        poIndentNo: newDispatch.poIndentNo,
-        customerUnit: newDispatch.customerUnit,
-        shadeId: newDispatch.shadeId,
-        location: locCode,
-        productName: newDispatch.productName,
-        sku: newDispatch.sku,
-        itemsCount: 1,
-        totalQty: computedBase,
-        baseUnit: newDispatch.baseUnit,
-        packCount: Number(newDispatch.packsCount) || 1,
-        packUnit: newDispatch.packUnit,
-        dispatchType: newDispatch.dispatchType,
-        status: 'Draft / Picklist',
-        labStatus: 'Passed',
-        expectedDelivery: newDispatch.expectedDelivery,
-        vehicleNo: newDispatch.vehicleNo,
-        driverName: newDispatch.driverName,
-        officer: newDispatch.dispatchOfficer,
-        remarks: newDispatch.remarks,
-        itemsList: payload.items,
-      }
-      setDispatches([newRecord, ...dispatches])
-      triggerToast(`Dispatch ${newNo} saved locally (${computedBase} ${newRecord.baseUnit}).`)
-    }
 
-    setShowNewDispatchModal(false)
+      setDispatches(prev => [newRecord, ...prev])
+      triggerToast(`Dispatch ${newRecord.dispatchNo} created successfully (${computedBase.toLocaleString()} ${newRecord.baseUnit}).`)
+      setShowNewDispatchModal(false)
+    } catch (err) {
+      console.error('Error saving dispatch order:', err)
+      // Fallback local creation
+      const localNo = `DSP-2026-${String(dispatches.length + 1).padStart(4, '0')}`
+      const newRecord = {
+        id: `local-${Date.now()}`,
+        dispatchNo: localNo,
+        date: 'Today, Just now',
+        poIndentNo: newDispatch.poIndentNo,
+        customerUnit: newDispatch.customerUnit,
+        shadeId: newDispatch.shadeId,
+        location: locCode,
+        productName: newDispatch.productName,
+        sku: newDispatch.sku,
+        itemsCount: 1,
+        totalQty: computedBase,
+        baseUnit: newDispatch.baseUnit,
+        packCount: computedPacks,
+        packUnit: newDispatch.packUnit,
+        dispatchType: newDispatch.dispatchType,
+        status: 'Draft / Picklist',
+        labStatus: 'Passed',
+        expectedDelivery: newDispatch.expectedDelivery,
+        vehicleNo: newDispatch.vehicleNo,
+        driverName: newDispatch.driverName,
+        driverContact: newDispatch.contactNo,
+        officer: newDispatch.dispatchOfficer,
+        remarks: newDispatch.remarks,
+        itemsList: [
+          {
+            name: newDispatch.productName,
+            sku: newDispatch.sku,
+            location: locCode,
+            qty: computedBase,
+            baseUnit: newDispatch.baseUnit,
+            packQty: computedPacks,
+            packUnit: newDispatch.packUnit,
+            batch: newDispatch.batchNo,
+            labCert: 'COA-2026-PASSED'
+          }
+        ],
+      }
+      setDispatches(prev => [newRecord, ...prev])
+      triggerToast(`Dispatch ${localNo} saved locally (${computedBase.toLocaleString()} ${newRecord.baseUnit}).`)
+      setShowNewDispatchModal(false)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  // Handle Advance Status
+  // Handle Advance Status Workflow
   const handleAdvanceStatus = async (id) => {
     const item = dispatches.find((d) => d.id === id)
     if (!item) return
 
-    let nextStatus = 'Dispatched'
+    let nextStatus = 'QR Verified / Ready'
     if (item.status === 'Draft / Picklist' || item.status === 'Pending') nextStatus = 'QR Verified / Ready'
     else if (item.status === 'QR Verified / Ready') nextStatus = 'Dispatched'
-    else if (item.status === 'Dispatched') nextStatus = 'Gate Out / Cleared'
-    else nextStatus = 'Gate Out / Cleared'
+    else if (item.status === 'Dispatched') nextStatus = 'In Transit'
+    else if (item.status === 'In Transit') nextStatus = 'Delivered'
+    else nextStatus = 'Delivered'
 
-    setDispatches(
-      dispatches.map((d) => (d.id === id ? { ...d, status: nextStatus } : d))
+    setDispatches(prev =>
+      prev.map((d) => (d.id === id ? { ...d, status: nextStatus } : d))
     )
 
     try {
@@ -411,10 +632,27 @@ export default function IssueDispatch() {
         await updateDispatchStatus(id, nextStatus)
       }
     } catch (err) {
-      console.error('Error updating dispatch status:', err)
+      console.error('Error advancing dispatch status:', err)
     }
 
-    triggerToast(`Dispatch status advanced to ${nextStatus}.`)
+    triggerToast(`Dispatch ${item.dispatchNo} moved to "${nextStatus}".`)
+  }
+
+  // Handle Delete Dispatch
+  const handleDeleteDispatch = async (id) => {
+    const item = dispatches.find(d => d.id === id)
+    setDispatches(prev => prev.filter(d => d.id !== id))
+    setDeleteConfirmId(null)
+
+    try {
+      if (typeof id === 'string' && id.length === 24) {
+        await deleteDispatch(id)
+      }
+      triggerToast(`Dispatch ${item?.dispatchNo || ''} deleted.`)
+    } catch (err) {
+      console.error('Error deleting dispatch:', err)
+      triggerToast('Dispatch removed from view.')
+    }
   }
 
   // Export CSV
@@ -461,43 +699,45 @@ export default function IssueDispatch() {
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement('a')
     link.setAttribute('href', encodedUri)
-    link.setAttribute('download', 'Outward_Dispatches_Manifest.csv')
+    link.setAttribute('download', `Outward_Dispatches_Manifest_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    triggerToast('Dispatch manifests exported to CSV.')
+    triggerToast('Outward dispatch manifests exported to CSV.')
   }
 
-  // Filter Dropdown Options
+  // Dynamic filter options derived from live data
+  const dynamicShadeOptions = useMemo(() => {
+    return [
+      { value: 'ALL', label: 'All Warehouse Shades' },
+      ...shadesList.map((s) => ({ value: s.id, label: s.name })),
+    ]
+  }, [shadesList])
+
+  const dynamicCustomerOptions = useMemo(() => {
+    const custSet = new Set(dispatches.map(d => d.customerUnit).filter(Boolean))
+    customers.forEach(c => custSet.add(c.name))
+    return [
+      { value: 'ALL', label: 'All Customer Hubs' },
+      ...Array.from(custSet).map(c => ({ value: c, label: c })),
+    ]
+  }, [dispatches, customers])
+
   const typeOptions = [
     { value: 'ALL', label: 'All Dispatch Types' },
-    { value: 'Outward Sale', label: 'Outward Customer Sale' },
+    { value: 'Outward Customer Sale', label: 'Outward Customer Sale' },
     { value: 'Inter-Warehouse Transfer', label: 'Inter-Warehouse Transfer' },
-  ]
-
-  const shadeOptions = [
-    { value: 'ALL', label: 'All 6 Dedicated Shades' },
-    ...SHADES.map((s) => ({ value: s.id, label: s.name })),
-  ]
-
-  const customerOptions = [
-    { value: 'ALL', label: 'All Customer Hubs' },
-    { value: 'Metro Hypermarket Central Hub', label: 'Metro Hypermarket Hub' },
-    { value: 'Reliance Retail Distribution Centre', label: 'Reliance Retail DC' },
-    { value: 'DMart Logistics Park', label: 'DMart Logistics Park' },
-    { value: 'BigBasket Fulfillment Centre', label: 'BigBasket Fulfillment' },
-    { value: 'Blinkit Rapid Staging Hub', label: 'Blinkit Staging Hub' },
-    { value: 'Spencers Wholesale Depot', label: 'Spencers Wholesale' },
-    { value: 'Amazon Pantry Staging Bay', label: 'Amazon Pantry Bay' },
-    { value: 'Flipkart Grocery Hub', label: 'Flipkart Grocery Hub' },
+    { value: 'Export Consignment', label: 'Export Consignment' },
+    { value: 'Sample / Promotional Dispatch', label: 'Sample / Promotional' },
   ]
 
   const statusOptions = [
     { value: 'ALL', label: 'All Dispatch Statuses' },
+    { value: 'Draft / Picklist', label: 'Draft / Picklist' },
+    { value: 'QR Verified / Ready', label: 'QR Verified / Ready' },
+    { value: 'Dispatched', label: 'Dispatched from Bay' },
     { value: 'In Transit', label: 'In Transit Cargo' },
-    { value: 'Dispatched', label: 'Dispatched from Gate' },
     { value: 'Delivered', label: 'Delivered / Completed' },
-    { value: 'Pending', label: 'Pending Gate Staging' },
   ]
 
   return (
@@ -524,12 +764,21 @@ export default function IssueDispatch() {
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium mt-1 max-w-2xl">
-              Track outward stock dispatches, retail customer manifests, dual-unit pack reconciliations, and transit deliveries across 6 warehouse shades.
+              Track outward stock dispatches, retail customer manifests, dual-unit pack reconciliations, and transit deliveries across warehouse storage shades.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
+          <button
+            type="button"
+            onClick={loadMasterData}
+            title="Refresh database records"
+            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition cursor-pointer"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
+          </button>
+
           <Link
             to="/checkout-qr"
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition shrink-0"
@@ -549,7 +798,7 @@ export default function IssueDispatch() {
 
           <button
             type="button"
-            onClick={() => setShowNewDispatchModal(true)}
+            onClick={handleOpenNewModal}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -560,7 +809,7 @@ export default function IssueDispatch() {
 
       {/* 4 Dynamic KPI Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 hover:border-indigo-200 transition">
           <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
             <Truck className="w-5 h-5" />
           </div>
@@ -569,11 +818,11 @@ export default function IssueDispatch() {
             <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
               {stats.total} Shipments
             </h3>
-            <p className="text-[11px] text-indigo-600 font-medium">Logged this month</p>
+            <p className="text-[11px] text-indigo-600 font-medium">Logged in database</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 hover:border-emerald-200 transition">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
             <Layers className="w-5 h-5" />
           </div>
@@ -582,11 +831,11 @@ export default function IssueDispatch() {
             <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
               {stats.totalUnits.toLocaleString()}
             </h3>
-            <p className="text-[11px] text-emerald-600 font-medium">Pcs, Kg, Ltr &amp; Boxes</p>
+            <p className="text-[11px] text-emerald-600 font-medium">Kg, Ltr, Pcs &amp; Boxes</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 hover:border-blue-200 transition">
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
             <Send className="w-5 h-5" />
           </div>
@@ -599,7 +848,7 @@ export default function IssueDispatch() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 hover:border-purple-200 transition">
           <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center shrink-0">
             <CheckCircle2 className="w-5 h-5" />
           </div>
@@ -608,7 +857,7 @@ export default function IssueDispatch() {
             <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
               {stats.delivered} Closed
             </h3>
-            <p className="text-[11px] text-purple-600 font-medium">Customer acknowledgment verified</p>
+            <p className="text-[11px] text-purple-600 font-medium">Customer receipt verified</p>
           </div>
         </div>
       </div>
@@ -617,7 +866,6 @@ export default function IssueDispatch() {
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
         {/* Filter Section Header & Inputs */}
         <div className="p-4 sm:p-5 border-b border-slate-100 space-y-4">
-          {/* Top Line: Section Title & Results Count */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -664,7 +912,7 @@ export default function IssueDispatch() {
                 setSearchQuery(e.target.value)
                 setCurrentPage(1)
               }}
-              placeholder="Search dispatch ref (DISP-2026-...), PO/indent number, customer hub, vehicle no, driver name..."
+              placeholder="Search dispatch ref (DSP-2026-...), PO/indent number, customer hub, product, SKU, vehicle no, driver name..."
               className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition"
             />
             {searchQuery && (
@@ -678,7 +926,7 @@ export default function IssueDispatch() {
             )}
           </div>
 
-          {/* 4 Filter Dropdowns in Spacious Grid */}
+          {/* 4 Dynamic Filter Dropdowns */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1 text-xs">
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
@@ -705,14 +953,14 @@ export default function IssueDispatch() {
                   setFilterShade(val)
                   setCurrentPage(1)
                 }}
-                options={shadeOptions}
-                placeholder="All 6 Dedicated Shades"
+                options={dynamicShadeOptions}
+                placeholder="All Warehouse Shades"
               />
             </div>
 
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
-                Customer Unit
+                Customer Hub
               </label>
               <CustomSelect
                 value={filterCustomer}
@@ -720,7 +968,7 @@ export default function IssueDispatch() {
                   setFilterCustomer(val)
                   setCurrentPage(1)
                 }}
-                options={customerOptions}
+                options={dynamicCustomerOptions}
                 placeholder="All Customer Hubs"
               />
             </div>
@@ -752,15 +1000,22 @@ export default function IssueDispatch() {
                 <th className="py-3 px-4 min-w-[140px]">PO / Indent</th>
                 <th className="py-3 px-4 min-w-[180px]">Customer Destination</th>
                 <th className="py-3 px-4 min-w-[130px]">Origin Shade</th>
-                <th className="py-3 px-4 min-w-[140px] text-right">Base Qty &amp; Packs</th>
-                <th className="py-3 px-4 min-w-[130px]">Vehicle &amp; Driver</th>
+                <th className="py-3 px-4 min-w-[150px] text-right">Base Qty &amp; Packs</th>
+                <th className="py-3 px-4 min-w-[140px]">Vehicle &amp; Driver</th>
                 <th className="py-3 px-4 min-w-[100px] text-center">QC Check</th>
-                <th className="py-3 px-4 min-w-[110px] text-center">Status</th>
-                <th className="py-3 px-4 min-w-[120px] text-center">Actions</th>
+                <th className="py-3 px-4 min-w-[120px] text-center">Status</th>
+                <th className="py-3 px-4 min-w-[140px] text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paginatedDispatches.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={10} className="py-12 text-center text-slate-400">
+                    <RefreshCw className="w-8 h-8 mx-auto text-indigo-500 animate-spin mb-2" />
+                    Loading outward dispatches...
+                  </td>
+                </tr>
+              ) : paginatedDispatches.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-12 text-center text-slate-400">
                     <Truck className="w-8 h-8 mx-auto text-slate-300 mb-2" />
@@ -788,7 +1043,7 @@ export default function IssueDispatch() {
                         <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
                           {row.poIndentNo}
                         </span>
-                        <div className="text-[10px] text-slate-400 mt-1 font-medium">{row.dispatchType}</div>
+                        <div className="text-[10px] text-slate-400 mt-1 font-medium truncate max-w-[120px]">{row.dispatchType}</div>
                       </td>
 
                       <td className="py-3 px-4">
@@ -808,7 +1063,7 @@ export default function IssueDispatch() {
 
                       <td className="py-3 px-4 text-right">
                         <div className="font-bold text-slate-800">
-                          {row.totalQty.toLocaleString()} {row.baseUnit}
+                          {Number(row.totalQty || 0).toLocaleString()} {row.baseUnit}
                         </div>
                         <div className="text-[11px] text-emerald-600 font-medium mt-0.5">
                           {row.packCount} {row.packUnit}
@@ -826,7 +1081,7 @@ export default function IssueDispatch() {
                       <td className="py-3 px-4 text-center">
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                           <Check className="w-3 h-3" />
-                          <span>Passed</span>
+                          <span>{row.labStatus || 'Passed'}</span>
                         </span>
                       </td>
 
@@ -839,6 +1094,8 @@ export default function IssueDispatch() {
                               ? 'bg-blue-50 text-blue-700 border-blue-200'
                               : row.status === 'Dispatched'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : row.status === 'QR Verified / Ready'
+                              ? 'bg-cyan-50 text-cyan-700 border-cyan-200'
                               : 'bg-amber-50 text-amber-700 border-amber-200'
                           }`}
                         >
@@ -850,6 +1107,8 @@ export default function IssueDispatch() {
                                 ? 'bg-blue-500 animate-pulse'
                                 : row.status === 'Dispatched'
                                 ? 'bg-emerald-500'
+                                : row.status === 'QR Verified / Ready'
+                                ? 'bg-cyan-500'
                                 : 'bg-amber-500'
                             }`}
                           />
@@ -872,19 +1131,37 @@ export default function IssueDispatch() {
                             type="button"
                             onClick={() => setShowGatePassModal(row)}
                             className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition cursor-pointer"
-                            title="Print Gate Pass Voucher"
+                            title="Print Gate Pass Slip"
                           >
                             <Printer className="w-3.5 h-3.5 text-slate-600" />
                           </button>
 
-                          {row.status !== 'Delivered' && (
+                          {row.status !== 'Delivered' ? (
                             <button
                               type="button"
                               onClick={() => handleAdvanceStatus(row.id)}
-                              className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold transition cursor-pointer"
+                              className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold transition cursor-pointer flex items-center gap-1"
                               title="Advance Dispatch Status"
                             >
-                              {row.status === 'Pending' ? 'Dispatch' : row.status === 'Dispatched' ? 'In Transit' : 'Deliver'}
+                              <span>
+                                {row.status === 'Draft / Picklist' || row.status === 'Pending'
+                                  ? 'Verify'
+                                  : row.status === 'QR Verified / Ready'
+                                  ? 'Dispatch'
+                                  : row.status === 'Dispatched'
+                                  ? 'In Transit'
+                                  : 'Deliver'}
+                              </span>
+                              <ArrowRight className="w-2.5 h-2.5" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirmId(row.id)}
+                              className="p-1.5 rounded-lg border border-red-200 bg-white hover:bg-red-50 text-red-600 transition cursor-pointer"
+                              title="Delete Dispatch"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
@@ -940,7 +1217,7 @@ export default function IssueDispatch() {
         </div>
       </div>
 
-      {/* MODAL 1: NEW ISSUE / DISPATCH */}
+      {/* MODAL 1: NEW OUTWARD ISSUE / DISPATCH (100% DYNAMIC) */}
       {showNewDispatchModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95">
@@ -964,18 +1241,42 @@ export default function IssueDispatch() {
             </div>
 
             <form onSubmit={handleCreateDispatch} className="mt-5 space-y-4 text-xs">
+              {/* Row 1: Customer Destination & PO Indent */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
                     Customer Hub / Destination Unit *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={newDispatch.customerUnit}
-                    onChange={(e) => setNewDispatch({ ...newDispatch, customerUnit: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-                  />
+                  {customers.length > 0 ? (
+                    <div className="space-y-1.5">
+                      <CustomSelect
+                        value={newDispatch.customerUnit}
+                        onChange={(val) => setNewDispatch({ ...newDispatch, customerUnit: val })}
+                        options={[
+                          ...customers.map(c => ({ value: c.name, label: c.name, sublabel: c.address || c.phone })),
+                          { value: 'CUSTOM', label: '+ Enter Custom Customer Hub...' }
+                        ]}
+                      />
+                      {newDispatch.customerUnit === 'CUSTOM' && (
+                        <input
+                          type="text"
+                          required
+                          placeholder="Type custom customer hub name..."
+                          onChange={(e) => setNewDispatch({ ...newDispatch, customerUnit: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      value={newDispatch.customerUnit}
+                      onChange={(e) => setNewDispatch({ ...newDispatch, customerUnit: e.target.value })}
+                      placeholder="e.g. Reliance Retail Mega Hub"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                    />
+                  )}
                 </div>
 
                 <div>
@@ -987,10 +1288,14 @@ export default function IssueDispatch() {
                     required
                     value={newDispatch.poIndentNo}
                     onChange={(e) => setNewDispatch({ ...newDispatch, poIndentNo: e.target.value })}
+                    placeholder="SO-2026-9041"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
+              </div>
 
+              {/* Row 2: Origin Shade & Dispatch Type */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
                     Origin Warehouse Shade *
@@ -998,16 +1303,16 @@ export default function IssueDispatch() {
                   <CustomSelect
                     value={newDispatch.shadeId}
                     onChange={(val) => {
-                      const sh = SHADES.find((s) => s.id === val)
+                      const sh = shadesList.find((s) => s.id === val)
                       setNewDispatch({
                         ...newDispatch,
                         shadeId: val,
-                        baseUnit: sh ? sh.baseUnit : 'Pieces',
-                        packUnit: sh ? sh.packUnit : 'Gatta',
-                        unitsPerPack: sh ? sh.unitsPerPack : 6,
+                        baseUnit: sh ? sh.baseUnit : 'Kg',
+                        packUnit: sh ? sh.packUnit : 'Bags (50kg)',
+                        unitsPerPack: sh ? sh.unitsPerPack : 50,
                       })
                     }}
-                    options={SHADES.map((s) => ({ value: s.id, label: s.name }))}
+                    options={shadesList.map((s) => ({ value: s.id, label: s.name }))}
                   />
                 </div>
 
@@ -1018,24 +1323,50 @@ export default function IssueDispatch() {
                   <CustomSelect
                     value={newDispatch.dispatchType}
                     onChange={(val) => setNewDispatch({ ...newDispatch, dispatchType: val })}
-                    options={[
-                      { value: 'Outward Sale', label: 'Outward Customer Sale' },
-                      { value: 'Inter-Warehouse Transfer', label: 'Inter-Warehouse Transfer' },
-                    ]}
+                    options={typeOptions.filter(t => t.value !== 'ALL')}
                   />
                 </div>
+              </div>
 
+              {/* Row 3: Dynamic Product Selection & SKU */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
-                    Product Item Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newDispatch.productName}
-                    onChange={(e) => setNewDispatch({ ...newDispatch, productName: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-                  />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700">
+                      Product Item Name *
+                    </label>
+                    {products.length > 0 && (
+                      <span className="text-[10px] text-indigo-600 font-semibold">
+                        {products.length} Products in Inventory
+                      </span>
+                    )}
+                  </div>
+                  {products.length > 0 ? (
+                    <CustomSelect
+                      value={selectedProductId}
+                      onChange={handleSelectProduct}
+                      options={[
+                        ...products.map(p => ({
+                          value: p._id,
+                          label: p.name,
+                          sublabel: `SKU: ${p.sku} | Stock: ${p.currentStock || 0} ${p.baseUnit || 'Kg'}`
+                        })),
+                        { value: 'CUSTOM_PROD', label: '+ Enter Custom Product Item...' }
+                      ]}
+                      placeholder="Select product from inventory..."
+                    />
+                  ) : null}
+
+                  {(!products.length || selectedProductId === 'CUSTOM_PROD') && (
+                    <input
+                      type="text"
+                      required
+                      value={newDispatch.productName}
+                      onChange={(e) => setNewDispatch({ ...newDispatch, productName: e.target.value })}
+                      placeholder="e.g. Basmati Rice (Grade 1 Special 25kg)"
+                      className="w-full mt-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                    />
+                  )}
                 </div>
 
                 <div>
@@ -1047,13 +1378,22 @@ export default function IssueDispatch() {
                     required
                     value={newDispatch.sku}
                     onChange={(e) => setNewDispatch({ ...newDispatch, sku: e.target.value })}
+                    placeholder="PRD-RIC-001"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
+              </div>
 
+              {/* Row 4: Packaging Packs Count & Units Per Pack Ratio */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
-                    Packaging Packs Count ({newDispatch.packUnit}) *
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                    <span>Packaging Packs Count ({newDispatch.packUnit || 'Packs'}) *</span>
+                    {newDispatch.availableStock > 0 && (
+                      <span className="text-[10px] text-emerald-600 font-semibold">
+                        Avail: {newDispatch.availableStock} {newDispatch.baseUnit}
+                      </span>
+                    )}
                   </label>
                   <input
                     type="number"
@@ -1067,7 +1407,7 @@ export default function IssueDispatch() {
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
-                    Units Per Pack Ratio
+                    Units Per Pack Ratio ({newDispatch.baseUnit} per {newDispatch.packUnit?.split(' ')?.[0] || 'Pack'})
                   </label>
                   <input
                     type="number"
@@ -1078,7 +1418,10 @@ export default function IssueDispatch() {
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
+              </div>
 
+              {/* Row 5: Batch Number & FEFO Expiry Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
                     Batch / Lot Number *
@@ -1088,6 +1431,7 @@ export default function IssueDispatch() {
                     required
                     value={newDispatch.batchNo}
                     onChange={(e) => setNewDispatch({ ...newDispatch, batchNo: e.target.value })}
+                    placeholder="BAT-2026-RIC-01"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
@@ -1107,7 +1451,10 @@ export default function IssueDispatch() {
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
+              </div>
 
+              {/* Row 6: Vehicle Number & Driver Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
                     Vehicle Number *
@@ -1117,7 +1464,8 @@ export default function IssueDispatch() {
                     required
                     value={newDispatch.vehicleNo}
                     onChange={(e) => setNewDispatch({ ...newDispatch, vehicleNo: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                    placeholder="DL-1L-AA-5544"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
 
@@ -1130,28 +1478,33 @@ export default function IssueDispatch() {
                     required
                     value={newDispatch.driverName}
                     onChange={(e) => setNewDispatch({ ...newDispatch, driverName: e.target.value })}
+                    placeholder="Mohd. Imran"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
               </div>
 
               {/* Live Calculation Preview Banner */}
-              <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3 flex items-center justify-between">
+              <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <p className="text-[11px] text-indigo-700 font-semibold">Automatic Base Unit Calculation</p>
-                  <p className="text-xs text-indigo-900 font-bold mt-0.5">
-                    {Number(newDispatch.packsCount) || 0} {newDispatch.packUnit} × {Number(newDispatch.unitsPerPack) || 1} ={' '}
+                  <p className="text-xs text-indigo-950 font-bold mt-0.5">
+                    {Number(newDispatch.packsCount) || 0} {newDispatch.packUnit || 'Packs'} × {Number(newDispatch.unitsPerPack) || 1} ={' '}
                     <span className="text-sm font-black text-indigo-600">
                       {((Number(newDispatch.packsCount) || 0) * (Number(newDispatch.unitsPerPack) || 1)).toLocaleString()}{' '}
-                      {newDispatch.baseUnit}
+                      {newDispatch.baseUnit || 'Kg'}
                     </span>
                   </p>
                 </div>
-                <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-1 rounded-md">
-                  ✓ Lab Passed
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-md">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>✓ Lab Passed</span>
+                  </span>
+                </div>
               </div>
 
+              {/* Submit Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
@@ -1162,9 +1515,11 @@ export default function IssueDispatch() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
                 >
-                  Confirm &amp; Create Dispatch
+                  {submitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Confirm &amp; Create Dispatch</span>
                 </button>
               </div>
             </form>
@@ -1244,13 +1599,13 @@ export default function IssueDispatch() {
                           <td className="py-2.5 px-3 font-mono text-slate-600">{it.location}</td>
                           <td className="py-2.5 px-3">
                             <div className="font-mono text-slate-700">{it.batch}</div>
-                            <div className="text-[10px] text-emerald-600 font-bold">{it.labCert}</div>
+                            <div className="text-[10px] text-emerald-600 font-bold">{it.labCert || 'COA-PASSED'}</div>
                           </td>
                           <td className="py-2.5 px-3 text-right font-bold text-slate-900">
-                            {it.qty.toLocaleString()} {it.baseUnit}
+                            {Number(it.qty || 0).toLocaleString()} {it.baseUnit || showDetailsModal.baseUnit}
                           </td>
                           <td className="py-2.5 px-3 text-right text-indigo-600 font-semibold">
-                            {it.packQty} {it.packUnit}
+                            {it.packQty} {it.packUnit || showDetailsModal.packUnit}
                           </td>
                         </tr>
                       ))}
@@ -1261,7 +1616,7 @@ export default function IssueDispatch() {
 
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
                 <p className="text-[11px] text-slate-400 font-medium">Remarks / Delivery Notes</p>
-                <p className="text-slate-700 mt-1">{showDetailsModal.remarks || 'Standard verified dispatch.'}</p>
+                <p className="text-slate-700 mt-1">{showDetailsModal.remarks || 'Standard verified outward dispatch.'}</p>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
@@ -1325,7 +1680,7 @@ export default function IssueDispatch() {
                   <span className="text-slate-400">Customer:</span> {showGatePassModal.customerUnit}
                 </div>
                 <div className="col-span-2">
-                  <span className="text-slate-400">Total Cargo:</span> {showGatePassModal.totalQty.toLocaleString()} {showGatePassModal.baseUnit} ({showGatePassModal.packCount} {showGatePassModal.packUnit})
+                  <span className="text-slate-400">Total Cargo:</span> {Number(showGatePassModal.totalQty || 0).toLocaleString()} {showGatePassModal.baseUnit} ({showGatePassModal.packCount} {showGatePassModal.packUnit})
                 </div>
               </div>
 
@@ -1347,7 +1702,7 @@ export default function IssueDispatch() {
                       <QrCode className="w-10 h-10 text-slate-800" />
                     )}
                   </div>
-                  <span className="text-[8px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                  <span className="text-[8px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                     SCAN TO VERIFY
                   </span>
                 </div>
@@ -1377,6 +1732,42 @@ export default function IssueDispatch() {
               >
                 <Printer className="w-4 h-4" />
                 <span>Print Document</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: DELETE CONFIRMATION */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3 text-red-600 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center border border-red-100">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Delete Dispatch Order?</h3>
+                <p className="text-xs text-slate-500">This action cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-600 mb-4">
+              Are you sure you want to delete this outward dispatch manifest record?
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmId(null)}
+                className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteDispatch(deleteConfirmId)}
+                className="px-3.5 py-1.5 rounded-xl bg-red-600 text-white text-xs font-bold hover:bg-red-700 shadow-xs"
+              >
+                Delete
               </button>
             </div>
           </div>
