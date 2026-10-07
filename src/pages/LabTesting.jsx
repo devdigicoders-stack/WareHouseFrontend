@@ -121,11 +121,9 @@ export default function LabTesting() {
 
   // Modal State
   const [showCertModal, setShowCertModal] = useState(null)
-  const [showLabelModal, setShowLabelModal] = useState(null)
   const [showNewTestModal, setShowNewTestModal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [certQrDataUrl, setCertQrDataUrl] = useState('')
-  const [labelQrDataUrl, setLabelQrDataUrl] = useState('')
 
   // New Test Request Form State (GRN-Driven)
   const [selectedModalGrnNo, setSelectedModalGrnNo] = useState('')
@@ -270,16 +268,6 @@ export default function LabTesting() {
         .catch(() => setCertQrDataUrl(''))
     }
   }, [showCertModal])
-
-  // Generate QR for QC Sticker Label
-  useEffect(() => {
-    if (showLabelModal) {
-      const payload = `=== QC CLEARANCE TAG ===\nSample ID: ${showLabelModal.sampleId}\nGRN No: ${showLabelModal.grnNo}\nProduct: ${showLabelModal.productName}\nBatch: ${showLabelModal.batchNo}\nQC Result: ${showLabelModal.result}\nChemist: ${showLabelModal.testedBy}\nCert No: ${showLabelModal.certificateNo || 'COA-VERIFIED'}`
-      QRCode.toDataURL(payload, { width: 130, margin: 1, errorCorrectionLevel: 'M' })
-        .then(setLabelQrDataUrl)
-        .catch(() => setLabelQrDataUrl(''))
-    }
-  }, [showLabelModal])
 
   // Dynamic KPI Stats calculated from state
   const stats = useMemo(() => {
@@ -856,7 +844,7 @@ export default function LabTesting() {
                       {row.testedBy}
                     </td>
                     <td className="py-3.5 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex items-center justify-center gap-1.5">
                         {/* Quick Approve / Reject for in-progress tests */}
                         {row.status === 'In Progress' && (
                           <>
@@ -882,33 +870,11 @@ export default function LabTesting() {
                         <button
                           type="button"
                           onClick={() => setShowCertModal(row)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition cursor-pointer"
                           title="View Official QA Certificate of Analysis"
                         >
-                          <FileText className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setShowLabelModal(row)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 transition cursor-pointer"
-                          title="Print QC Clearance Sticker / Tag"
-                        >
-                          <QrCode className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowCertModal(row)
-                            setTimeout(() => {
-                              printSpecificElement('#printable-lab-test-cert', `QA Certificate - ${row.sampleId}`)
-                            }, 300)
-                          }}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition cursor-pointer"
-                          title="Print Certificate"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
+                          <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>View COA</span>
                         </button>
                       </div>
                     </td>
@@ -1356,114 +1322,6 @@ export default function LabTesting() {
         </div>
       )}
 
-      {/* MODAL 3: QC Clearance Sticker / Tag Modal */}
-      {showLabelModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
-                  QC
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-800">QC Status Physical Tag</h3>
-                  <p className="text-[11px] text-slate-500">4" × 4" Thermal Inward Clearance Tag</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowLabelModal(null)}
-                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Realistic High-Contrast Thermal Sticker */}
-            <div id="printable-qc-sticker" className="printable-area border-2 border-slate-900 rounded-xl p-4 bg-white space-y-3 font-sans max-w-[340px] mx-auto shadow-md">
-              <div className="flex items-center justify-between border-b pb-2 border-slate-900">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
-                    WH
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">CENTRAL WAREHOUSE</h4>
-                    <p className="text-[8px] font-semibold text-slate-500">QC INSPECTION &amp; CLEARANCE TAG</p>
-                  </div>
-                </div>
-                <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
-                    showLabelModal.result === 'Pass'
-                      ? 'bg-emerald-600 text-white'
-                      : showLabelModal.result === 'Fail'
-                      ? 'bg-rose-600 text-white'
-                      : 'bg-amber-500 text-white'
-                  }`}
-                >
-                  {showLabelModal.result === 'Pass' ? 'PASSED & APPROVED' : showLabelModal.result === 'Fail' ? 'REJECTED' : 'QUARANTINE'}
-                </span>
-              </div>
-
-              <div>
-                <h5 className="text-xs font-black text-slate-900 leading-tight truncate">
-                  {showLabelModal.productName}
-                </h5>
-                <div className="flex items-center gap-1.5 mt-1 font-mono text-[9px]">
-                  <span className="bg-slate-900 text-white px-1.5 py-0.5 rounded font-bold">
-                    {showLabelModal.sku}
-                  </span>
-                  <span className="bg-indigo-50 text-indigo-700 font-bold px-1.5 py-0.5 rounded border border-indigo-200">
-                    {showLabelModal.grnNo}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-1 text-[10px] font-mono text-slate-800 bg-slate-100/80 p-2.5 rounded-lg border border-slate-300">
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-sans">Batch No:</span>
-                  <strong className="font-mono">{showLabelModal.batchNo}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-sans">Sample ID:</span>
-                  <strong className="font-mono">{showLabelModal.sampleId}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-sans">Lead Chemist:</span>
-                  <strong>{showLabelModal.testedBy}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-sans">Test Date:</span>
-                  <strong>{showLabelModal.sampleDate}</strong>
-                </div>
-              </div>
-
-              {labelQrDataUrl && (
-                <div className="flex items-center justify-center pt-1 border-t border-slate-200">
-                  <img src={labelQrDataUrl} alt="QC Tag QR" className="w-20 h-20 object-contain" />
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setShowLabelModal(null)}
-                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => printSpecificElement('#printable-qc-sticker', `QC Tag - ${showLabelModal.sampleId}`)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Print Tag</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
