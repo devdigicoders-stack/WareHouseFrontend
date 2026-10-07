@@ -185,14 +185,16 @@ export default function CurrentStock() {
       .catch(() => {})
   }, [])
 
-  // Fetch Products from MongoDB
+  // Fetch Products from MongoDB (Only active inventory with actual stock)
   const fetchProducts = useCallback(() => {
     setLoading(true)
     fetch(`${API}/api/product`)
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          const mapped = data.map((p, idx) => {
+        if (Array.isArray(data)) {
+          // Products only enter active warehouse stock once GRN has received inventory (> 0 stock)
+          const stockOnly = data.filter((p) => Number(p.currentStock) > 0)
+          const mapped = stockOnly.map((p, idx) => {
             const normalizedShade = normalizeShade(p.shadeId || p.storageZone)
             const rowVal = p.row || 'R01'
             const colVal = p.col || 'C01'
@@ -212,7 +214,7 @@ export default function CurrentStock() {
               _id: p._id,
               productName: p.name,
               sku: p.sku || `PRD-${idx + 1}`,
-              batchNo: p.batchNo || `BT-2026-${String(idx + 1).padStart(3, '0')}`,
+              batchNo: p.batchNo || '—',
               category: p.category || 'General Goods',
               shadeId: normalizedShade,
               shadeName: p.storageZone || `Shade ${normalizedShade}`,
@@ -226,10 +228,10 @@ export default function CurrentStock() {
               availableQty: currentStock,
               reservedQty: reservedQty,
               totalQty: currentStock + reservedQty,
-              labStatus: p.labStatus || 'Passed',
-              labCertNo: p.labCertNo || (p.labStatus === 'Passed' ? `COA-2026-${String(idx + 101).padStart(4, '0')}` : 'PENDING-QC'),
-              expiryDate: p.expiryDate || '2027-12-31',
-              mfgDate: p.mfgDate || '2026-01-01',
+              labStatus: p.labStatus || 'Pending QC',
+              labCertNo: p.labCertNo || (p.labStatus === 'Passed' ? 'CERTIFIED' : 'Pending QC'),
+              expiryDate: p.expiryDate || '—',
+              mfgDate: p.mfgDate || '—',
               status: status,
               reorderLevel: reorderLevel,
               raw: p,
@@ -297,7 +299,7 @@ export default function CurrentStock() {
       .filter((i) => i.labStatus === 'Passed')
       .reduce((sum, i) => sum + i.availableQty, 0)
     const lowStockCount = stockData.filter((i) => i.status === 'Low Stock' || i.status === 'Out of Stock').length
-    const clearancePct = totalBaseUnits > 0 ? Math.round((labPassedUnits / totalBaseUnits) * 100) : 100
+    const clearancePct = totalBaseUnits > 0 ? Math.round((labPassedUnits / totalBaseUnits) * 100) : 0
     return { totalBaseUnits, totalPacks, labPassedUnits, lowStockCount, clearancePct }
   }, [stockData])
 
@@ -832,10 +834,31 @@ export default function CurrentStock() {
                 </tr>
               ) : paginatedStock.length === 0 ? (
                 <tr>
-                  <td colSpan="10" className="py-12 text-center text-slate-400">
-                    <Package className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                    <p className="font-semibold text-slate-600">No stock records found</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Try adjusting search query or active filters.</p>
+                  <td colSpan="10" className="py-14 text-center text-slate-400">
+                    <div className="max-w-md mx-auto flex flex-col items-center">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3 border border-indigo-100 shadow-2xs">
+                        <Package className="w-6 h-6" />
+                      </div>
+                      <p className="font-bold text-slate-800 text-sm">No Active Inventory in Warehouse</p>
+                      <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                        Products enter warehouse stock once Goods Receiving (GRN) is completed and Lab Testing QA is processed.
+                      </p>
+                      <div className="flex items-center gap-2 mt-4">
+                        <Link
+                          to="/goods-receiving"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Inward GRN</span>
+                        </Link>
+                        <Link
+                          to="/lab-testing"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
+                        >
+                          <span>Lab Testing</span>
+                        </Link>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ) : (

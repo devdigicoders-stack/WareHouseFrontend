@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { apiRequest } from '../services/api'
 import { printSpecificElement } from '../utils/printHelper'
@@ -25,9 +25,16 @@ import {
   Sparkles,
   QrCode,
   Microscope,
+  Truck,
+  Building2,
+  CheckCircle,
+  XCircle,
+  ShieldCheck,
+  ArrowRight,
+  Loader2,
 } from 'lucide-react'
 
-// Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
+// Custom Accessible Select Dropdown
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
@@ -73,9 +80,9 @@ function CustomSelect({ value, onChange, options, placeholder = 'Select option..
                     : 'text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                <div className="truncate">
-                  <div className="truncate">{opt.label}</div>
-                  {opt.sublabel && <div className="text-[10px] text-slate-400 font-normal">{opt.sublabel}</div>}
+                <div className="truncate pr-2">
+                  <div className="truncate font-semibold">{opt.label}</div>
+                  {opt.sublabel && <div className="text-[10px] text-slate-400 font-normal truncate">{opt.sublabel}</div>}
                 </div>
                 {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
               </button>
@@ -88,6 +95,8 @@ function CustomSelect({ value, onChange, options, placeholder = 'Select option..
 }
 
 export default function LabTesting() {
+  const [searchParams] = useSearchParams()
+
   // Toast notification
   const [toastMessage, setToastMessage] = useState(null)
   const triggerToast = (msg) => {
@@ -97,44 +106,97 @@ export default function LabTesting() {
 
   // Filter toolbar state
   const [activeTab, setActiveTab] = useState('ALL')
+  const [filterGrn, setFilterGrn] = useState('ALL')
   const [filterProduct, setFilterProduct] = useState('ALL')
   const [filterTestType, setFilterTestType] = useState('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const perPage = 7
 
-  // Products and QC Data from Backend
+  // Backend Data
   const [backendProducts, setBackendProducts] = useState([])
   const [backendGRNs, setBackendGRNs] = useState([])
+  const [samplesData, setSamplesData] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  // Modal State
   const [showCertModal, setShowCertModal] = useState(null)
   const [showNewTestModal, setShowNewTestModal] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [certQrDataUrl, setCertQrDataUrl] = useState('')
-  const [showLabelModal, setShowLabelModal] = useState(null)
-  const [labelQrDataUrl, setLabelQrDataUrl] = useState('')
+
+  // New Test Request Form State (GRN-Driven)
+  const [selectedModalGrnNo, setSelectedModalGrnNo] = useState('')
+  const [selectedModalItemIndex, setSelectedModalItemIndex] = useState(0)
+  const [newTest, setNewTest] = useState({
+    grnNo: '',
+    productName: '',
+    sku: '',
+    batchNo: '',
+    testType: 'Moisture & Grain Quality Test',
+    sampleQty: '1 Bag (Random Inward Sampling)',
+    testedBy: 'Dr. Sharma (QA Lead)',
+    expectedDate: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10),
+    remarks: 'Standard inward inspection prior to permanent warehouse storage',
+    storageZone: '',
+    vendor: '',
+  })
+
+  // Selected GRN Object for Modal
+  const selectedModalGrnObject = useMemo(() => {
+    if (!selectedModalGrnNo) return null
+    return backendGRNs.find((g) => g.grnNo === selectedModalGrnNo) || null
+  }, [selectedModalGrnNo, backendGRNs])
 
   // Fetch real data on mount
   useEffect(() => {
+    setLoading(true)
     Promise.allSettled([
       apiRequest('/product'),
       apiRequest('/grn'),
       apiRequest('/qc'),
     ]).then(([prodRes, grnRes, qcRes]) => {
+      let grns = []
+      let prods = []
+
       if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
-        setBackendProducts(prodRes.value)
-        if (prodRes.value.length > 0) {
-          setNewTest((prev) => ({
-            ...prev,
-            productName: prodRes.value[0].name,
-          }))
+        prods = prodRes.value
+        setBackendProducts(prods)
+      }
+
+      if (grnRes.status === 'fulfilled' && Array.isArray(grnRes.value)) {
+        grns = grnRes.value
+        setBackendGRNs(grns)
+
+        // Check if query params specify a GRN or batch
+        const paramGrn = searchParams.get('grn')
+        const paramBatch = searchParams.get('batch')
+        const targetGrn = grns.find((g) => (paramGrn && g.grnNo === paramGrn) || (paramBatch && g.materials?.some((m) => m.batchNo === paramBatch))) || grns[0]
+
+        if (targetGrn) {
+          setSelectedModalGrnNo(targetGrn.grnNo)
+          setSelectedModalItemIndex(0)
+          const firstMat = targetGrn.materials?.[0]
+          if (firstMat) {
+            setNewTest((prev) => ({
+              ...prev,
+              grnNo: targetGrn.grnNo,
+              productName: firstMat.productName || firstMat.sku,
+              sku: firstMat.sku,
+              batchNo: firstMat.batchNo || 'BT-2026-001',
+              sampleQty: `1 ${firstMat.packagingUnit || 'Bag'} (Random Sample)`,
+              storageZone: targetGrn.shade || 'Shade 1',
+              vendor: targetGrn.supplier || 'Inward Consignment',
+            }))
+          }
         }
       }
-      if (grnRes.status === 'fulfilled' && Array.isArray(grnRes.value)) {
-        setBackendGRNs(grnRes.value)
-      }
+
       if (qcRes.status === 'fulfilled' && Array.isArray(qcRes.value) && qcRes.value.length > 0) {
         const mapped = qcRes.value.map((q, idx) => ({
           id: q._id || idx + 1,
-          sampleId: q.qcNumber || `LBT-2026-${String(idx + 1).padStart(3, '0')}`,
+          sampleId: q.qcNumber || `QC-2026-${String(idx + 1).padStart(4, '0')}`,
+          grnNo: q.grnNo || 'GRN-2026-0001',
           batchNo: q.batchNo || 'BT-2026-001',
           productName: q.productName || 'Basmati Rice',
           sku: q.sku || 'PRD-RIC-001',
@@ -146,7 +208,7 @@ export default function LabTesting() {
           testedBy: q.testedBy || 'Dr. Sharma (QA Lead)',
           parameters: q.parameters?.length > 0 ? q.parameters.map((p) => ({
             param: p.name,
-            standard: p.standard || 'Within Spec',
+            standard: p.standard || 'Within Specification Limits',
             result: p.observed || (p.pass ? 'Pass' : 'Fail'),
             status: p.pass ? 'Pass' : 'Fail',
           })) : [
@@ -158,57 +220,54 @@ export default function LabTesting() {
         }))
         setSamplesData(mapped)
       }
-    }).catch(() => {})
-  }, [])
+    }).finally(() => {
+      setLoading(false)
+    })
+  }, [searchParams])
+
+  // Handle GRN selection in Modal
+  const handleSelectModalGrn = (grnNo) => {
+    setSelectedModalGrnNo(grnNo)
+    setSelectedModalItemIndex(0)
+    const grn = backendGRNs.find((g) => g.grnNo === grnNo)
+    if (grn && grn.materials && grn.materials.length > 0) {
+      const mat = grn.materials[0]
+      setNewTest((prev) => ({
+        ...prev,
+        grnNo: grn.grnNo,
+        productName: mat.productName || mat.sku,
+        sku: mat.sku,
+        batchNo: mat.batchNo || 'BT-2026-001',
+        sampleQty: `1 ${mat.packagingUnit || 'Bag'} (Random Sample)`,
+        storageZone: grn.shade || 'Shade 1',
+        vendor: grn.supplier || 'Inward Consignment',
+      }))
+      triggerToast(`Loaded GRN ${grn.grnNo} with ${grn.materials.length} received items!`)
+    }
+  }
+
+  // Handle choosing specific material from selected GRN
+  const handleSelectModalMaterial = (mat, index) => {
+    setSelectedModalItemIndex(index)
+    setNewTest((prev) => ({
+      ...prev,
+      productName: mat.productName || mat.sku,
+      sku: mat.sku,
+      batchNo: mat.batchNo || 'BT-2026-001',
+      sampleQty: `1 ${mat.packagingUnit || 'Bag'} (Random Sample)`,
+    }))
+    triggerToast(`Selected ${mat.productName || mat.sku} from ${selectedModalGrnNo}`)
+  }
 
   // Generate QR for QA Certificate
   useEffect(() => {
     if (showCertModal) {
-      const payload = JSON.stringify({
-        type: 'WMS_QA_CERTIFICATE',
-        certNo: showCertModal.certificateNo || showCertModal.sampleId,
-        product: showCertModal.productName,
-        batch: showCertModal.batchNo,
-        testedBy: showCertModal.testedBy,
-        result: showCertModal.result,
-        date: showCertModal.sampleDate,
-      })
-      QRCode.toDataURL(payload, { width: 140, margin: 1 })
+      const payload = `=== CENTRAL WAREHOUSE QA CERTIFICATE ===\nCert No: ${showCertModal.certificateNo || showCertModal.sampleId}\nGRN No: ${showCertModal.grnNo}\nProduct: ${showCertModal.productName} (${showCertModal.sku})\nBatch: ${showCertModal.batchNo}\nStatus: ${showCertModal.result.toUpperCase()}\nLead Chemist: ${showCertModal.testedBy}\nDate: ${showCertModal.sampleDate}`
+      QRCode.toDataURL(payload, { width: 140, margin: 1, errorCorrectionLevel: 'M' })
         .then(setCertQrDataUrl)
         .catch(() => setCertQrDataUrl(''))
     }
   }, [showCertModal])
-
-  // Generate QR for QC Sticker Label
-  useEffect(() => {
-    if (showLabelModal) {
-      const payload = JSON.stringify({
-        type: 'WMS_QC_STICKER',
-        sampleId: showLabelModal.sampleId,
-        product: showLabelModal.productName,
-        batch: showLabelModal.batchNo,
-        status: showLabelModal.status,
-        result: showLabelModal.result,
-      })
-      QRCode.toDataURL(payload, { width: 120, margin: 1 })
-        .then(setLabelQrDataUrl)
-        .catch(() => setLabelQrDataUrl(''))
-    }
-  }, [showLabelModal])
-
-  // New Test Request Form State
-  const [newTest, setNewTest] = useState({
-    productName: 'Rice (Basmati Superior 25kg)',
-    batchNo: 'BT-2026-001',
-    testType: 'Moisture & Grain Quality',
-    sampleQty: '2 Bags (Random Sampling)',
-    testedBy: 'Dr. Sharma (QA Lead)',
-    expectedDate: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10),
-    remarks: 'Moisture meter and grain purity inspection prior to bay storage',
-  })
-
-  // Laboratory Samples Master Data
-  const [samplesData, setSamplesData] = useState([])
 
   // Dynamic KPI Stats calculated from state
   const stats = useMemo(() => {
@@ -228,6 +287,9 @@ export default function LabTesting() {
       if (activeTab === 'FAILED' && item.result !== 'Fail') return false
       if (activeTab === 'IN_PROGRESS' && item.status !== 'In Progress') return false
 
+      // GRN Filter
+      if (filterGrn !== 'ALL' && item.grnNo !== filterGrn) return false
+
       // Product filter
       if (filterProduct !== 'ALL' && item.productName !== filterProduct) return false
 
@@ -238,17 +300,19 @@ export default function LabTesting() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
         const matches =
-          item.sampleId.toLowerCase().includes(q) ||
-          item.batchNo.toLowerCase().includes(q) ||
-          item.productName.toLowerCase().includes(q) ||
-          item.testType.toLowerCase().includes(q) ||
-          item.testedBy.toLowerCase().includes(q)
+          (item.sampleId && item.sampleId.toLowerCase().includes(q)) ||
+          (item.grnNo && item.grnNo.toLowerCase().includes(q)) ||
+          (item.batchNo && item.batchNo.toLowerCase().includes(q)) ||
+          (item.productName && item.productName.toLowerCase().includes(q)) ||
+          (item.sku && item.sku.toLowerCase().includes(q)) ||
+          (item.testType && item.testType.toLowerCase().includes(q)) ||
+          (item.testedBy && item.testedBy.toLowerCase().includes(q))
         if (!matches) return false
       }
 
       return true
     })
-  }, [samplesData, activeTab, filterProduct, filterTestType, searchQuery])
+  }, [samplesData, activeTab, filterGrn, filterProduct, filterTestType, searchQuery])
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredSamples.length / perPage))
@@ -257,6 +321,7 @@ export default function LabTesting() {
   // Reset Filters
   const handleResetFilters = () => {
     setActiveTab('ALL')
+    setFilterGrn('ALL')
     setFilterProduct('ALL')
     setFilterTestType('ALL')
     setSearchQuery('')
@@ -264,49 +329,64 @@ export default function LabTesting() {
     triggerToast('All lab filters reset to default.')
   }
 
-  // Create New Test Handler
+  // Create New Test Handler (Strictly GRN-Linked)
   const handleCreateTest = async (e) => {
     e.preventDefault()
+    if (isSubmitting) return
+
+    if (!selectedModalGrnNo) {
+      triggerToast('Please select a valid received GRN consignment first', 'error')
+      return
+    }
     if (!newTest.remarks || !newTest.remarks.trim()) {
       triggerToast('Inspection notes are mandatory for laboratory testing audits', 'error')
       return
     }
 
+    setIsSubmitting(true)
     const newId = samplesData.length + 1
-    const sId = `LBT-2026-${String(newId).padStart(3, '0')}`
-    const matchingProd = backendProducts.find((p) => p.name === newTest.productName)
+    const sId = `QC-2026-${String(newId).padStart(4, '0')}`
+    const certNumber = `COA-2026-${String(newId + 100).padStart(5, '0')}`
 
     const payload = {
       qcNumber: sId,
-      grnNo: `GRN-2026-${String(newId + 10).padStart(4, '0')}`,
+      grnNo: selectedModalGrnNo,
       productName: newTest.productName,
-      sku: matchingProd?.sku || `PRD-${newTest.batchNo.slice(3, 6)}-0${newId}`,
+      sku: newTest.sku,
       batchNo: newTest.batchNo,
+      testProtocol: newTest.testType,
       sampleSize: newTest.sampleQty,
       testedBy: newTest.testedBy,
+      expectedDate: newTest.expectedDate,
+      storageZone: newTest.storageZone,
       status: 'Quarantine / Under Test',
       remarks: newTest.remarks,
+      certificateNo: certNumber,
       parameters: [
         { name: newTest.testType, standard: 'Within Specification Limits', observed: 'Sample Inoculated / Under Measurement', pass: true },
-        { name: 'Sensory & Physical Integrity', standard: 'Clean & Sealed', observed: 'Verified Inward', pass: true },
+        { name: 'Sensory & Physical Integrity', standard: 'Clean & Specimen Compliant', observed: 'Verified Inward', pass: true },
       ],
     }
 
+    let savedQc = null
     try {
-      await apiRequest('/qc', {
+      savedQc = await apiRequest('/qc', {
         method: 'POST',
         body: JSON.stringify(payload),
-      }).catch(() => {})
+      })
     } catch (err) {
       console.warn('QC backend notice:', err)
+    } finally {
+      setIsSubmitting(false)
     }
 
     const newRecord = {
-      id: newId,
-      sampleId: sId,
+      id: savedQc?._id || newId,
+      sampleId: savedQc?.qcNumber || sId,
+      grnNo: selectedModalGrnNo,
       batchNo: newTest.batchNo,
       productName: newTest.productName,
-      sku: matchingProd?.sku || `PRD-${newTest.batchNo.slice(3, 6)}-0${newId}`,
+      sku: newTest.sku,
       testType: newTest.testType,
       sampleDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       expectedDate: newTest.expectedDate,
@@ -318,26 +398,61 @@ export default function LabTesting() {
         { param: 'Visual & Physical Appearance', standard: 'Uniform / Defect Free', result: 'Verified Normal', status: 'Pass' },
       ],
       remarks: newTest.remarks,
-      certificateNo: `COA-2026-${String(newId + 100).padStart(5, '0')}`,
+      certificateNo: savedQc?.certificateNo || certNumber,
     }
 
     setSamplesData([newRecord, ...samplesData])
     setShowNewTestModal(false)
-    triggerToast(`New test request ${sId} registered successfully!`)
+    triggerToast(`New test request ${sId} for GRN ${selectedModalGrnNo} queued successfully!`)
+  }
+
+  // Quick Status Update (Pass / Fail approval)
+  const handleUpdateStatus = async (sample, newResult) => {
+    const isPass = newResult === 'Pass'
+    const newStatus = isPass ? 'Passed' : 'Failed / Rejected'
+    const remarks = isPass
+      ? 'QC Passed — Certified for Warehouse Bay Storage'
+      : 'QC Failed — Rejected due to specification non-compliance'
+
+    try {
+      if (sample.id && typeof sample.id === 'string' && sample.id.length > 10) {
+        await apiRequest(`/qc/${sample.id}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: newStatus, remarks }),
+        })
+      }
+    } catch (err) {
+      console.warn('Status update API error:', err)
+    }
+
+    setSamplesData((prev) =>
+      prev.map((s) =>
+        s.id === sample.id
+          ? {
+              ...s,
+              status: isPass ? 'Completed' : 'Failed',
+              result: newResult,
+              remarks,
+            }
+          : s
+      )
+    )
+
+    triggerToast(`Sample ${sample.sampleId} marked as ${newResult}! Product inventory status updated.`)
   }
 
   // Export CSV
   const handleExportCSV = () => {
-    const headers = ['#', 'Sample ID', 'Batch No', 'Product Name', 'SKU', 'Test Type', 'Sample Date', 'Expected Date', 'Status', 'Result', 'Tested By', 'Remarks']
+    const headers = ['#', 'Sample ID', 'GRN No', 'Batch No', 'Product Name', 'SKU', 'Test Type', 'Sample Date', 'Status', 'Result', 'Tested By', 'Remarks']
     const rows = filteredSamples.map((r, i) => [
       i + 1,
       `"${r.sampleId}"`,
+      `"${r.grnNo}"`,
       `"${r.batchNo}"`,
       `"${r.productName.replace(/"/g, '""')}"`,
       `"${r.sku}"`,
       `"${r.testType.replace(/"/g, '""')}"`,
       `"${r.sampleDate}"`,
-      `"${r.expectedDate}"`,
       `"${r.status}"`,
       `"${r.result}"`,
       `"${r.testedBy}"`,
@@ -347,59 +462,61 @@ export default function LabTesting() {
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement('a')
     link.setAttribute('href', encodedUri)
-    link.setAttribute('download', `Warehouse_Lab_Testing_Register_${new Date().toISOString().slice(0, 10)}.csv`)
+    link.setAttribute('download', `Warehouse_QC_Lab_Register_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     triggerToast('Laboratory test register exported to CSV.')
   }
 
-  // Dropdown Options
+  // GRN Options for Filter
+  const grnFilterOptions = useMemo(() => [
+    { value: 'ALL', label: 'All Received GRNs' },
+    ...Array.from(new Set([...samplesData.map((s) => s.grnNo), ...backendGRNs.map((g) => g.grnNo)])).map((g) => ({
+      value: g,
+      label: g,
+    })),
+  ], [samplesData, backendGRNs])
+
+  // Product Options for Filter
   const productOptions = useMemo(() => [
-    { value: 'ALL', label: 'All Warehouse Commodities' },
+    { value: 'ALL', label: 'All Commodities' },
     ...Array.from(new Set([...samplesData.map((s) => s.productName), ...backendProducts.map((p) => p.name)])).map((p) => ({
       value: p,
       label: p,
     })),
   ], [samplesData, backendProducts])
 
+  // GRN Dropdown Options for New Test Modal
+  const modalGrnOptions = useMemo(() => {
+    if (backendGRNs.length > 0) {
+      return backendGRNs.map((g) => ({
+        value: g.grnNo,
+        label: `${g.grnNo} — ${g.supplier || 'Inward Vendor'} (${g.materials?.length || 1} Items)`,
+        sublabel: `Received: ${new Date(g.dateTime || g.createdAt || Date.now()).toLocaleDateString('en-GB')} • Storage: ${g.shade || 'General'}`,
+      }))
+    }
+    return []
+  }, [backendGRNs])
+
   const testTypeOptions = [
-    { value: 'ALL', label: 'All Quality Test Types' },
-    { value: 'Moisture & Purity Test', label: 'Moisture & Purity Test' },
+    { value: 'ALL', label: 'All Quality Test Protocols' },
+    { value: 'Moisture & Grain Quality Test', label: 'Moisture & Grain Quality Test' },
     { value: 'Viscosity & FFA Analysis', label: 'Viscosity & FFA Analysis' },
     { value: 'Sterility & Seal Integrity', label: 'Sterility & Seal Integrity' },
     { value: 'Flash Point & Viscosity Index', label: 'Flash Point & Viscosity Index' },
-    { value: 'Bursting Strength & ECT', label: 'Bursting Strength & ECT' },
+    { value: 'Bursting Strength & ECT Packaging Test', label: 'Bursting Strength & ECT Packaging Test' },
     { value: 'Hydrostatic & Tensile Test', label: 'Hydrostatic & Tensile Test' },
     { value: 'Microbial & Packaging Seal', label: 'Microbial & Packaging Seal' },
   ]
 
-  const newTestProductOptions = useMemo(() => {
-    if (backendProducts && backendProducts.length > 0) {
-      return backendProducts.map((p) => ({
-        value: p.name,
-        label: `${p.name} (${p.sku})`,
-        sublabel: `${p.category} • 1 ${p.outerPackaging} = ${p.packSize} ${p.baseUnit}`,
-      }))
-    }
-    return [
-      { value: 'Rice (Basmati Superior 25kg)', label: 'Rice (Basmati Superior 25kg)', sublabel: 'Grains & Pulses' },
-      { value: 'Refined Mustard Oil (15L Tin)', label: 'Refined Mustard Oil (15L Tin)', sublabel: 'Edible Oils' },
-      { value: 'Arhar / Toor Dal (Grade A 30kg)', label: 'Arhar / Toor Dal (Grade A 30kg)', sublabel: 'Grains & Pulses' },
-      { value: 'Industrial Lubricant 15W-40 (20L)', label: 'Industrial Lubricant 15W-40 (20L)', sublabel: 'Maintenance & Spares' },
-      { value: 'Heavy Duty Waterproof Tarpaulin', label: 'Heavy Duty Waterproof Tarpaulin', sublabel: 'Packaging & Safety' },
-      { value: 'Corrugated Packaging Cartons 5-Ply', label: 'Corrugated Packaging Cartons 5-Ply', sublabel: 'Packaging Materials' },
-      { value: 'Industrial First Aid Kit', label: 'Industrial First Aid Kit', sublabel: 'Safety & Hygiene' },
-      { value: 'Glucose Energy Biscuits (Box of 48)', label: 'Glucose Energy Biscuits (Box of 48)', sublabel: 'Food & Groceries' },
-    ]
-  }, [backendProducts])
-
   const newTestTypeOptions = [
-    { value: 'Moisture & Grain Quality', label: 'Moisture & Grain Quality Test' },
+    { value: 'Moisture & Grain Quality Test', label: 'Moisture & Grain Quality Test' },
+    { value: 'Purity, Admixture & Foreign Matter', label: 'Purity, Admixture & Foreign Matter' },
     { value: 'Viscosity & Chemical Purity', label: 'Viscosity & Chemical Purity' },
     { value: 'Sterility & Medical Packaging', label: 'Sterility & Medical Packaging' },
-    { value: 'Packaging Strength & ECT', label: 'Packaging Strength & Bursting Test' },
-    { value: 'Waterproofing & Tensile Head', label: 'Waterproofing & Tensile Head' },
+    { value: 'Bursting Strength & ECT Packaging Test', label: 'Packaging Strength & Bursting Test' },
+    { value: 'Sensory & Physical Appearance', label: 'Sensory & Physical Appearance' },
   ]
 
   const technicianOptions = [
@@ -428,7 +545,7 @@ export default function LabTesting() {
           <div>
             <h1 className="text-xl font-bold text-slate-800 tracking-tight">Quality & Lab Testing</h1>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Quality assurance, sample testing verification, and laboratory compliance certification for warehouse stock.
+              Manage sample quarantine, laboratory analysis, and compliance certification strictly linked to Inward GRNs.
             </p>
           </div>
         </div>
@@ -437,7 +554,7 @@ export default function LabTesting() {
           <button
             type="button"
             onClick={handleExportCSV}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-slate-500" />
             <span>Export Register</span>
@@ -445,7 +562,7 @@ export default function LabTesting() {
           <button
             type="button"
             onClick={() => printSpecificElement('#printable-lab-register-table', 'Lab Testing Register Report')}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5 text-slate-500" />
             <span>Print Report</span>
@@ -453,7 +570,7 @@ export default function LabTesting() {
           <button
             type="button"
             onClick={() => setShowNewTestModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>New Test Request</span>
@@ -472,7 +589,7 @@ export default function LabTesting() {
             <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
               {stats.total}
             </h3>
-            <p className="text-[11px] text-indigo-600 font-medium">Logged in register</p>
+            <p className="text-[11px] text-indigo-600 font-medium">Logged across inward GRNs</p>
           </div>
         </div>
 
@@ -584,7 +701,7 @@ export default function LabTesting() {
             <button
               type="button"
               onClick={handleResetFilters}
-              className="text-xs font-semibold text-slate-500 hover:text-indigo-600 flex items-center gap-1.5 transition"
+              className="text-xs font-semibold text-slate-500 hover:text-indigo-600 flex items-center gap-1.5 transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset Filters</span>
@@ -594,19 +711,29 @@ export default function LabTesting() {
           {/* Search and Filters Bar */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-center text-xs">
             {/* Search Input */}
-            <div className="lg:col-span-4 relative">
+            <div className="lg:col-span-3 relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by Sample ID, Batch, Product..."
+                placeholder="Search Sample ID, GRN, Batch, SKU..."
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
               />
             </div>
 
+            {/* GRN Filter */}
+            <div className="lg:col-span-3">
+              <CustomSelect
+                value={filterGrn}
+                onChange={setFilterGrn}
+                options={grnFilterOptions}
+                zIndexClass="z-30"
+              />
+            </div>
+
             {/* Product Filter */}
-            <div className="lg:col-span-4">
+            <div className="lg:col-span-3">
               <CustomSelect
                 value={filterProduct}
                 onChange={setFilterProduct}
@@ -616,7 +743,7 @@ export default function LabTesting() {
             </div>
 
             {/* Test Type Filter */}
-            <div className="lg:col-span-4">
+            <div className="lg:col-span-3">
               <CustomSelect
                 value={filterTestType}
                 onChange={setFilterTestType}
@@ -634,22 +761,30 @@ export default function LabTesting() {
               <tr>
                 <th className="py-3.5 px-4 w-12 text-center">#</th>
                 <th className="py-3.5 px-4 min-w-[125px]">Sample ID</th>
+                <th className="py-3.5 px-4 min-w-[130px]">GRN No.</th>
                 <th className="py-3.5 px-4 min-w-[120px]">Batch No.</th>
                 <th className="py-3.5 px-4 min-w-[200px]">Product Name</th>
-                <th className="py-3.5 px-4 min-w-[170px]">Test Type</th>
-                <th className="py-3.5 px-4 min-w-[110px]">Sample Date</th>
-                <th className="py-3.5 px-4 min-w-[110px]">Expected Date</th>
-                <th className="py-3.5 px-4 text-center min-w-[110px]">Status</th>
-                <th className="py-3.5 px-4 text-center min-w-[95px]">Result</th>
-                <th className="py-3.5 px-4 min-w-[150px]">Tested By</th>
-                <th className="py-3.5 px-4 text-center w-28">Actions</th>
+                <th className="py-3.5 px-4 min-w-[170px]">Test Protocol</th>
+                <th className="py-3.5 px-4 min-w-[105px]">Sample Date</th>
+                <th className="py-3.5 px-4 text-center min-w-[105px]">Status</th>
+                <th className="py-3.5 px-4 text-center min-w-[90px]">Result</th>
+                <th className="py-3.5 px-4 min-w-[145px]">Tested By</th>
+                <th className="py-3.5 px-4 text-center w-36">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
               {paginatedSamples.length === 0 ? (
                 <tr>
-                  <td colSpan="11" className="py-10 text-center text-slate-400">
-                    No lab test records found matching the filter criteria.
+                  <td colSpan="11" className="py-12 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
+                      <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 mb-2">
+                        <FlaskConical className="w-6 h-6 stroke-[1.5]" />
+                      </div>
+                      <p className="font-semibold text-slate-700 text-xs">No lab test records found</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Register a new lab inspection for any received Inward GRN consignment.
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -661,6 +796,11 @@ export default function LabTesting() {
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
                       {row.sampleId}
                     </td>
+                    <td className="py-3.5 px-4 font-mono">
+                      <span className="bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded border border-indigo-200 text-[11px]">
+                        {row.grnNo || 'GRN-2026-0001'}
+                      </span>
+                    </td>
                     <td className="py-3.5 px-4 font-mono font-semibold text-slate-700 text-[11px]">
                       {row.batchNo}
                     </td>
@@ -668,14 +808,11 @@ export default function LabTesting() {
                       <div className="font-semibold text-slate-800">{row.productName}</div>
                       <div className="text-[10px] text-slate-400 font-mono">{row.sku}</div>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-700 font-medium">
+                    <td className="py-3.5 px-4 text-slate-700 font-medium text-[11px]">
                       {row.testType}
                     </td>
                     <td className="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
                       {row.sampleDate}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
-                      {row.expectedDate}
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <span
@@ -708,34 +845,36 @@ export default function LabTesting() {
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
+                        {/* Quick Approve / Reject for in-progress tests */}
+                        {row.status === 'In Progress' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateStatus(row, 'Pass')}
+                              title="Pass & Approve Lot (CoA Clearance)"
+                              className="p-1.5 rounded-lg text-emerald-700 hover:bg-emerald-100 bg-emerald-50 border border-emerald-200 transition cursor-pointer"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateStatus(row, 'Fail')}
+                              title="Reject / Fail Lot"
+                              className="p-1.5 rounded-lg text-rose-700 hover:bg-rose-100 bg-rose-50 border border-rose-200 transition cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => setShowCertModal(row)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition cursor-pointer"
-                          title="View QA Certificate of Analysis"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition cursor-pointer"
+                          title="View Official QA Certificate of Analysis"
                         >
-                          <FileText className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowLabelModal(row)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 transition cursor-pointer"
-                          title="Print QC Clearance Sticker / Tag"
-                        >
-                          <QrCode className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowCertModal(row)
-                            setTimeout(() => {
-                              printSpecificElement('#printable-lab-test-cert', `QA Certificate - ${row.sampleId}`)
-                            }, 300)
-                          }}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition cursor-pointer"
-                          title="Print Certificate"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
+                          <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>View COA</span>
                         </button>
                       </div>
                     </td>
@@ -759,7 +898,7 @@ export default function LabTesting() {
               type="button"
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold"
+              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold cursor-pointer"
             >
               ‹ Prev
             </button>
@@ -768,7 +907,7 @@ export default function LabTesting() {
                 key={p}
                 type="button"
                 onClick={() => setCurrentPage(p)}
-                className={`px-3 py-1 rounded-lg font-bold transition ${
+                className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${
                   currentPage === p
                     ? 'bg-indigo-600 text-white shadow-xs'
                     : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -781,7 +920,7 @@ export default function LabTesting() {
               type="button"
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold"
+              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold cursor-pointer"
             >
               Next ›
             </button>
@@ -789,128 +928,239 @@ export default function LabTesting() {
         </div>
       </div>
 
-      {/* MODAL 1: New Test Request Modal */}
+      {/* MODAL 1: GRN-Driven New Lab Test Request Modal */}
       {showNewTestModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto no-scrollbar">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto no-scrollbar space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-                  <Plus className="w-4 h-4" />
+                  <FlaskConical className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-800">Register New Lab Test Request</h3>
-                  <p className="text-[11px] text-slate-500">Initiate sample quarantine and laboratory inspection</p>
+                  <p className="text-[11px] text-slate-500">Initiate sample quarantine and laboratory inspection for Inward GRN</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowNewTestModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateTest} className="pt-4 space-y-3.5 text-xs">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Product / Commodity <span className="text-rose-500">*</span>
-                </label>
-                <CustomSelect
-                  value={newTest.productName}
-                  onChange={(val) => setNewTest({ ...newTest, productName: val })}
-                  options={newTestProductOptions}
-                  zIndexClass="z-40"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Batch Number <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newTest.batchNo}
-                    onChange={(e) => setNewTest({ ...newTest, batchNo: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-                  />
+            {backendGRNs.length === 0 ? (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-2">
+                <div className="flex items-center gap-2 text-amber-800 font-bold">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  <span>No Received GRN Consignments Found</span>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Sample Size</label>
-                  <input
-                    type="text"
-                    value={newTest.sampleQty}
-                    onChange={(e) => setNewTest({ ...newTest, sampleQty: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Test Protocol <span className="text-rose-500">*</span>
-                  </label>
-                  <CustomSelect
-                    value={newTest.testType}
-                    onChange={(val) => setNewTest({ ...newTest, testType: val })}
-                    options={newTestTypeOptions}
-                    zIndexClass="z-30"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Assigned QA Chemist</label>
-                  <CustomSelect
-                    value={newTest.testedBy}
-                    onChange={(val) => setNewTest({ ...newTest, testedBy: val })}
-                    options={technicianOptions}
-                    zIndexClass="z-30"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Expected Completion Date</label>
-                <input
-                  type="date"
-                  value={newTest.expectedDate}
-                  onChange={(e) => setNewTest({ ...newTest, expectedDate: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Inspection Notes</label>
-                <textarea
-                  rows={2}
-                  value={newTest.remarks}
-                  onChange={(e) => setNewTest({ ...newTest, remarks: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-                  placeholder="Notes on sampling method, packaging state, temperature..."
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
+                <p className="text-amber-700 text-[11px] leading-relaxed">
+                  Lab testing can only be performed on inward stock registered through Goods Receiving Note (GRN).
+                </p>
+                <Link
+                  to="/grn"
                   onClick={() => setShowNewTestModal(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition"
-                >
-                  Queue Test Request
-                </button>
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>Go to Goods Receiving (GRN)</span>
+                </Link>
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleCreateTest} className="space-y-3.5 text-xs">
+                {/* 1. Primary Inward GRN Selector */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Select Received Inward GRN <span className="text-rose-500">*</span>
+                  </label>
+                  <CustomSelect
+                    value={selectedModalGrnNo}
+                    onChange={handleSelectModalGrn}
+                    options={modalGrnOptions}
+                    zIndexClass="z-40"
+                  />
+                </div>
+
+                {/* GRN Inward Summary Badge */}
+                {selectedModalGrnObject && (
+                  <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-indigo-950">
+                      <span className="flex items-center gap-1.5">
+                        <Truck className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>GRN Consignment: {selectedModalGrnObject.grnNo}</span>
+                      </span>
+                      <span className="text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200 text-[10px]">
+                        {selectedModalGrnObject.shade || 'General Storage'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[10px] text-slate-600 bg-white p-2 rounded-lg border border-indigo-100">
+                      <div>
+                        <span className="text-slate-400 block">Supplier / Vendor:</span>
+                        <strong className="text-slate-800 truncate block">{selectedModalGrnObject.supplier || 'Vendor'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">Inward Date:</span>
+                        <strong className="text-slate-800 block">
+                          {new Date(selectedModalGrnObject.dateTime || selectedModalGrnObject.createdAt || Date.now()).toLocaleDateString('en-GB')}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">Total Items:</span>
+                        <strong className="text-slate-800 block">{selectedModalGrnObject.materials?.length || 1} Products</strong>
+                      </div>
+                    </div>
+
+                    {/* Multi-Item Quick Picker if GRN has multiple materials */}
+                    {selectedModalGrnObject.materials && selectedModalGrnObject.materials.length > 1 && (
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-900 block mb-1">
+                          Select Item to Test from this GRN:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedModalGrnObject.materials.map((mat, idx) => {
+                            const isSelected = selectedModalItemIndex === idx
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => handleSelectModalMaterial(mat, idx)}
+                                className={`text-[11px] px-2.5 py-1 rounded-lg border transition text-left cursor-pointer flex items-center gap-1.5 ${
+                                  isSelected
+                                    ? 'bg-indigo-600 text-white font-bold border-indigo-700 shadow-xs'
+                                    : 'bg-white text-slate-700 font-medium border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50'
+                                }`}
+                              >
+                                <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold ${isSelected ? 'bg-white text-indigo-600' : 'bg-indigo-100 text-indigo-700'}`}>
+                                  {idx + 1}
+                                </span>
+                                <span className="truncate max-w-[150px]">{mat.productName || mat.sku}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Auto-filled Product & Batch Details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Product Name &amp; SKU <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${newTest.productName} (${newTest.sku})`}
+                      className="w-full bg-slate-100 border border-slate-200 rounded-xl p-2 text-xs font-semibold text-slate-800 cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Batch Number (From GRN) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={newTest.batchNo}
+                      className="w-full bg-slate-100 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Test Protocol <span className="text-rose-500">*</span>
+                    </label>
+                    <CustomSelect
+                      value={newTest.testType}
+                      onChange={(val) => setNewTest({ ...newTest, testType: val })}
+                      options={newTestTypeOptions}
+                      zIndexClass="z-30"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Assigned QA Chemist</label>
+                    <CustomSelect
+                      value={newTest.testedBy}
+                      onChange={(val) => setNewTest({ ...newTest, testedBy: val })}
+                      options={technicianOptions}
+                      zIndexClass="z-30"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Sample Size</label>
+                    <input
+                      type="text"
+                      value={newTest.sampleQty}
+                      onChange={(e) => setNewTest({ ...newTest, sampleQty: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Expected Completion Date</label>
+                    <input
+                      type="date"
+                      value={newTest.expectedDate}
+                      onChange={(e) => setNewTest({ ...newTest, expectedDate: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Inspection &amp; Quarantine Notes <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={newTest.remarks}
+                    onChange={(e) => setNewTest({ ...newTest, remarks: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                    placeholder="Notes on sampling method, container seal state, temperature, moisture check..."
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowNewTestModal(false)}
+                    className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className={`bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                      isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Queueing Test Request...</span>
+                      </>
+                    ) : (
+                      <span>Queue Test Request</span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -925,14 +1175,14 @@ export default function LabTesting() {
                   QA
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-slate-800">Certificate of Laboratory Analysis</h3>
+                  <h3 className="font-bold text-sm text-slate-800">Certificate of Laboratory Analysis (COA)</h3>
                   <p className="text-[11px] text-slate-500">Official Quality Clearance Certificate • {showCertModal.sampleId}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowCertModal(null)}
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -941,17 +1191,24 @@ export default function LabTesting() {
             {/* Printable Certificate Layout */}
             <div id="printable-lab-test-cert" className="printable-area border border-slate-200 rounded-xl p-5 bg-slate-50/50 space-y-4 text-xs font-sans">
               <div className="flex items-start justify-between border-b pb-3 border-slate-200">
-                <div>
-                  <h2 className="text-sm font-black text-slate-900 uppercase">CENTRAL WAREHOUSE QA LAB</h2>
-                  <p className="text-[11px] text-slate-500">ISO/IEC 17025 Certified Testing Depository</p>
-                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Sample Reg: {showCertModal.sampleId}</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-sm shrink-0">
+                    WH
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-slate-900 uppercase">CENTRAL WAREHOUSE QA LAB</h2>
+                    <p className="text-[11px] text-slate-500 font-medium">ISO/IEC 17025 Certified Testing Depository</p>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">Sample Reg: {showCertModal.sampleId}</p>
+                  </div>
                 </div>
                 <div className="text-right">
                   <span
                     className={`inline-block px-3 py-1 rounded-full text-xs font-bold border ${
                       showCertModal.result === 'Pass'
                         ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                        : 'bg-rose-100 text-rose-800 border-rose-300'
+                        : showCertModal.result === 'Fail'
+                        ? 'bg-rose-100 text-rose-800 border-rose-300'
+                        : 'bg-amber-100 text-amber-800 border-amber-300'
                     }`}
                   >
                     STATUS: {showCertModal.result.toUpperCase()}
@@ -960,19 +1217,21 @@ export default function LabTesting() {
                 </div>
               </div>
 
-              {/* Product Specifications Grid */}
+              {/* Product Specifications Grid with GRN */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-white p-3 rounded-xl border border-slate-200 text-[11px]">
                 <div>
+                  <span className="text-slate-400 block">Inward GRN:</span>
+                  <strong className="font-mono text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                    {showCertModal.grnNo}
+                  </strong>
+                </div>
+                <div>
                   <span className="text-slate-400 block">Product:</span>
-                  <strong className="text-slate-800">{showCertModal.productName}</strong>
+                  <strong className="text-slate-800 truncate block">{showCertModal.productName}</strong>
                 </div>
                 <div>
                   <span className="text-slate-400 block">Batch No:</span>
                   <strong className="font-mono text-slate-800">{showCertModal.batchNo}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Test Protocol:</span>
-                  <strong className="text-slate-800">{showCertModal.testType}</strong>
                 </div>
                 <div>
                   <span className="text-slate-400 block">Lead Chemist:</span>
@@ -982,7 +1241,7 @@ export default function LabTesting() {
 
               {/* Detailed Parameter Results Table */}
               <div>
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Tested Parameters & Standards</h4>
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Tested Parameters &amp; Acceptance Standards</h4>
                 <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
                   <table className="w-full text-left text-xs divide-y divide-slate-200 min-w-[340px]">
                     <thead className="bg-slate-50 text-slate-600 font-bold">
@@ -1019,10 +1278,21 @@ export default function LabTesting() {
                 </div>
               </div>
 
-              {/* Remarks Box */}
-              <div className="bg-white p-3 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Evaluator Findings & Remarks:</span>
-                <p className="text-xs text-slate-700 font-medium">{showCertModal.remarks}</p>
+              {/* Remarks Box & QR Code */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-center bg-white p-3 rounded-xl border border-slate-200">
+                <div className="sm:col-span-3">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Evaluator Findings &amp; Clearance:</span>
+                  <p className="text-xs text-slate-700 font-medium">{showCertModal.remarks}</p>
+                  <p className="text-[10px] text-slate-400 mt-2 font-mono">
+                    COA Document No: {showCertModal.certificateNo || 'COA-2026-VERIFIED'} • GRN: {showCertModal.grnNo}
+                  </p>
+                </div>
+                {certQrDataUrl && (
+                  <div className="sm:col-span-1 text-center flex flex-col items-center justify-center">
+                    <img src={certQrDataUrl} alt="COA QR Code" className="w-20 h-20 border border-slate-300 p-0.5 rounded object-contain" />
+                    <span className="text-[8px] font-mono text-slate-400 mt-0.5">Scan to Verify</span>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between pt-2 text-[10px] text-slate-400">
@@ -1035,14 +1305,14 @@ export default function LabTesting() {
               <button
                 type="button"
                 onClick={() => setShowCertModal(null)}
-                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 Close
               </button>
               <button
                 type="button"
                 onClick={() => printSpecificElement('#printable-lab-test-cert', `QA Certificate - ${showCertModal.sampleId}`)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print Certificate</span>
@@ -1051,6 +1321,7 @@ export default function LabTesting() {
           </div>
         </div>
       )}
+
     </div>
   )
 }
