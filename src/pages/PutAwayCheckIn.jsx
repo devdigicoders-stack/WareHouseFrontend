@@ -159,8 +159,8 @@ export default function PutAwayCheckIn() {
                 labStatus = 'Pending QC'
               }
 
-              const isCompleted = m.putAwayStatus === 'Completed' || Boolean(m.location) || Boolean(prod?.binLocation)
-              const assignedLocation = m.location || prod?.binLocation || `${g.shade ? g.shade.split(' ')[0] : 'SH01'}-R01-C01`
+              const isCompleted = m.putAwayStatus === 'Completed' || (Boolean(m.location) && m.location.trim().length > 0)
+              const assignedLocation = m.location || ''
 
               mapped.push({
                 id: `${g._id}-${idx}`,
@@ -1221,7 +1221,11 @@ export default function PutAwayCheckIn() {
                       {row.quantity} {row.uom}
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-indigo-600">
-                      {row.recommendedLocation}
+                      {row.recommendedLocation ? (
+                        <span>{row.recommendedLocation}</span>
+                      ) : (
+                        <span className="text-slate-400 font-sans text-[11px] font-normal italic">Auto upon allocate</span>
+                      )}
                     </td>
                     <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
                       {row.receivedOn}
