@@ -145,7 +145,7 @@ export default function PutAwayCheckIn() {
         grnRes.value.forEach((g) => {
           if (g.materials && g.materials.length > 0) {
             g.materials.forEach((m, idx) => {
-              const prod = prods.find((p) => p.sku === m.sku)
+              const prod = prods.find((p) => p.sku === m.sku || p.name === m.productName)
               const qc = qcs.find((q) => q.grnNo === g.grnNo && (q.sku === m.sku || q.batchNo === m.batchNo))
 
               let labStatus = 'Pending QC'
@@ -159,6 +159,9 @@ export default function PutAwayCheckIn() {
                 labStatus = 'Pending QC'
               }
 
+              const isCompleted = m.putAwayStatus === 'Completed' || Boolean(m.location) || Boolean(prod?.binLocation)
+              const assignedLocation = m.location || prod?.binLocation || `${g.shade ? g.shade.split(' ')[0] : 'SH01'}-R01-C01`
+
               mapped.push({
                 id: `${g._id}-${idx}`,
                 grnNo: g.grnNo,
@@ -171,10 +174,10 @@ export default function PutAwayCheckIn() {
                 quantity: m.totalBaseQty || (m.packageQty * m.packSize) || 1250,
                 uom: m.baseUnit || 'Kg',
                 shadeId: g.shade || 'SH01',
-                recommendedLocation: `${g.shade ? g.shade.split(' ')[0] : 'SH01'}-R01-C01`,
+                recommendedLocation: assignedLocation,
                 receivedOn: new Date(g.createdAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
                 priority: 'High',
-                status: 'Pending',
+                status: isCompleted ? 'Completed' : 'Pending',
                 labStatus: labStatus,
               })
             })
@@ -182,13 +185,14 @@ export default function PutAwayCheckIn() {
         })
         if (mapped.length > 0) {
           setQueueItems(mapped)
-          setFormGRN(mapped[0].grnNo)
-          setFormProduct(mapped[0].productName)
-          setFormBatch(mapped[0].batchNo)
-          setFormPackUnit(mapped[0].packUnit)
-          setFormBaseUnit(mapped[0].uom)
-          setFormUnitsPerPack(mapped[0].unitsPerPack)
-          setFormPacksCount(mapped[0].packsCount)
+          const firstPending = mapped.find((item) => item.status === 'Pending') || mapped[0]
+          setFormGRN(firstPending.grnNo)
+          setFormProduct(firstPending.productName)
+          setFormBatch(firstPending.batchNo)
+          setFormPackUnit(firstPending.packUnit)
+          setFormBaseUnit(firstPending.uom)
+          setFormUnitsPerPack(firstPending.unitsPerPack)
+          setFormPacksCount(firstPending.packsCount)
         }
       }
     }).catch(() => {})
@@ -401,7 +405,7 @@ export default function PutAwayCheckIn() {
     return { pendingCount, completedCount, qcTested, qcCleared, totalProcessedUnits }
   }, [queueItems])
 
-  // Load Queue Item into Form with Auto-Allocation
+  // Load Queue Item into Form with Auto-Allocation & Smooth Scroll
   const handleLoadQueueItem = (item) => {
     setFormGRN(item.grnNo)
     setFormProduct(item.productName)
@@ -418,13 +422,119 @@ export default function PutAwayCheckIn() {
     if (autoBin.found) {
       setFormSelectedRow(autoBin.row)
       setFormSelectedCol(autoBin.col)
-      triggerToast(`Auto-allocated available bin: ${autoBin.code}`)
+      triggerToast(`Loaded into form with bin: ${autoBin.code}`)
     } else {
-      triggerToast(`Storage Full in ${targetShade}! Please choose another shade.`, 'error')
+      triggerToast(`⚠️ Storage Full in ${targetShade}! Kripya doosra shade select karein.`, 'error')
     }
+
+    // Smooth scroll to top form so user sees it loaded
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // Confirm Put-Away & Check-In
+  // 1-Click Direct Allocate from Table Row
+  const handleDirectAllocateItem = async (item) => {
+    const targetShade = item.shadeId ? item.shadeId.split(' ')[0] : formSelectedShade
+    const autoBin = findNextAvailableBin(targetShade)
+
+    if (!autoBin.found) {
+      handleLoadQueueItem(item)
+      triggerToast(`⚠️ Shade ${targetShade} me Space nahi hai! Kripya doosra Shade select karein.`, 'error')
+      return
+    }
+
+    // Set form state in background too
+    setFormGRN(item.grnNo)
+    setFormProduct(item.productName)
+    setFormBatch(item.batchNo)
+    setFormPackUnit(item.packUnit)
+    setFormBaseUnit(item.uom)
+    setFormUnitsPerPack(item.unitsPerPack)
+    setFormPacksCount(item.packsCount)
+    setFormSelectedShade(autoBin.shade)
+    setFormSelectedRow(autoBin.row)
+    setFormSelectedCol(autoBin.col)
+
+    // Safety check: Food in chemical zone
+    if (isFoodItem(item.productName) && isChemicalZone(autoBin.shade)) {
+      setShowHazmatModal(true)
+      return
+    }
+
+    // Allocate in backend (both GRN and Rack collections)
+    try {
+      await Promise.allSettled([
+        apiRequest('/grn/allocate-item', {
+          method: 'POST',
+          body: JSON.stringify({
+            grnNo: item.grnNo,
+            batchNo: item.batchNo,
+            sku: item.sku,
+            cellCode: autoBin.code,
+            shade: autoBin.shade,
+            row: autoBin.row,
+            col: autoBin.col,
+            productName: item.productName,
+            quantity: item.quantity,
+          }),
+        }),
+        apiRequest('/rack/allocate-cell', {
+          method: 'POST',
+          body: JSON.stringify({
+            cellCode: autoBin.code,
+            productName: item.productName,
+            batchNo: item.batchNo,
+            quantity: item.quantity,
+            uom: item.uom,
+          }),
+        }),
+      ])
+    } catch (err) {
+      console.warn('Backend cell allocation notice:', err)
+    }
+
+    // Update item in local list as Completed
+    setQueueItems((prev) =>
+      prev.map((i) =>
+        i.id === item.id || (i.batchNo === item.batchNo && i.grnNo === item.grnNo)
+          ? {
+              ...i,
+              status: 'Completed',
+              recommendedLocation: autoBin.code,
+            }
+          : i
+      )
+    )
+
+    const labelData = {
+      grnNo: item.grnNo,
+      productName: item.productName,
+      batchNo: item.batchNo,
+      baseQuantity: item.quantity,
+      baseUnit: item.uom,
+      packsCount: item.packsCount,
+      packUnit: item.packUnit,
+      unitsPerPack: item.unitsPerPack,
+      locationCode: autoBin.code,
+      shadeName: SHADES.find((s) => s.id === autoBin.shade)?.name || autoBin.shade,
+      row: autoBin.row,
+      col: autoBin.col,
+      labStatus: item.labStatus || 'Pending QC',
+      checkInTime: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+    }
+
+    // Generate QR for modal
+    const modalPayload = `ITEM: ${item.productName}\nSKU: ${item.sku || 'N/A'}\nBATCH: ${item.batchNo}\nGRN: ${item.grnNo}\nLOCATION: ${autoBin.code}\nQTY: ${item.quantity} ${item.uom}\nCHECK-IN: ${new Date().toISOString()}`
+    try {
+      const url = await QRCode.toDataURL(modalPayload, { width: 240, margin: 1 })
+      setModalQrUrl(url)
+    } catch (err) {}
+
+    setPrintedLabelData(labelData)
+    setShowQrLabelModal(true)
+    triggerToast(`✓ Batch ${item.batchNo} allocated to ${autoBin.code}!`)
+  }
+
+  // Confirm Put-Away & Check-In from Top Form
   const handleConfirmPutAway = async (e) => {
     if (e) e.preventDefault()
     if (!formGRN || !formProduct || !formLocationCode) {
@@ -440,20 +550,37 @@ export default function PutAwayCheckIn() {
     setShowHazmatModal(false)
 
     try {
-      // Allocate cell in MongoDB backend
-      await apiRequest('/rack/allocate-cell', {
-        method: 'POST',
-        body: JSON.stringify({
-          cellCode: formLocationCode,
-          productName: formProduct,
-          batchNo: formBatch,
-          quantity: baseQuantityComputed,
-          uom: formBaseUnit,
+      // Allocate in backend (both GRN and Rack collections)
+      await Promise.allSettled([
+        apiRequest('/grn/allocate-item', {
+          method: 'POST',
+          body: JSON.stringify({
+            grnNo: formGRN,
+            batchNo: formBatch,
+            cellCode: formLocationCode,
+            shade: formSelectedShade,
+            row: formSelectedRow,
+            col: formSelectedCol,
+            productName: formProduct,
+            quantity: baseQuantityComputed,
+          }),
         }),
-      }).catch(() => {})
+        apiRequest('/rack/allocate-cell', {
+          method: 'POST',
+          body: JSON.stringify({
+            cellCode: formLocationCode,
+            productName: formProduct,
+            batchNo: formBatch,
+            quantity: baseQuantityComputed,
+            uom: formBaseUnit,
+          }),
+        }),
+      ])
     } catch (err) {
       console.warn('Backend cell allocation notice:', err)
     }
+
+    const currentItem = queueItems.find((i) => i.batchNo === formBatch || i.grnNo === formGRN)
 
     setQueueItems((prev) =>
       prev.map((i) =>
@@ -480,28 +607,20 @@ export default function PutAwayCheckIn() {
       shadeName: SHADES.find((s) => s.id === formSelectedShade)?.name || formSelectedShade,
       row: formSelectedRow,
       col: formSelectedCol,
-      labStatus: 'Quality Cleared',
+      labStatus: currentItem?.labStatus || 'Pending QC',
       checkInTime: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
     }
 
     // Generate real QR for modal
-    const modalPayload = JSON.stringify({
-      type: 'WMS_PUTAWAY_CONFIRMATION',
-      grn: formGRN,
-      item: formProduct,
-      batch: formBatch,
-      location: formLocationCode,
-      qty: `${baseQuantityComputed} ${formBaseUnit}`,
-      allocatedAt: new Date().toISOString(),
-    })
+    const modalPayload = `ITEM: ${formProduct}\nBATCH: ${formBatch}\nGRN: ${formGRN}\nLOCATION: ${formLocationCode}\nQTY: ${baseQuantityComputed} ${formBaseUnit}\nCHECK-IN: ${new Date().toISOString()}`
     try {
-      const url = await QRCode.toDataURL(modalPayload, { width: 220, margin: 1 })
+      const url = await QRCode.toDataURL(modalPayload, { width: 240, margin: 1 })
       setModalQrUrl(url)
     } catch (err) {}
 
     setPrintedLabelData(labelData)
     setShowQrLabelModal(true)
-    triggerToast(`Put-Away confirmed! Allocated to ${formLocationCode}.`)
+    triggerToast(`✓ Put-Away confirmed! Allocated to ${formLocationCode}.`)
   }
 
   // Dropdown Options
@@ -1047,13 +1166,25 @@ export default function PutAwayCheckIn() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleLoadQueueItem(row)}
-                        className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition cursor-pointer"
-                      >
-                        Allocate
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleDirectAllocateItem(row)}
+                          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1"
+                          title="Direct 1-Click Put-Away & Print Tag"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Allocate</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleLoadQueueItem(row)}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition cursor-pointer"
+                          title="Load & Customize in Top Form"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
