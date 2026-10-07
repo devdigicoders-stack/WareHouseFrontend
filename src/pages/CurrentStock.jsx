@@ -1,8 +1,9 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { printSpecificElement } from '../utils/printHelper'
 
 const API = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '')
+
 import {
   X,
   Package,
@@ -19,9 +20,12 @@ import {
   Warehouse,
   ChevronDown,
   Check,
+  Trash2,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react'
 
-// Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
+// Custom Accessible Select Dropdown
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
@@ -85,6 +89,16 @@ function CustomSelect({ value, onChange, options, placeholder = 'Select option..
   )
 }
 
+// Fallback Shades
+const DEFAULT_SHADES = [
+  { id: 'SH-01', name: 'Shade 1: Grains & Bulk Pulses', category: 'Grains & Pulses', baseUnit: 'Kg', packUnit: 'Bags (50kg)', unitsPerPack: 50 },
+  { id: 'SH-02', name: 'Shade 2: Edible Oils & Liquids', category: 'Edible Oils', baseUnit: 'Ltr', packUnit: 'Tins (15L)', unitsPerPack: 15 },
+  { id: 'SH-03', name: 'Shade 3: Packaged Food & FMCG', category: 'Packaged FMCG', baseUnit: 'Pieces', packUnit: 'Gatta (Cartons)', unitsPerPack: 6 },
+  { id: 'SH-04', name: 'Shade 4: Packaging Materials & Cartons', category: 'Packaging Materials', baseUnit: 'Cartons', packUnit: 'Bundles', unitsPerPack: 25 },
+  { id: 'SH-05', name: 'Shade 5: Chemicals & Hygiene', category: 'Chemicals & Hygiene', baseUnit: 'Ltr', packUnit: 'Barrels (200L)', unitsPerPack: 200 },
+  { id: 'SH-06', name: 'Shade 6: Spares & General Goods', category: 'Spares & General', baseUnit: 'Nos', packUnit: 'Crates', unitsPerPack: 10 },
+]
+
 export default function CurrentStock() {
   // Toast notifications state
   const [toastMessage, setToastMessage] = useState(null)
@@ -92,6 +106,14 @@ export default function CurrentStock() {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(null), 3500)
   }
+
+  // Loading states
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
+
+  // Shades from database
+  const [shadesList, setShadesList] = useState(DEFAULT_SHADES)
 
   // Filter toolbar state
   const [filterShade, setFilterShade] = useState('ALL')
@@ -109,73 +131,135 @@ export default function CurrentStock() {
   const [showDetailsModal, setShowDetailsModal] = useState(null)
   const [showQrModal, setShowQrModal] = useState(null)
 
-  // 6 Dedicated Shades
-  const SHADES = [
-    { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses', category: 'Grains & Pulses', baseUnit: 'Kg', packUnit: 'Bags (50kg)', unitsPerPack: 50 },
-    { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids', category: 'Edible Oils', baseUnit: 'Ltr', packUnit: 'Tins (15L)', unitsPerPack: 15 },
-    { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG', category: 'Packaged FMCG', baseUnit: 'Pieces', packUnit: 'Gatta (Cartons)', unitsPerPack: 6 },
-    { id: 'SH04', name: 'Shade 4: Packaging Materials & Cartons', category: 'Packaging', baseUnit: 'Cartons', packUnit: 'Bundles', unitsPerPack: 25 },
-    { id: 'SH05', name: 'Shade 5: Chemicals & Hygiene', category: 'Chemicals', baseUnit: 'Ltr', packUnit: 'Barrels (200L)', unitsPerPack: 200 },
-    { id: 'SH06', name: 'Shade 6: Spares & General Goods', category: 'Spares', baseUnit: 'Nos', packUnit: 'Crates', unitsPerPack: 10 },
-  ]
-
   // Add Stock Form State
   const [newStock, setNewStock] = useState({
     productName: '',
     sku: '',
+    category: 'Grains & Pulses',
     batchNo: '',
-    shadeId: 'SH03',
+    shadeId: 'SH-01',
     row: 'R01',
     col: 'C01',
-    baseUnit: 'Pieces',
-    packUnit: 'Gatta',
-    unitsPerPack: 6,
-    packsCount: 100,
-    availableQty: 600,
-    reservedQty: 0,
-    expiryDate: '15 Mar 2027',
+    baseUnit: 'Kg',
+    packUnit: 'Bags',
+    unitsPerPack: 50,
+    packsCount: 20,
+    availableQty: 1000,
+    expiryDate: '2027-12-31',
     labStatus: 'Passed',
-    status: 'In Stock',
+    reorderLevel: 100,
   })
 
   // Stock List Table Data (Loaded dynamically from database)
   const [stockData, setStockData] = useState([])
 
-  useEffect(() => {
+  // Normalize shade codes (e.g. SH01 -> SH-01, SH-01 -> SH-01)
+  const normalizeShade = (code) => {
+    if (!code) return 'SH-01'
+    const clean = code.toUpperCase().replace(/\s+/g, '')
+    const match = clean.match(/SH-?\d{1,2}/)
+    if (match) {
+      const num = match[0].replace('SH', '').replace('-', '')
+      return `SH-${num.padStart(2, '0')}`
+    }
+    return code
+  }
+
+  // Fetch Shades from MongoDB
+  const fetchShades = useCallback(() => {
+    fetch(`${API}/api/shade`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped = data.map((s) => ({
+            id: s.code || normalizeShade(s.name),
+            name: s.name,
+            category: s.type || 'General Goods',
+            baseUnit: s.baseUnit || 'Kg',
+            packUnit: s.packUnit || 'Packs',
+            unitsPerPack: s.unitsPerPack || 1,
+          }))
+          setShadesList(mapped)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // Fetch Products from MongoDB
+  const fetchProducts = useCallback(() => {
+    setLoading(true)
     fetch(`${API}/api/product`)
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
-          const mapped = data.map((p, idx) => ({
-            id: p._id || idx + 1,
-            productName: p.name,
-            sku: p.sku || `PRD-${idx + 1}`,
-            batchNo: p.batchNo || `BT-2026-0${idx + 1}`,
-            category: p.category || 'General Goods',
-            shadeId: p.storageZone ? p.storageZone.slice(0, 4) : 'SH01',
-            shadeName: p.storageZone || 'Shade 1: Grains & Pulses',
-            row: 'R01',
-            col: 'C01',
-            location: p.storageZone ? `${p.storageZone.slice(0, 4)}-R01-C01` : 'SH01-R01-C01',
-            baseUnit: p.baseUnit || 'Kg',
-            packUnit: p.outerPackaging || 'Packs',
-            unitsPerPack: p.packSize || 1,
-            packsCount: Math.ceil((p.currentStock || 0) / (p.packSize || 1)),
-            availableQty: p.currentStock || 0,
-            reservedQty: 0,
-            totalQty: p.currentStock || 0,
-            labStatus: 'Passed',
-            expiryDate: '2027-12-31',
-            status: (p.currentStock || 0) > 0 ? 'In Stock' : 'Out of Stock',
-            reorderLevel: p.reorderLevel || 100,
-          }))
+          const mapped = data.map((p, idx) => {
+            const normalizedShade = normalizeShade(p.shadeId || p.storageZone)
+            const rowVal = p.row || 'R01'
+            const colVal = p.col || 'C01'
+            const binLoc = p.binLocation || `${normalizedShade}-${rowVal}-${colVal}`
+            const currentStock = Number(p.currentStock) || 0
+            const packSize = Number(p.packSize) || 1
+            const reorderLevel = Number(p.reorderLevel) || 50
+            const packsCount = Math.ceil(currentStock / packSize)
+            const reservedQty = Number(p.reservedQty) || 0
+
+            let status = 'In Stock'
+            if (currentStock === 0) status = 'Out of Stock'
+            else if (currentStock <= reorderLevel) status = 'Low Stock'
+
+            return {
+              id: p._id || idx + 1,
+              _id: p._id,
+              productName: p.name,
+              sku: p.sku || `PRD-${idx + 1}`,
+              batchNo: p.batchNo || `BT-2026-${String(idx + 1).padStart(3, '0')}`,
+              category: p.category || 'General Goods',
+              shadeId: normalizedShade,
+              shadeName: p.storageZone || `Shade ${normalizedShade}`,
+              row: rowVal,
+              col: colVal,
+              location: binLoc,
+              baseUnit: p.baseUnit || 'Kg',
+              packUnit: p.outerPackaging || 'Packs',
+              unitsPerPack: packSize,
+              packsCount: packsCount,
+              availableQty: currentStock,
+              reservedQty: reservedQty,
+              totalQty: currentStock + reservedQty,
+              labStatus: p.labStatus || 'Passed',
+              labCertNo: p.labCertNo || (p.labStatus === 'Passed' ? `COA-2026-${String(idx + 101).padStart(4, '0')}` : 'PENDING-QC'),
+              expiryDate: p.expiryDate || '2027-12-31',
+              mfgDate: p.mfgDate || '2026-01-01',
+              status: status,
+              reorderLevel: reorderLevel,
+              raw: p,
+            }
+          })
           setStockData(mapped)
         } else {
           setStockData([])
         }
       })
-      .catch(() => setStockData([]))
+      .catch((err) => {
+        console.error('Failed to load products:', err)
+        setStockData([])
+      })
+      .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    fetchShades()
+    fetchProducts()
+  }, [fetchShades, fetchProducts])
+
+  // Dynamic Category options derived from active database records
+  const categoryOptions = useMemo(() => {
+    const cats = Array.from(new Set(stockData.map((item) => item.category).filter(Boolean))).sort()
+    return [
+      { value: 'ALL', label: 'All Categories' },
+      ...cats.map((c) => ({ value: c, label: c })),
+    ]
+  }, [stockData])
 
   // Filtered Stock Items
   const filteredStock = useMemo(() => {
@@ -185,6 +269,7 @@ export default function CurrentStock() {
       if (filterLabStatus !== 'ALL' && item.labStatus !== filterLabStatus) return false
       if (filterStockLevel === 'Low Stock' && item.status !== 'Low Stock') return false
       if (filterStockLevel === 'In Stock' && item.status !== 'In Stock') return false
+      if (filterStockLevel === 'Out of Stock' && item.status !== 'Out of Stock') return false
 
       if (searchQuery.trim() !== '') {
         const q = searchQuery.toLowerCase()
@@ -211,13 +296,13 @@ export default function CurrentStock() {
     const labPassedUnits = stockData
       .filter((i) => i.labStatus === 'Passed')
       .reduce((sum, i) => sum + i.availableQty, 0)
-    const lowStockCount = stockData.filter((i) => i.status === 'Low Stock').length
+    const lowStockCount = stockData.filter((i) => i.status === 'Low Stock' || i.status === 'Out of Stock').length
     const clearancePct = totalBaseUnits > 0 ? Math.round((labPassedUnits / totalBaseUnits) * 100) : 100
     return { totalBaseUnits, totalPacks, labPassedUnits, lowStockCount, clearancePct }
   }, [stockData])
 
-  // Handle Add Stock Submit
-  const handleAddStockSubmit = (e) => {
+  // Handle Add Stock Submit — 100% PERSISTED TO BACKEND MONGODB
+  const handleAddStockSubmit = async (e) => {
     e.preventDefault()
     if (!newStock.productName || !newStock.sku || !newStock.batchNo) {
       triggerToast('Please complete all required fields.')
@@ -225,37 +310,131 @@ export default function CurrentStock() {
     }
 
     const computedBase = (Number(newStock.packsCount) || 0) * (Number(newStock.unitsPerPack) || 1)
+    const matchedShade = shadesList.find((s) => s.id === newStock.shadeId)
     const locCode = `${newStock.shadeId}-${newStock.row}-${newStock.col}`
-    const matchedShade = SHADES.find((s) => s.id === newStock.shadeId)
 
-    const newEntry = {
-      id: Date.now(),
-      productName: newStock.productName,
-      sku: newStock.sku,
-      batchNo: newStock.batchNo,
-      category: matchedShade?.category || 'General',
+    const payload = {
+      name: newStock.productName.trim(),
+      sku: newStock.sku.trim().toUpperCase(),
+      category: newStock.category || matchedShade?.category || 'General Goods',
+      baseUnit: newStock.baseUnit.trim(),
+      outerPackaging: newStock.packUnit.trim(),
+      packSize: Number(newStock.unitsPerPack) || 1,
+      currentStock: computedBase,
+      storageZone: matchedShade?.name || `Shade ${newStock.shadeId}`,
       shadeId: newStock.shadeId,
-      shadeName: matchedShade?.name || newStock.shadeId,
-      row: newStock.row,
-      col: newStock.col,
-      location: locCode,
-      baseUnit: newStock.baseUnit,
-      packUnit: newStock.packUnit,
-      unitsPerPack: Number(newStock.unitsPerPack) || 1,
-      packsCount: Number(newStock.packsCount) || 1,
-      availableQty: computedBase,
-      reservedQty: 0,
-      totalQty: computedBase,
+      row: newStock.row.trim().toUpperCase(),
+      col: newStock.col.trim().toUpperCase(),
+      binLocation: locCode,
+      batchNo: newStock.batchNo.trim().toUpperCase(),
+      expiryDate: newStock.expiryDate.trim(),
       labStatus: newStock.labStatus,
-      labCertNo: newStock.labStatus === 'Passed' ? `LAB-2026-${Date.now().toString().slice(-4)}` : 'PENDING-QC',
-      expiryDate: newStock.expiryDate || '31 Dec 2027',
-      status: newStock.status,
-      reorderLevel: 200,
+      reorderLevel: Number(newStock.reorderLevel) || 100,
+      status: computedBase > 0 ? (computedBase <= (Number(newStock.reorderLevel) || 100) ? 'Low Stock' : 'Active') : 'Out of Stock',
     }
 
-    setStockData([newEntry, ...stockData])
-    setShowAddModal(false)
-    triggerToast(`Added ${computedBase} ${newEntry.baseUnit} of ${newEntry.productName}.`)
+    try {
+      setIsSubmitting(true)
+      const res = await fetch(`${API}/api/product`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || 'Failed to add product to database')
+      }
+
+      const savedProduct = await res.json()
+
+      const newEntry = {
+        id: savedProduct._id,
+        _id: savedProduct._id,
+        productName: savedProduct.name,
+        sku: savedProduct.sku,
+        batchNo: savedProduct.batchNo || payload.batchNo,
+        category: savedProduct.category,
+        shadeId: savedProduct.shadeId || payload.shadeId,
+        shadeName: savedProduct.storageZone || payload.storageZone,
+        row: savedProduct.row || payload.row,
+        col: savedProduct.col || payload.col,
+        location: savedProduct.binLocation || locCode,
+        baseUnit: savedProduct.baseUnit,
+        packUnit: savedProduct.outerPackaging,
+        unitsPerPack: savedProduct.packSize,
+        packsCount: Math.ceil(savedProduct.currentStock / savedProduct.packSize),
+        availableQty: savedProduct.currentStock,
+        reservedQty: 0,
+        totalQty: savedProduct.currentStock,
+        labStatus: savedProduct.labStatus || payload.labStatus,
+        labCertNo: savedProduct.labCertNo || `COA-2026-${Date.now().toString().slice(-4)}`,
+        expiryDate: savedProduct.expiryDate || payload.expiryDate,
+        status: savedProduct.currentStock > (savedProduct.reorderLevel || 100) ? 'In Stock' : (savedProduct.currentStock > 0 ? 'Low Stock' : 'Out of Stock'),
+        reorderLevel: savedProduct.reorderLevel || 100,
+        raw: savedProduct,
+      }
+
+      setStockData((prev) => [newEntry, ...prev])
+      setShowAddModal(false)
+      triggerToast(`Saved: ${computedBase} ${newEntry.baseUnit} of ${newEntry.productName} in database.`)
+      // Reset form
+      setNewStock({
+        productName: '',
+        sku: '',
+        category: 'Grains & Pulses',
+        batchNo: '',
+        shadeId: 'SH-01',
+        row: 'R01',
+        col: 'C01',
+        baseUnit: 'Kg',
+        packUnit: 'Bags',
+        unitsPerPack: 50,
+        packsCount: 20,
+        availableQty: 1000,
+        expiryDate: '2027-12-31',
+        labStatus: 'Passed',
+        reorderLevel: 100,
+      })
+    } catch (err) {
+      console.error(err)
+      triggerToast(err.message || 'Error saving to database')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Handle Delete Stock Item — 100% PERSISTED TO BACKEND MONGODB
+  const handleDeleteStockItem = async (row) => {
+    if (!row._id) {
+      triggerToast('Item cannot be deleted (invalid ID)')
+      return
+    }
+
+    if (!window.confirm(`Are you sure you want to delete "${row.productName}" (${row.sku}) from the database?`)) {
+      return
+    }
+
+    try {
+      setDeletingId(row._id)
+      const res = await fetch(`${API}/api/product/${row._id}`, {
+        method: 'DELETE',
+      })
+
+      if (!res.ok) {
+        throw new Error('Failed to delete product from database')
+      }
+
+      setStockData((prev) => prev.filter((item) => item._id !== row._id))
+      triggerToast(`Deleted ${row.productName} from database.`)
+      if (showDetailsModal?._id === row._id) setShowDetailsModal(null)
+      if (showQrModal?._id === row._id) setShowQrModal(null)
+    } catch (err) {
+      console.error(err)
+      triggerToast(err.message || 'Error deleting product')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   // Export CSV
@@ -274,6 +453,7 @@ export default function CurrentStock() {
       'Pack Unit',
       'Units Per Pack',
       'Lab Status',
+      'Lab Certificate',
       'Expiry Date',
       'Status',
     ]
@@ -291,6 +471,7 @@ export default function CurrentStock() {
       `"${row.packUnit}"`,
       row.unitsPerPack,
       row.labStatus,
+      row.labCertNo,
       row.expiryDate,
       row.status,
     ])
@@ -300,23 +481,12 @@ export default function CurrentStock() {
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement('a')
     link.setAttribute('href', encodedUri)
-    link.setAttribute('download', 'Current_Stock_Inventory.csv')
+    link.setAttribute('download', `Current_Stock_Inventory_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     triggerToast('Current Stock Inventory exported to CSV.')
   }
-
-  // Filter Dropdown Options
-  const categoryOptions = [
-    { value: 'ALL', label: 'All Categories' },
-    { value: 'Packaged FMCG', label: 'Packaged FMCG' },
-    { value: 'Grains & Pulses', label: 'Grains & Pulses' },
-    { value: 'Edible Oils', label: 'Edible Oils' },
-    { value: 'Packaging', label: 'Packaging Materials' },
-    { value: 'Chemicals', label: 'Chemicals & Hygiene' },
-    { value: 'Spares', label: 'Spares & General' },
-  ]
 
   const labStatusOptions = [
     { value: 'ALL', label: 'All Lab Status' },
@@ -328,6 +498,7 @@ export default function CurrentStock() {
     { value: 'ALL', label: 'All Stock Levels' },
     { value: 'In Stock', label: 'Optimal In Stock' },
     { value: 'Low Stock', label: 'Low Stock Alerts' },
+    { value: 'Out of Stock', label: 'Out of Stock (Zero)' },
   ]
 
   return (
@@ -347,14 +518,31 @@ export default function CurrentStock() {
             <Package className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight leading-tight">Current Stock Registry</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight leading-tight">Current Stock Registry</h1>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Live DB Sync
+              </span>
+            </div>
             <p className="text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
-              Live inventory balances, dual-unit conversion ratios, and lab clearance status across 6 warehouse shades.
+              Real-time MongoDB stock balances, dynamic batch tracking, bin allocations, and lab clearance status.
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto shrink-0">
+          <button
+            type="button"
+            onClick={fetchProducts}
+            disabled={loading}
+            className="flex-1 sm:flex-none justify-center inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-50"
+            title="Refresh from Database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
+            <span>Refresh</span>
+          </button>
+
           <Link
             to="/location-master"
             className="flex-1 sm:flex-none justify-center inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
@@ -394,7 +582,7 @@ export default function CurrentStock() {
             <h3 className="text-base sm:text-xl font-extrabold text-slate-800 tracking-tight leading-tight mt-0.5 whitespace-nowrap">
               {stats.totalBaseUnits.toLocaleString()}
             </h3>
-            <p className="text-[10px] sm:text-[11px] text-indigo-600 font-medium mt-0.5 truncate sm:whitespace-normal">Pieces, Kg, Ltr &amp; Cartons</p>
+            <p className="text-[10px] sm:text-[11px] text-indigo-600 font-medium mt-0.5 truncate sm:whitespace-normal">Across {stockData.length} active inventory items</p>
           </div>
         </div>
 
@@ -407,7 +595,7 @@ export default function CurrentStock() {
             <h3 className="text-base sm:text-xl font-extrabold text-slate-800 tracking-tight leading-tight mt-0.5 whitespace-nowrap">
               {stats.totalPacks.toLocaleString()} Packs
             </h3>
-            <p className="text-[10px] sm:text-[11px] text-emerald-600 font-medium mt-0.5 truncate sm:whitespace-normal">Physical handling units</p>
+            <p className="text-[10px] sm:text-[11px] text-emerald-600 font-medium mt-0.5 truncate sm:whitespace-normal">Physical handling warehouse units</p>
           </div>
         </div>
 
@@ -420,7 +608,7 @@ export default function CurrentStock() {
             <h3 className="text-base sm:text-xl font-extrabold text-slate-800 tracking-tight leading-tight mt-0.5 whitespace-nowrap">
               {stats.clearancePct}% Cleared
             </h3>
-            <p className="text-[10px] sm:text-[11px] text-blue-600 font-medium mt-0.5 truncate sm:whitespace-normal">{stats.labPassedUnits.toLocaleString()} ready for dispatch</p>
+            <p className="text-[10px] sm:text-[11px] text-blue-600 font-medium mt-0.5 truncate sm:whitespace-normal">{stats.labPassedUnits.toLocaleString()} units ready for dispatch</p>
           </div>
         </div>
 
@@ -433,12 +621,12 @@ export default function CurrentStock() {
             <h3 className="text-base sm:text-xl font-extrabold text-slate-800 tracking-tight leading-tight mt-0.5 whitespace-nowrap">
               {stats.lowStockCount} Items
             </h3>
-            <p className="text-[10px] sm:text-[11px] text-amber-600 font-medium mt-0.5 truncate sm:whitespace-normal">Stock below threshold</p>
+            <p className="text-[10px] sm:text-[11px] text-amber-600 font-medium mt-0.5 truncate sm:whitespace-normal">Stock at or below reorder threshold</p>
           </div>
         </div>
       </div>
 
-      {/* 6 Dedicated Shades Switcher Tabs */}
+      {/* Dynamic Dedicated Shades Switcher Tabs from MongoDB */}
       <div className="bg-white rounded-2xl p-3 shadow-xs border border-slate-200/80">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           <button
@@ -453,12 +641,12 @@ export default function CurrentStock() {
                 : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/80'
             }`}
           >
-            <span>All 6 Shades</span>
+            <span>All Shades</span>
             <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${filterShade === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
               {stockData.length}
             </span>
           </button>
-          {SHADES.map((s) => {
+          {shadesList.map((s) => {
             const isActive = filterShade === s.id
             const count = stockData.filter((i) => i.shadeId === s.id).length
             return (
@@ -490,7 +678,6 @@ export default function CurrentStock() {
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
         {/* Table Filter Toolbar */}
         <div className="p-5 border-b border-slate-100 space-y-4">
-          {/* Top Line: Section Title & Results Count */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -498,7 +685,7 @@ export default function CurrentStock() {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-slate-800">Master Stock Registry</h2>
-                <p className="text-[11px] text-slate-500">Live item balances, batch allocations, and bin coordinates across all warehouse shades.</p>
+                <p className="text-[11px] text-slate-500">Live MongoDB balances, batch numbers, and exact bin coordinates.</p>
               </div>
             </div>
 
@@ -551,7 +738,7 @@ export default function CurrentStock() {
             )}
           </div>
 
-          {/* 4 Filter Dropdowns in Spacious Grid */}
+          {/* 4 Dynamic Filter Dropdowns in Spacious Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1 text-xs">
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
@@ -609,8 +796,8 @@ export default function CurrentStock() {
                   setCurrentPage(1)
                 }}
                 options={[
-                  { value: 'ALL', label: 'All 6 Dedicated Shades' },
-                  ...SHADES.map((s) => ({ value: s.id, label: s.name })),
+                  { value: 'ALL', label: 'All Shades' },
+                  ...shadesList.map((s) => ({ value: s.id, label: `${s.id}: ${s.name || s.category}` })),
                 ]}
                 placeholder="All Shades"
               />
@@ -626,22 +813,29 @@ export default function CurrentStock() {
                 <th className="py-3 px-4 w-12 text-center">#</th>
                 <th className="py-3 px-4 min-w-[200px]">Product &amp; SKU</th>
                 <th className="py-3 px-4 min-w-[150px]">Storage Bin &amp; Shade</th>
-                <th className="py-3 px-4 min-w-[120px]">Batch No</th>
+                <th className="py-3 px-4 min-w-[130px]">Batch No</th>
                 <th className="py-3 px-4 min-w-[130px] text-right">Available Stock</th>
                 <th className="py-3 px-4 min-w-[140px] text-right">Packaging Packs</th>
                 <th className="py-3 px-4 min-w-[120px] text-center">Lab QC Status</th>
                 <th className="py-3 px-4 min-w-[110px]">Expiry Date</th>
                 <th className="py-3 px-4 min-w-[100px] text-center">Stock Level</th>
-                <th className="py-3 px-4 text-center w-28">Actions</th>
+                <th className="py-3 px-4 text-center w-32">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paginatedStock.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="10" className="py-16 text-center text-slate-400">
+                    <Loader2 className="w-8 h-8 mx-auto text-indigo-600 animate-spin mb-2" />
+                    <p className="font-semibold text-slate-600">Loading inventory from MongoDB...</p>
+                  </td>
+                </tr>
+              ) : paginatedStock.length === 0 ? (
                 <tr>
                   <td colSpan="10" className="py-12 text-center text-slate-400">
                     <Package className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-600">No stock records found</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Try adjusting search query or active shade filters.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Try adjusting search query or active filters.</p>
                   </td>
                 </tr>
               ) : (
@@ -700,6 +894,8 @@ export default function CurrentStock() {
                         className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
                           row.status === 'In Stock'
                             ? 'bg-slate-100 text-slate-700'
+                            : row.status === 'Low Stock'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
                             : 'bg-rose-50 text-rose-700 border border-rose-200 font-black'
                         }`}
                       >
@@ -723,6 +919,19 @@ export default function CurrentStock() {
                           title="Print QR Sticker"
                         >
                           <QrCode className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteStockItem(row)}
+                          disabled={deletingId === row._id}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer disabled:opacity-40"
+                          title="Delete from Database"
+                        >
+                          {deletingId === row._id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5" />
+                          )}
                         </button>
                       </div>
                     </td>
@@ -765,7 +974,7 @@ export default function CurrentStock() {
         </div>
       </div>
 
-      {/* MODAL 1: ADD STOCK ITEM */}
+      {/* MODAL 1: ADD STOCK ITEM — PERSISTENT DB CREATION */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
@@ -775,8 +984,8 @@ export default function CurrentStock() {
                   <Package className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Add Stock Item</h3>
-                  <p className="text-[11px] text-slate-500">Record inventory balance with dual-unit packaging ratio.</p>
+                  <h3 className="text-sm font-bold text-slate-900">Add Stock Item (Live DB)</h3>
+                  <p className="text-[11px] text-slate-500">Record item directly in MongoDB with dynamic dual-unit conversion.</p>
                 </div>
               </div>
               <button
@@ -806,9 +1015,9 @@ export default function CurrentStock() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. GRN-RIC-01"
+                    placeholder="e.g. PRD-RIC-999"
                     value={newStock.sku}
-                    onChange={(e) => setNewStock({ ...newStock, sku: e.target.value })}
+                    onChange={(e) => setNewStock({ ...newStock, sku: e.target.value.toUpperCase() })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
@@ -816,24 +1025,48 @@ export default function CurrentStock() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Category *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Grains & Pulses"
+                    value={newStock.category}
+                    onChange={(e) => setNewStock({ ...newStock, category: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">Batch Number *</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. BT-2026-GRN-101"
                     value={newStock.batchNo}
-                    onChange={(e) => setNewStock({ ...newStock, batchNo: e.target.value })}
+                    onChange={(e) => setNewStock({ ...newStock, batchNo: e.target.value.toUpperCase() })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Expiry Date</label>
+                  <input
+                    type="date"
+                    value={newStock.expiryDate}
+                    onChange={(e) => setNewStock({ ...newStock, expiryDate: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Expiry Date</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 30 Nov 2027"
-                    value={newStock.expiryDate}
-                    onChange={(e) => setNewStock({ ...newStock, expiryDate: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Lab QC Status</label>
+                  <CustomSelect
+                    value={newStock.labStatus}
+                    onChange={(val) => setNewStock({ ...newStock, labStatus: val })}
+                    options={[
+                      { value: 'Passed', label: 'Passed (Clearance Certified)' },
+                      { value: 'Under Testing', label: 'Under QC Testing' },
+                    ]}
                   />
                 </div>
               </div>
@@ -844,33 +1077,34 @@ export default function CurrentStock() {
                   <CustomSelect
                     value={newStock.shadeId}
                     onChange={(val) => {
-                      const matched = SHADES.find((s) => s.id === val)
+                      const matched = shadesList.find((s) => s.id === val)
                       setNewStock({
                         ...newStock,
                         shadeId: val,
+                        category: matched?.category || newStock.category,
                         baseUnit: matched?.baseUnit || newStock.baseUnit,
                         packUnit: matched?.packUnit || newStock.packUnit,
                         unitsPerPack: matched?.unitsPerPack || newStock.unitsPerPack,
                       })
                     }}
-                    options={SHADES.map((s) => ({ value: s.id, label: s.name }))}
+                    options={shadesList.map((s) => ({ value: s.id, label: `${s.id}: ${s.name || s.category}` }))}
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Row</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Row Code</label>
                   <input
                     type="text"
                     value={newStock.row}
-                    onChange={(e) => setNewStock({ ...newStock, row: e.target.value })}
+                    onChange={(e) => setNewStock({ ...newStock, row: e.target.value.toUpperCase() })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Column</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Col Code</label>
                   <input
                     type="text"
                     value={newStock.col}
-                    onChange={(e) => setNewStock({ ...newStock, col: e.target.value })}
+                    onChange={(e) => setNewStock({ ...newStock, col: e.target.value.toUpperCase() })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
@@ -884,6 +1118,7 @@ export default function CurrentStock() {
                     <label className="block text-[10px] font-semibold text-slate-600 mb-1">Packs Count</label>
                     <input
                       type="number"
+                      min="1"
                       value={newStock.packsCount}
                       onChange={(e) => setNewStock({ ...newStock, packsCount: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-mono font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
@@ -893,6 +1128,7 @@ export default function CurrentStock() {
                     <label className="block text-[10px] font-semibold text-slate-600 mb-1">Units / Pack</label>
                     <input
                       type="number"
+                      min="1"
                       value={newStock.unitsPerPack}
                       onChange={(e) => setNewStock({ ...newStock, unitsPerPack: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-mono font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
@@ -909,7 +1145,7 @@ export default function CurrentStock() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-indigo-900 font-bold pt-1 border-t border-indigo-100">
-                  <span>Computed Base Units:</span>
+                  <span>Computed Base Stock:</span>
                   <span className="font-mono text-xs">
                     {((Number(newStock.packsCount) || 0) * (Number(newStock.unitsPerPack) || 1)).toLocaleString()} {newStock.baseUnit}
                   </span>
@@ -920,15 +1156,24 @@ export default function CurrentStock() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 sm:flex-none justify-center px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-semibold transition cursor-pointer text-center"
+                  disabled={isSubmitting}
+                  className="flex-1 sm:flex-none justify-center px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-semibold transition cursor-pointer text-center disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 sm:flex-none justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm transition cursor-pointer text-center"
+                  disabled={isSubmitting}
+                  className="flex-1 sm:flex-none justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm transition cursor-pointer text-center flex items-center gap-2 disabled:opacity-60"
                 >
-                  Save Stock Item
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving to DB...</span>
+                    </>
+                  ) : (
+                    <span>Save to Database</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -945,7 +1190,10 @@ export default function CurrentStock() {
                 <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
                   <Eye className="w-4 h-4" />
                 </div>
-                <h3 className="font-bold text-slate-900 text-sm">Stock Item Details</h3>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Stock Item Details</h3>
+                  <p className="text-[10px] text-slate-400 font-mono">ID: {showDetailsModal._id || showDetailsModal.id}</p>
+                </div>
               </div>
               <button
                 type="button"
