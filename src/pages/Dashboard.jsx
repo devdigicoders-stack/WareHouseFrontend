@@ -1,37 +1,65 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Truck, Package, QrCode, MapPin, Search, Send, Clock, ArrowRight, Activity, Layers, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Truck, Package, QrCode, MapPin, Search, Send, Clock, ArrowRight, Activity } from 'lucide-react'
 import { useApp } from '../hooks/useApp'
-import { fetchAnalyticsSummary, fetchGateEntries, fetchGRNs, fetchProducts, fetchShades, fetchDispatches } from '../services/api'
+import { fetchAnalyticsSummary, fetchGateEntries, fetchGRNs, fetchProducts, fetchShades, fetchRacks, fetchQCs, fetchStockMovements, fetchDispatches } from '../services/api'
 
 export default function Dashboard() {
   const { user } = useApp()
   const [summary, setSummary] = useState(null)
   const [recentGate, setRecentGate] = useState([])
+  const [allGateEntries, setAllGateEntries] = useState([])
   const [recentGRN, setRecentGRN] = useState([])
+  const [allGRNs, setAllGRNs] = useState([])
+  const [allProducts, setAllProducts] = useState([])
   const [liveShades, setLiveShades] = useState([])
+  const [liveRacks, setLiveRacks] = useState([])
+  const [allQCs, setAllQCs] = useState([])
+  const [allMovements, setAllMovements] = useState([])
+  const [allDispatches, setAllDispatches] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        const [sumData, gateData, grnData, shadesData, prodData] = await Promise.allSettled([
+        const [sumData, gateData, grnData, shadesData, prodData, racksData, qcData, movData, dspData] = await Promise.allSettled([
           fetchAnalyticsSummary(),
           fetchGateEntries(),
           fetchGRNs(),
           fetchShades(),
           fetchProducts(),
+          fetchRacks(),
+          fetchQCs(),
+          fetchStockMovements(),
+          fetchDispatches(),
         ])
 
         if (sumData.status === 'fulfilled') setSummary(sumData.value)
         if (gateData.status === 'fulfilled' && Array.isArray(gateData.value)) {
+          setAllGateEntries(gateData.value)
           setRecentGate(gateData.value.slice(0, 5))
         }
         if (grnData.status === 'fulfilled' && Array.isArray(grnData.value)) {
+          setAllGRNs(grnData.value)
           setRecentGRN(grnData.value.slice(0, 5))
+        }
+        if (prodData.status === 'fulfilled' && Array.isArray(prodData.value)) {
+          setAllProducts(prodData.value)
         }
         if (shadesData.status === 'fulfilled' && Array.isArray(shadesData.value)) {
           setLiveShades(shadesData.value.slice(0, 6))
+        }
+        if (racksData.status === 'fulfilled' && Array.isArray(racksData.value)) {
+          setLiveRacks(racksData.value)
+        }
+        if (qcData.status === 'fulfilled' && Array.isArray(qcData.value)) {
+          setAllQCs(qcData.value)
+        }
+        if (movData.status === 'fulfilled' && Array.isArray(movData.value)) {
+          setAllMovements(movData.value)
+        }
+        if (dspData.status === 'fulfilled' && Array.isArray(dspData.value)) {
+          setAllDispatches(dspData.value)
         }
       } catch (err) {
         console.error('Error loading dashboard live data:', err)
@@ -130,16 +158,83 @@ export default function Dashboard() {
     },
   ]
 
-  // Live Shades Data
-  const shades = liveShades.map((s, idx) => ({
-    id: s._id || idx + 1,
-    name: s.name,
-    category: s.type || 'General Goods',
-    occupancy: 0,
-    current: 0,
-    total: 400,
-    color: idx % 2 === 0 ? 'bg-emerald-500' : 'bg-indigo-500',
-  }))
+  // Live Dynamic Shades Data computed from MongoDB Shades & Racks
+  const shades = useMemo(() => {
+    return liveShades.map((s, idx) => {
+      const sCode = (s.code || `SH-0${idx + 1}`).trim()
+      const cleanCode = sCode.replace(/[-_]/g, '').toUpperCase()
+
+      // Match racks belonging to this shade by ID or code format (SH-01 or SH01)
+      const matchedRacks = liveRacks.filter((r) => {
+        const rCode = (r.shadeCode || '').replace(/[-_]/g, '').toUpperCase()
+        return (
+          r.shadeId === s._id ||
+          rCode === cleanCode ||
+          (r.shadeCode && r.shadeCode === sCode)
+        )
+      })
+
+      let totalCells = 0
+      let occupiedCells = 0
+      let totalStockUnits = 0
+
+      matchedRacks.forEach((rk) => {
+        (rk.cells || []).forEach((c) => {
+          totalCells++
+          if (c.status === 'Occupied' || c.status === 'Reserved' || (Number(c.currentStock) || 0) > 0) {
+            occupiedCells++
+            totalStockUnits += (Number(c.currentStock) || 0)
+          }
+        })
+      })
+
+      // If matched racks exist use their total cells, else fallback to 40 per shade default
+      const total = totalCells > 0 ? totalCells : 40
+      const current = occupiedCells
+      const occupancy = total > 0 ? Math.round((current / total) * 100) : 0
+      const rackCount = matchedRacks.length || 2
+
+      return {
+        id: s._id || idx + 1,
+        code: sCode,
+        name: s.name,
+        category: s.type || 'General Goods',
+        occupancy,
+        current,
+        total,
+        totalStockUnits,
+        rackCount,
+        color: idx % 2 === 0 ? 'bg-emerald-500' : 'bg-indigo-500',
+      }
+    })
+  }, [liveShades, liveRacks])
+
+  // Warehouse Live Dynamic Overall Capacity Metrics
+  const overallCapacity = useMemo(() => {
+    const sumCells = shades.reduce((acc, s) => acc + s.total, 0)
+    if (sumCells > 0) return sumCells
+    if (summary?.totalCells) return summary.totalCells
+    return 240
+  }, [shades, summary])
+
+  const overallOccupied = useMemo(() => {
+    const sumOccupied = shades.reduce((acc, s) => acc + s.current, 0)
+    if (liveRacks.length > 0) return sumOccupied
+    if (summary?.occupiedCells !== undefined) return summary.occupiedCells
+    return sumOccupied
+  }, [shades, liveRacks, summary])
+
+  const overallAvailable = Math.max(0, overallCapacity - overallOccupied)
+
+  const overallOccupancyRate = overallCapacity > 0
+    ? ((overallOccupied / overallCapacity) * 100).toFixed(1)
+    : '0.0'
+
+  const overallStockUnits = useMemo(() => {
+    const sumStock = shades.reduce((acc, s) => acc + s.totalStockUnits, 0)
+    if (sumStock > 0) return sumStock
+    return summary?.totalStockUnits || 0
+  }, [shades, summary])
 
   // Recent Gate Entries
   const gateEntries = recentGate.map((g, idx) => ({
@@ -163,15 +258,249 @@ export default function Dashboard() {
     statusColor: r.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'
   }))
 
-  // Expiry Alerts (FEFO Priority)
-  const expiryAlerts = []
+  // Live Dynamic Expiry Alerts (FEFO Priority Queue)
+  const expiryAlerts = useMemo(() => {
+    const items = []
+    const seen = new Set()
+    const now = new Date()
 
-  // System Audit Stream Logs
-  const auditLogs = [
-    { id: 1, time: 'Just now', category: 'Database Sync', catColor: 'bg-emerald-50 text-emerald-700 border-emerald-200', desc: 'Central MongoDB synchronized across all 30 modules', ref: 'DB-SYNC-2026', location: 'Cloud Atlas', user: 'System', status: 'Live', badge: 'Connected' },
-    { id: 2, time: '10:12 AM', category: 'GRN Inward', catColor: 'bg-emerald-50 text-emerald-700 border-emerald-200', desc: 'Goods Receipt Note verified & stock allocated to Shade 1', ref: 'GRN-2026-0001', location: 'Bay-02', user: 'Warehouse Manager', status: 'Verified', badge: 'Inward Done' },
-    { id: 3, time: '09:45 AM', category: 'Quality Control', catColor: 'bg-blue-50 text-blue-700 border-blue-200', desc: 'COA lab clearance inspection passed for Basmati Rice batch', ref: 'BAT-2026-RIC-01', location: 'QC Lab', user: 'Senior QC Chemist', status: 'Passed', badge: 'QC Passed' },
-  ]
+    // 1. Gather all materials with expiryDate from GRNs
+    allGRNs.forEach((g) => {
+      ;(g.materials || []).forEach((m) => {
+        if (m.expiryDate) {
+          const key = `${m.batchNo || ''}_${m.productName || ''}`
+          if (!seen.has(key)) {
+            seen.add(key)
+            const matchingProd = allProducts.find((p) => p.sku === m.sku || p.name === m.productName)
+            items.push({
+              product: m.productName,
+              sku: m.sku || matchingProd?.sku || '',
+              batch: m.batchNo || 'N/A',
+              location: m.location || matchingProd?.binLocation || 'Warehouse Staging',
+              qty: m.totalBaseQty || matchingProd?.currentStock || 1,
+              unit: m.baseUnit || matchingProd?.baseUnit || 'Kg',
+              expiryRaw: m.expiryDate,
+            })
+          }
+        }
+      })
+    })
+
+    // 2. Also check Products with expiryDate if not already added
+    allProducts.forEach((p) => {
+      if (p.expiryDate) {
+        const key = `${p.batchNo || ''}_${p.name || ''}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          items.push({
+            product: p.name,
+            sku: p.sku || '',
+            batch: p.batchNo || 'LOT-2026',
+            location: p.binLocation || 'Storage Staging',
+            qty: p.currentStock || 1,
+            unit: p.baseUnit || 'Kg',
+            expiryRaw: p.expiryDate,
+          })
+        }
+      }
+    })
+
+    // 3. Compute Days Remaining and FEFO Status for each batch
+    const mapped = items.map((item, idx) => {
+      const exp = new Date(item.expiryRaw)
+      const diffTime = exp.getTime() - now.getTime()
+      const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+      let status = 'Safe Shelf'
+      let statusColor = 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      let dayColor = 'bg-emerald-50 text-emerald-700 border-emerald-200'
+
+      if (days <= 0) {
+        status = 'Critical Expired'
+        statusColor = 'bg-rose-50 text-rose-700 border-rose-200'
+        dayColor = 'bg-rose-50 text-rose-700 border-rose-200'
+      } else if (days <= 30) {
+        status = 'Critical FEFO'
+        statusColor = 'bg-rose-50 text-rose-700 border-rose-200'
+        dayColor = 'bg-rose-50 text-rose-700 border-rose-200'
+      } else if (days <= 60) {
+        status = 'Near Expiry'
+        statusColor = 'bg-amber-50 text-amber-700 border-amber-200'
+        dayColor = 'bg-amber-50 text-amber-700 border-amber-200'
+      }
+
+      const formattedDate = !isNaN(exp.getTime())
+        ? exp.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+        : item.expiryRaw
+
+      return {
+        id: idx + 1,
+        product: item.product,
+        sku: item.sku,
+        batch: item.batch,
+        location: item.location,
+        qty: item.qty,
+        unit: item.unit,
+        date: formattedDate,
+        days: Math.max(0, days),
+        daysRemaining: days,
+        status,
+        statusColor,
+        dayColor,
+      }
+    })
+
+    // 4. Sort strictly by FEFO: Lowest days remaining comes first
+    mapped.sort((a, b) => a.daysRemaining - b.daysRemaining)
+
+    // Re-index after sorting
+    return mapped.map((m, idx) => ({ ...m, id: idx + 1 }))
+  }, [allGRNs, allProducts])
+
+  // Count how many items require immediate FEFO attention (<= 30 days)
+  const criticalAttentionCount = useMemo(() => {
+    return expiryAlerts.filter((x) => x.daysRemaining <= 30).length
+  }, [expiryAlerts])
+
+  // Helper for human-readable event times
+  const formatEventTime = (ts) => {
+    if (!ts) return 'Recent'
+    const date = new Date(ts)
+    if (isNaN(date.getTime())) return 'Recent'
+    const diffMs = Date.now() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMins / 60)
+    const diffDays = Math.floor(diffHours / 24)
+
+    if (diffMins < 2) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) {
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    }
+    if (diffDays === 1) {
+      return `Yesterday, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+    }
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) + ', ' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  // System Audit Stream Logs - 100% Fully Dynamic Aggregation from live database activities
+  const auditLogs = useMemo(() => {
+    const events = []
+
+    // 1. Gate Inward Entries
+    if (Array.isArray(allGateEntries)) {
+      allGateEntries.forEach((entry) => {
+        const rawTime = entry.createdAt || entry.inTime || entry.entryDate || entry.date
+        const parsedTime = rawTime ? new Date(rawTime).getTime() : 0
+        events.push({
+          timestamp: parsedTime,
+          time: formatEventTime(rawTime),
+          category: 'Gate Inward',
+          catColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+          desc: `Vehicle ${entry.vehicleNo || entry.vehicleNumber || 'Vehicle'} checked in${entry.bay ? ` at ${entry.bay}` : ''}`,
+          ref: entry.vehicleNo || entry.vehicleNumber || entry.gateNo || 'GATE-IN',
+          location: entry.bay || entry.shade?.name || 'Gate Inward',
+          user: entry.driverName || 'Security Gate',
+          status: entry.status || 'Waiting at Gate',
+          badge: 'Gate In',
+        })
+      })
+    }
+
+    // 2. GRN Inward Receipts
+    if (Array.isArray(allGRNs)) {
+      allGRNs.forEach((grn) => {
+        const rawTime = grn.createdAt || grn.grnDate || grn.date
+        const parsedTime = rawTime ? new Date(rawTime).getTime() : 0
+        const prodName = grn.product?.name || grn.items?.[0]?.product?.name || 'Consignment'
+        const supplier = grn.supplierName || grn.supplier?.name
+        events.push({
+          timestamp: parsedTime,
+          time: formatEventTime(rawTime),
+          category: 'GRN Inward',
+          catColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+          desc: `Goods Receipt Note verified for ${prodName}${supplier ? ` (${supplier})` : ''}`,
+          ref: grn.grnNumber || grn.grnNo || 'GRN',
+          location: grn.shade?.name || grn.location || 'Inward Bay',
+          user: grn.receivedBy || grn.operator || 'Warehouse Manager',
+          status: grn.status || 'Completed',
+          badge: 'Inward Done',
+        })
+      })
+    }
+
+    // 3. Quality Control Inspections
+    if (Array.isArray(allQCs)) {
+      allQCs.forEach((qc) => {
+        const rawTime = qc.createdAt || qc.inspectionDate || qc.date
+        const parsedTime = rawTime ? new Date(rawTime).getTime() : 0
+        const prodName = qc.product?.name || qc.materialName || 'Batch Sample'
+        events.push({
+          timestamp: parsedTime,
+          time: formatEventTime(rawTime),
+          category: 'Quality Control',
+          catColor: 'bg-blue-50 text-blue-700 border-blue-200',
+          desc: `Lab COA inspection ${qc.status || 'Passed'} for ${prodName}`,
+          ref: qc.qcNumber || qc.qcNo || 'QC-LAB',
+          location: 'QC Testing Lab',
+          user: qc.inspectedBy || 'Senior QC Chemist',
+          status: qc.status || 'Passed',
+          badge: qc.status === 'Passed' ? 'QC Passed' : (qc.status || 'Inspected'),
+        })
+      })
+    }
+
+    // 4. Stock Movement & Bin Relocations
+    if (Array.isArray(allMovements)) {
+      allMovements.forEach((mov) => {
+        const rawTime = mov.createdAt || mov.movementDate || mov.date
+        const parsedTime = rawTime ? new Date(rawTime).getTime() : 0
+        const prodName = mov.product?.name || 'Item'
+        const qty = mov.quantity || mov.qty || 0
+        const uom = mov.uom || mov.unit || 'Units'
+        const toLoc = mov.toLocation || mov.toCell || 'Storage Rack'
+        events.push({
+          timestamp: parsedTime,
+          time: formatEventTime(rawTime),
+          category: 'Stock Movement',
+          catColor: 'bg-purple-50 text-purple-700 border-purple-200',
+          desc: `Relocated ${prodName} (${qty} ${uom}) to ${toLoc}`,
+          ref: mov.movementNumber || mov.movementNo || mov.refNo || 'MOV',
+          location: toLoc,
+          user: mov.movedBy || mov.createdBy || 'Warehouse Manager',
+          status: mov.status || 'Completed',
+          badge: 'Relocated',
+        })
+      })
+    }
+
+    // 5. Outward Dispatches
+    if (Array.isArray(allDispatches)) {
+      allDispatches.forEach((dsp) => {
+        const rawTime = dsp.createdAt || dsp.dispatchDate || dsp.date
+        const parsedTime = rawTime ? new Date(rawTime).getTime() : 0
+        const custName = dsp.customerName || dsp.customer?.name
+        events.push({
+          timestamp: parsedTime,
+          time: formatEventTime(rawTime),
+          category: 'Outward Dispatch',
+          catColor: 'bg-rose-50 text-rose-700 border-rose-200',
+          desc: `Consignment cleared${custName ? ` for ${custName}` : ''}${dsp.vehicleNo ? ` via ${dsp.vehicleNo}` : ''}`,
+          ref: dsp.dispatchNumber || dsp.dispatchNo || 'DSP',
+          location: dsp.bay || 'Dispatch Bay',
+          user: dsp.dispatchedBy || dsp.authorizedBy || 'Warehouse Manager',
+          status: dsp.status || 'Gate Out / Cleared',
+          badge: 'Gate Out',
+        })
+      })
+    }
+
+    // Sort newest first
+    events.sort((a, b) => b.timestamp - a.timestamp)
+
+    // Take top 8 most recent operational events
+    return events.slice(0, 8).map((evt, idx) => ({ ...evt, id: idx + 1 }))
+  }, [allGateEntries, allGRNs, allQCs, allMovements, allDispatches])
 
   // Quick Actions
   const quickActions = [
@@ -309,25 +638,25 @@ export default function Dashboard() {
             <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200/80 shadow-2xs">
               <p className="text-[10px] sm:text-xs uppercase font-bold text-slate-400 tracking-wider">Total Capacity</p>
               <p className="text-lg sm:text-xl lg:text-2xl font-extrabold font-mono text-slate-900 mt-1">
-                2,400 <span className="text-[10px] sm:text-xs font-semibold text-slate-500 font-sans">Units</span>
+                {overallCapacity.toLocaleString()} <span className="text-[10px] sm:text-xs font-semibold text-slate-500 font-sans">Slots</span>
               </p>
             </div>
             <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200/80 shadow-2xs">
               <p className="text-[10px] sm:text-xs uppercase font-bold text-slate-400 tracking-wider">Total Occupied</p>
               <p className="text-lg sm:text-xl lg:text-2xl font-extrabold font-mono text-emerald-700 mt-1">
-                1,600 <span className="text-[10px] sm:text-xs font-semibold text-slate-500 font-sans">Units</span>
+                {overallOccupied.toLocaleString()} <span className="text-[10px] sm:text-xs font-semibold text-slate-500 font-sans">Slots</span>
               </p>
             </div>
             <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200/80 shadow-2xs">
               <p className="text-[10px] sm:text-xs uppercase font-bold text-slate-400 tracking-wider">Available Space</p>
               <p className="text-lg sm:text-xl lg:text-2xl font-extrabold font-mono text-blue-700 mt-1">
-                800 <span className="text-[10px] sm:text-xs font-semibold text-slate-500 font-sans">Units</span>
+                {overallAvailable.toLocaleString()} <span className="text-[10px] sm:text-xs font-semibold text-slate-500 font-sans">Slots</span>
               </p>
             </div>
             <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200/80 shadow-2xs">
               <p className="text-[10px] sm:text-xs uppercase font-bold text-slate-400 tracking-wider">Space Utilization</p>
               <p className="text-lg sm:text-xl lg:text-2xl font-extrabold font-mono text-indigo-700 mt-1">
-                66.7%
+                {overallOccupancyRate}%
               </p>
             </div>
           </div>
@@ -335,74 +664,76 @@ export default function Dashboard() {
           <div className="w-full xl:w-80 bg-white p-3 sm:p-4 rounded-xl border border-slate-200/80 shadow-2xs space-y-2 shrink-0">
             <div className="flex justify-between text-xs font-bold text-slate-700 font-mono">
               <span>OVERALL USAGE</span>
-              <span className="text-indigo-600 font-extrabold">1,600 / 2,400 Units</span>
+              <span className="text-indigo-600 font-extrabold">{overallOccupied.toLocaleString()} / {overallCapacity.toLocaleString()} Slots</span>
             </div>
             <div className="w-full h-3.5 rounded-full bg-slate-100 overflow-hidden flex shadow-inner">
-              <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: '66.7%' }} />
+              <div
+                className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(Number(overallOccupancyRate), overallOccupied > 0 ? 3 : 0))}%` }}
+              />
             </div>
-            <div className="flex justify-between text-[11px] text-slate-400">
-              <span className="text-emerald-600 font-semibold">66.7% Occupied</span>
-              <span>33.3% Available</span>
+            <div className="flex justify-between text-[11px] text-slate-400 font-medium">
+              <span className="text-emerald-600 font-semibold">{overallOccupancyRate}% Occupied</span>
+              <span>{(100 - Number(overallOccupancyRate)).toFixed(1)}% Available</span>
             </div>
           </div>
         </div>
 
         {/* 6 Shades Grid - Proper 3 Columns × 2 Rows */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-          {shades.map((shade) => {
+          {shades.map((shade, idx) => {
             const isHigh = shade.occupancy >= 80
             const isMed = shade.occupancy >= 50
             const statusColor = isHigh ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : isMed ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-blue-700 bg-blue-50 border-blue-200'
             const barColor = isHigh ? 'bg-emerald-500' : isMed ? 'bg-amber-500' : 'bg-blue-500'
-            const availableUnits = shade.total - shade.current
+            const availableUnits = Math.max(0, shade.total - shade.current)
+            const shadeBadge = (shade.code || `S${idx + 1}`).replace('SH-', 'S').replace('SH', 'S')
 
             return (
               <Link
                 key={shade.id}
                 to="/shade-mgmt"
                 title={`Click to view details for ${shade.name}`}
-                className="group flex flex-col justify-between bg-white border-2 border-slate-200 hover:border-indigo-500 rounded-2xl p-5 sm:p-6 transition-all duration-200 shadow-xs hover:shadow-lg cursor-pointer"
+                className="group flex flex-col justify-between bg-white border-2 border-slate-200 hover:border-indigo-500 rounded-2xl p-4 sm:p-5 transition-all duration-200 shadow-xs hover:shadow-lg cursor-pointer min-w-0"
               >
                 <div>
                   {/* Roof Header */}
-                  <div className="flex items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-extrabold text-sm font-mono group-hover:bg-indigo-600 transition-colors shadow-xs shrink-0">
-                        S{shade.id}
+                  <div className="flex items-center justify-between gap-2.5 pb-3 border-b border-slate-100 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-extrabold text-xs sm:text-sm font-mono group-hover:bg-indigo-600 transition-colors shadow-xs shrink-0">
+                        {shadeBadge}
                       </div>
-                      <div>
-                        <h4 className="text-base font-extrabold text-slate-900 group-hover:text-indigo-600 transition-colors whitespace-nowrap">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-sm sm:text-base font-extrabold text-slate-900 group-hover:text-indigo-600 transition-colors truncate" title={shade.name}>
                           {shade.name}
                         </h4>
-                        <p className="text-xs font-semibold text-slate-500 truncate">
+                        <p className="text-[11px] sm:text-xs font-semibold text-slate-500 truncate mt-0.5">
                           {shade.category}
                         </p>
                       </div>
                     </div>
-                    <span className={`text-xs font-bold px-3 py-1 rounded-full border shrink-0 ${statusColor}`}>
+                    <span className={`text-[11px] sm:text-xs font-bold px-2.5 py-1 rounded-full border shrink-0 whitespace-nowrap ${statusColor}`}>
                       {shade.occupancy}% Full
                     </span>
                   </div>
 
                   {/* Visual Pallet Grid */}
-                  <div className="my-4 p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
+                  <div className="my-3.5 p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
                     <div className="flex justify-between text-[11px] font-semibold text-slate-400 mb-2 uppercase tracking-wider">
                       <span>Rack Layout</span>
-                      <span className="font-mono text-slate-600">12 Bays</span>
+                      <span className="font-mono text-slate-600">{shade.rackCount} Racks • {shade.total} Slots</span>
                     </div>
-                    <div className="grid grid-cols-6 gap-2">
+                    <div className="grid grid-cols-6 gap-1.5 sm:gap-2">
                       {Array.from({ length: 12 }).map((_, i) => {
-                        const filled =
-                          shade.occupancy >= 80 ? i < 10 :
-                          shade.occupancy >= 60 ? i < 8 :
-                          shade.occupancy >= 50 ? i < 6 : i < 4
+                        const filledRatio = shade.total > 0 ? (shade.current / shade.total) * 12 : 0
+                        const filled = shade.current > 0 ? i < Math.max(1, Math.round(filledRatio)) : false
                         return (
                           <div
                             key={i}
-                            className={`h-4 rounded-xs transition-all ${
+                            className={`h-3.5 sm:h-4 rounded-xs transition-all ${
                               filled ? barColor : 'bg-slate-200/80'
                             }`}
-                            title={`Bay ${i + 1}: ${filled ? 'Occupied' : 'Empty'}`}
+                            title={`Bay Section ${i + 1}: ${filled ? 'Occupied' : 'Available'}`}
                           />
                         )
                       })}
@@ -411,25 +742,33 @@ export default function Dashboard() {
 
                   {/* Stock Counts & Progress */}
                   <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-semibold text-slate-500">Stock Units</span>
-                      <span className="font-mono font-bold text-slate-900 text-sm whitespace-nowrap">
-                        {shade.current} <span className="font-normal text-slate-400">/ {shade.total} Units</span>
-                      </span>
+                    <div className="flex items-center justify-between text-xs gap-2">
+                      <span className="font-semibold text-slate-500 shrink-0">Storage Slots</span>
+                      <div className="flex items-center gap-1.5 text-right font-mono font-bold text-slate-900 text-xs sm:text-sm whitespace-nowrap">
+                        <span>{shade.current} / {shade.total} Slots</span>
+                        {shade.totalStockUnits > 0 && (
+                          <span className="text-[10px] font-bold text-indigo-600 font-sans bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                            {shade.totalStockUnits} Qty
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden shadow-inner">
-                      <div className={`h-full rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${shade.occupancy}%` }} />
+                    <div className="w-full h-2.5 sm:h-3 rounded-full bg-slate-100 overflow-hidden shadow-inner">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${barColor}`}
+                        style={{ width: `${Math.min(100, Math.max(shade.occupancy, shade.current > 0 ? 3 : 0))}%` }}
+                      />
                     </div>
                     <div className="flex justify-between text-[11px] font-medium text-slate-400 pt-0.5">
-                      <span>Available: <strong className="text-slate-700 font-mono">{availableUnits} Units</strong></span>
+                      <span>Available: <strong className="text-slate-700 font-mono">{availableUnits} Slots</strong></span>
                       <span className="font-semibold">{shade.occupancy >= 80 ? 'Near Capacity' : shade.occupancy >= 50 ? 'Optimal' : 'Plenty Space'}</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs sm:text-sm font-bold text-indigo-600 group-hover:text-indigo-800">
-                  <span>Inspect {shade.name} Bays</span>
-                  <span className="group-hover:translate-x-1.5 transition-transform text-base">→</span>
+                <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs sm:text-sm font-bold text-indigo-600 group-hover:text-indigo-800">
+                  <span className="truncate">Inspect {shade.code || 'Shade'} Bays</span>
+                  <span className="group-hover:translate-x-1.5 transition-transform text-base shrink-0 ml-1">→</span>
                 </div>
               </Link>
             )
@@ -708,8 +1047,12 @@ export default function Dashboard() {
                 <h3 className="text-lg sm:text-xl font-bold text-slate-900">
                   Expiry Alerts (FEFO Priority)
                 </h3>
-                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-                  ● 3 Attention Items
+                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                  criticalAttentionCount > 0
+                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}>
+                  {criticalAttentionCount > 0 ? `● ${criticalAttentionCount} Attention Items` : '✓ All Stock Safe'}
                 </span>
                 <span className="text-xs font-medium text-slate-400">
                   (First-Expired, First-Out Queue)
@@ -857,46 +1200,66 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {auditLogs.map((row) => (
-                <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="py-4 px-4 text-slate-400 font-mono text-xs text-center w-14 font-semibold">
-                    0{row.id}
-                  </td>
-                  <td className="py-4 px-4 text-slate-600 font-mono text-xs font-semibold">
-                    {row.time}
-                  </td>
-                  <td className="py-4 px-4">
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${row.catColor}`}>
-                      {row.category}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-slate-900 font-bold text-sm">
-                    {row.desc}
-                  </td>
-                  <td className="py-4 px-4">
-                    <span className="font-mono text-slate-800 text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 inline-block shadow-2xs">
-                      {row.ref}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-slate-600 font-medium text-sm">
-                    {row.location}
-                  </td>
-                  <td className="py-4 px-4 text-indigo-700 font-semibold text-sm">
-                    {row.user}
-                  </td>
-                  <td className="py-4 px-4 text-center">
-                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="py-4 px-5 text-right">
-                    <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 inline-block">
-                      {row.badge}
-                    </span>
+              {auditLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-slate-400 font-medium">
+                    No recent warehouse activities recorded in system.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                auditLogs.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-4 px-4 text-slate-400 font-mono text-xs text-center w-14 font-semibold">
+                      0{row.id}
+                    </td>
+                    <td className="py-4 px-4 text-slate-600 font-mono text-xs font-semibold whitespace-nowrap">
+                      {row.time}
+                    </td>
+                    <td className="py-4 px-4 whitespace-nowrap">
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${row.catColor}`}>
+                        {row.category}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-slate-900 font-bold text-sm">
+                      {row.desc}
+                    </td>
+                    <td className="py-4 px-4 whitespace-nowrap">
+                      <span className="font-mono text-slate-800 text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 inline-block shadow-2xs">
+                        {row.ref}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-slate-600 font-medium text-sm whitespace-nowrap">
+                      {row.location}
+                    </td>
+                    <td className="py-4 px-4 text-indigo-700 font-semibold text-sm whitespace-nowrap">
+                      {row.user}
+                    </td>
+                    <td className="py-4 px-4 text-center whitespace-nowrap">
+                      <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 border ${
+                        String(row.status).toLowerCase().includes('fail') || String(row.status).toLowerCase().includes('reject')
+                          ? 'bg-rose-50 text-rose-700 border-rose-200'
+                          : String(row.status).toLowerCase().includes('wait') || String(row.status).toLowerCase().includes('process')
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          String(row.status).toLowerCase().includes('fail') || String(row.status).toLowerCase().includes('reject')
+                            ? 'bg-rose-500'
+                            : String(row.status).toLowerCase().includes('wait') || String(row.status).toLowerCase().includes('process')
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
+                        }`} />
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="py-4 px-5 text-right whitespace-nowrap">
+                      <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 inline-block">
+                        {row.badge}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
