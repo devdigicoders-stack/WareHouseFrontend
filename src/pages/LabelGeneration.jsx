@@ -290,13 +290,13 @@ export default function LabelGeneration() {
       .then((url) => setQrCodeDataUrl(url))
       .catch((err) => console.error('QR Gen error:', err))
 
-    // Render Barcode
+    // Render Barcode SVG & DataURL for multi-stickers
+    const barcodeText = isLocation
+      ? `LOC-${(rackBinCode || 'SH01').replace(/[^A-Za-z0-9]/g, '')}`
+      : `${activeProduct.sku}`
+
     if (barcodeSvgRef.current) {
       try {
-        const barcodeText = isLocation
-          ? `LOC-${(rackBinCode || 'SH01').replace(/[^A-Za-z0-9]/g, '')}`
-          : `${activeProduct.sku}`
-
         JsBarcode(barcodeSvgRef.current, barcodeText, {
           format: 'CODE128',
           lineColor: '#000000',
@@ -310,6 +310,23 @@ export default function LabelGeneration() {
       } catch (err) {
         console.warn('Barcode gen notice:', err)
       }
+    }
+
+    try {
+      const canvas = document.createElement('canvas')
+      JsBarcode(canvas, barcodeText, {
+        format: 'CODE128',
+        lineColor: '#000000',
+        width: 2,
+        height: 38,
+        displayValue: true,
+        fontSize: 11,
+        font: 'monospace',
+        margin: 2,
+      })
+      setBarcodeDataUrl(canvas.toDataURL('image/png'))
+    } catch (err) {
+      console.warn('Barcode canvas gen error:', err)
     }
   }, [
     labelCategory,
@@ -358,6 +375,9 @@ export default function LabelGeneration() {
     if (selectedGrnObject?.shade) setStorageLocation(selectedGrnObject.shade)
     triggerToast(`Selected ${item.productName || item.sku}`)
   }
+
+  const [printLayoutMode, setPrintLayoutMode] = useState('a4') // 'a4' (A4 Sheet Grid) | 'thermal' (1-by-1 Thermal Roll)
+  const [barcodeDataUrl, setBarcodeDataUrl] = useState('')
 
   // Dynamic KPI Stats (Accurate real database & history values)
   const stats = useMemo(() => {
@@ -408,52 +428,116 @@ export default function LabelGeneration() {
     setRecentLabels([newEntry, ...recentLabels])
   }
 
-  // Print single label handler with exact 4" x 4" thermal page styles
-  const handlePrintSingle = async () => {
+  // Multi-label items array computed from quantity
+  const printItemsList = useMemo(() => {
+    const count = Math.max(1, Math.min(100, Number(quantity) || 1))
+    return Array.from({ length: count }).map((_, idx) => ({
+      index: idx + 1,
+      total: count,
+      productName: labelCategory === 'Location Label' ? `Location Tag: ${rackBinCode}` : activeProduct.name,
+      sku: labelCategory === 'Location Label' ? `LOC-${(rackBinCode || 'SH01').replace(/[^a-zA-Z0-9]/g, '')}` : activeProduct.sku,
+      category: activeProduct.category,
+      outerPackaging: activeProduct.outerPackaging || 'Bag',
+      packSize: activeProduct.packSize || 1,
+      baseUnit: activeProduct.baseUnit || 'Kg',
+      mfgDate: mfgDate,
+      expiryDate: expDate,
+      packQty: quantity,
+      storageZone: storageLocation || activeProduct.storageZone,
+      notes: additionalInfo,
+      qrUrl: qrCodeDataUrl,
+      barcodeUrl: barcodeDataUrl,
+    }))
+  }, [
+    quantity,
+    labelCategory,
+    rackBinCode,
+    activeProduct,
+    mfgDate,
+    expDate,
+    storageLocation,
+    additionalInfo,
+    qrCodeDataUrl,
+    barcodeDataUrl,
+  ])
+
+  // Print handler supporting both A4 Sheet Grid and Thermal Roll modes
+  const handlePrintLabels = async () => {
     if (isPrintingSingle) return
     setIsPrintingSingle(true)
     handleQueuePrint()
     try {
       const is4x4 = labelSize.includes('4" x 4"') || labelSize.includes('100mm x 100mm')
-      const customPrintStyle = is4x4
-        ? `
-          @page {
-            size: 4in 4in !important;
-            margin: 0 !important;
-          }
-          html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 4in !important;
-            height: 4in !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            background: #ffffff !important;
-          }
-          #printable-thermal-label-preview {
-            width: 3.82in !important;
-            height: 3.82in !important;
-            max-width: 3.82in !important;
-            max-height: 3.82in !important;
-            margin: auto !important;
-            box-sizing: border-box !important;
-            border: 2px solid #000000 !important;
-            border-radius: 8px !important;
-            padding: 12px 14px !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
-          }
-        `
-        : `
-          @page {
-            size: auto;
-            margin: 4mm;
-          }
-        `
-      await printSpecificElement('#printable-thermal-label-preview', `Thermal Label - ${activeProduct.sku} (${quantity})`, customPrintStyle)
-      triggerToast(`Sent ${quantity} scannable 4" × 4" labels to thermal printer!`)
+      const customPrintStyle =
+        printLayoutMode === 'a4'
+          ? `
+            @page {
+              size: A4 portrait !important;
+              margin: 10mm 8mm !important;
+            }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            }
+            .printable-multi-grid {
+              display: grid !important;
+              grid-template-columns: repeat(2, 1fr) !important;
+              gap: 14px !important;
+              width: 100% !important;
+            }
+            .printable-sticker-card {
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              border: 2px solid #000000 !important;
+              border-radius: 8px !important;
+              padding: 10px 12px !important;
+              background: #ffffff !important;
+              display: flex !important;
+              flex-direction: column !important;
+              justify-content: space-between !important;
+              min-height: 230px !important;
+            }
+          `
+          : `
+            @page {
+              size: ${is4x4 ? '4in 4in' : 'auto'} !important;
+              margin: 0 !important;
+            }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+            }
+            .printable-multi-grid {
+              display: block !important;
+            }
+            .printable-sticker-card {
+              width: 3.82in !important;
+              height: 3.82in !important;
+              max-width: 3.82in !important;
+              max-height: 3.82in !important;
+              margin: 0 auto 0 auto !important;
+              page-break-after: always !important;
+              break-after: page !important;
+              box-sizing: border-box !important;
+              border: 2px solid #000000 !important;
+              border-radius: 8px !important;
+              padding: 12px 14px !important;
+              display: flex !important;
+              flex-direction: column !important;
+              justify-content: space-between !important;
+              background: #ffffff !important;
+            }
+          `
+
+      await printSpecificElement(
+        '#printable-multi-stickers-container',
+        `Stickers (${printItemsList.length}) - ${activeProduct.sku}`,
+        customPrintStyle
+      )
+      triggerToast(`Sent ${printItemsList.length} labels to print (${printLayoutMode === 'a4' ? 'A4 Grid' : 'Thermal Roll'})!`)
     } catch {
       triggerToast('Printing initiated.')
     } finally {
@@ -1155,12 +1239,46 @@ export default function LabelGeneration() {
             </div>
           </div>
 
+          {/* Print Target / Paper Layout Selector */}
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+            <span className="font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+              <Printer className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Paper Layout:</span>
+            </span>
+            <div className="grid grid-cols-2 gap-1.5 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => setPrintLayoutMode('a4')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  printLayoutMode === 'a4'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>A4 Sheet Grid</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrintLayoutMode('thermal')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  printLayoutMode === 'thermal'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Thermal Roll</span>
+              </button>
+            </div>
+          </div>
+
           {/* Quick Print Actions Toolbar with Rolling Animations */}
           <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
             <button
               type="button"
               disabled={isPrintingSingle}
-              onClick={handlePrintSingle}
+              onClick={handlePrintLabels}
               className={`flex-1 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition cursor-pointer ${
                 isPrintingSingle ? 'opacity-80 cursor-not-allowed' : ''
               }`}
@@ -1168,12 +1286,14 @@ export default function LabelGeneration() {
               {isPrintingSingle ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Printing Label...</span>
+                  <span>Printing {printItemsList.length} Labels...</span>
                 </>
               ) : (
                 <>
                   <Printer className="w-4 h-4" />
-                  <span>Print Scannable Label ({quantity})</span>
+                  <span>
+                    Print {printItemsList.length} Label{printItemsList.length > 1 ? 's' : ''} ({printLayoutMode === 'a4' ? 'A4 Grid' : 'Thermal'})
+                  </span>
                 </>
               )}
             </button>
@@ -1187,7 +1307,7 @@ export default function LabelGeneration() {
               className="w-full sm:w-auto px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-semibold border border-indigo-200 transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>Multi Sheet</span>
+              <span>Multi Sheet Preview</span>
             </button>
 
             <button
@@ -1206,6 +1326,94 @@ export default function LabelGeneration() {
               )}
               <span>PNG</span>
             </button>
+          </div>
+
+          {/* Hidden Multi-Sticker Print Container for Perfect A4 Grid & Thermal Roll Printing */}
+          <div className="hidden">
+            <div id="printable-multi-stickers-container" className="printable-multi-grid">
+              {printItemsList.map((item, idx) => (
+                <div key={idx} className="printable-sticker-card font-sans">
+                  <div className="flex items-start justify-between border-b pb-1.5 border-slate-900">
+                    {includeLogo ? (
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-7 h-7 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                          WH
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-[11px] tracking-wider uppercase">CENTRAL WAREHOUSE</h3>
+                          <p className="text-[7px] font-semibold text-slate-500 uppercase tracking-wider">
+                            INVENTORY &amp; COMMODITY TAG
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs font-bold text-slate-900 uppercase">INVENTORY TAG</div>
+                    )}
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-700 px-1 py-0.5 rounded border border-slate-300">
+                        #{item.index}/{item.total}
+                      </span>
+                      {includeQr && item.qrUrl && (
+                        <div className="w-14 h-14 bg-white border border-slate-400 p-0.5 rounded shrink-0 flex items-center justify-center">
+                          <img src={item.qrUrl} alt="QR Code" className="w-full h-full object-contain" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="my-1">
+                    <h4 className="text-[11px] font-black text-slate-900 leading-snug truncate">
+                      {item.productName}
+                    </h4>
+                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                      <span className="bg-slate-900 text-white font-mono text-[8px] px-1 py-0.2 rounded font-bold">
+                        {item.sku}
+                      </span>
+                      <span className="bg-slate-100 text-slate-700 border border-slate-300 text-[8px] px-1 py-0.2 rounded font-semibold">
+                        {item.category}
+                      </span>
+                      <span className="bg-slate-100 text-slate-700 border border-slate-300 text-[8px] px-1 py-0.2 rounded font-bold">
+                        1 {item.outerPackaging} = {item.packSize} {item.baseUnit}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-0.5 text-[9px] font-mono text-slate-800 bg-slate-100/80 p-2 rounded border border-slate-300 my-1">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-sans">Mfg Date:</span>
+                      <span className="font-bold">{item.mfgDate}</span>
+                    </div>
+                    {includeExpiryDate && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 font-sans">Expiry Date:</span>
+                        <span className="font-bold text-rose-700">{item.expiryDate}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-sans">Pack Qty:</span>
+                      <span className="font-bold">{item.packQty} {item.outerPackaging}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-sans">Assigned Zone:</span>
+                      <span className="font-bold text-emerald-800 truncate max-w-[140px]">{item.storageZone}</span>
+                    </div>
+                    {item.notes && (
+                      <div className="flex justify-between pt-0.5 border-t border-slate-300 text-slate-700 font-sans font-medium text-[8px]">
+                        <span>Note:</span>
+                        <span className="truncate ml-1">{item.notes}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {includeBarcode && item.barcodeUrl && (
+                    <div className="text-center pt-0.5">
+                      <img src={item.barcodeUrl} alt="Barcode" className="max-w-[220px] h-9 mx-auto object-contain" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
