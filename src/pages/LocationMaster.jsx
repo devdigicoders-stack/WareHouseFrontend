@@ -192,7 +192,8 @@ export default function LocationMaster() {
           // Also check GRN allocations matching cell code or (shade, rack, row, col)
           const matchingGrn = allocatedFromGrn.find((a) => {
             if (!a.location) return false
-            if (a.location.toUpperCase() === cellCode.toUpperCase() || a.location.toUpperCase() === defaultCode.toUpperCase()) return true
+            const locClean = a.location.toUpperCase().trim()
+            if (locClean === cellCode.toUpperCase() || locClean === defaultCode.toUpperCase()) return true
 
             const sMatch = a.location.match(/SH[-_]?0?(\d+)/i)
             const rkMatch = a.location.match(/RK[-_]?0?(\d+)/i)
@@ -207,10 +208,10 @@ export default function LocationMaster() {
               const rowMatch = parseInt(rMatch[1]) === r
               const colMatch = parseInt(cMatch[1]) === c
 
-              if (rkMatch && rackRKMatch) {
-                return shadeMatch && parseInt(rkMatch[1]) === parseInt(rackRKMatch[1]) && rowMatch && colMatch
-              }
-              return shadeMatch && rowMatch && colMatch
+              const targetRackNum = rkMatch ? parseInt(rkMatch[1]) : 1
+              const currentRackNum = rackRKMatch ? parseInt(rackRKMatch[1]) : 1
+
+              return shadeMatch && targetRackNum === currentRackNum && rowMatch && colMatch
             }
             return false
           })

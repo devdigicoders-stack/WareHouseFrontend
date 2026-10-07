@@ -523,6 +523,27 @@ export default function PutAwayCheckIn() {
       )
     )
 
+    // Update racksList locally so next allocation automatically picks next free bin
+    setRacksList((prev) =>
+      prev.map((rack) => {
+        if (!rack.cells || !Array.isArray(rack.cells)) return rack
+        const cells = rack.cells.map((cell) => {
+          const cCode = cell.code || `${rack.shadeCode}-${rack.rackNumber}-R${cell.row}-C${cell.col}`
+          if (cCode === autoBin.code) {
+            return {
+              ...cell,
+              status: 'Occupied',
+              productName: item.productName,
+              batchNo: item.batchNo,
+              currentStock: item.quantity,
+            }
+          }
+          return cell
+        })
+        return { ...rack, cells }
+      })
+    )
+
     const labelData = {
       grnNo: item.grnNo,
       productName: item.productName,
@@ -639,6 +660,27 @@ export default function PutAwayCheckIn() {
             }
           : i
       )
+    )
+
+    // Update racksList locally so next allocation automatically picks next free bin
+    setRacksList((prev) =>
+      prev.map((rack) => {
+        if (!rack.cells || !Array.isArray(rack.cells)) return rack
+        const cells = rack.cells.map((cell) => {
+          const cCode = cell.code || `${rack.shadeCode}-${rack.rackNumber}-R${cell.row}-C${cell.col}`
+          if (cCode === formLocationCode) {
+            return {
+              ...cell,
+              status: 'Occupied',
+              productName: formProduct,
+              batchNo: formBatch,
+              currentStock: baseQuantityComputed,
+            }
+          }
+          return cell
+        })
+        return { ...rack, cells }
+      })
     )
 
     const labelData = {
