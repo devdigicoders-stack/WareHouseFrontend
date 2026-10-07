@@ -125,7 +125,14 @@ export default function PutAwayCheckIn() {
       apiRequest('/grn'),
       apiRequest('/shade'),
       apiRequest('/rack'),
-    ]).then(([grnRes, shadeRes, rackRes]) => {
+      apiRequest('/product'),
+      apiRequest('/qc'),
+    ]).then(([grnRes, shadeRes, rackRes, prodRes, qcRes]) => {
+      let prods = []
+      let qcs = []
+      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) prods = prodRes.value
+      if (qcRes.status === 'fulfilled' && Array.isArray(qcRes.value)) qcs = qcRes.value
+
       if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value)) {
         setShadesList(shadeRes.value)
         if (shadeRes.value.length > 0) setFormSelectedShade(shadeRes.value[0].code)
@@ -138,6 +145,20 @@ export default function PutAwayCheckIn() {
         grnRes.value.forEach((g) => {
           if (g.materials && g.materials.length > 0) {
             g.materials.forEach((m, idx) => {
+              const prod = prods.find((p) => p.sku === m.sku)
+              const qc = qcs.find((q) => q.grnNo === g.grnNo && (q.sku === m.sku || q.batchNo === m.batchNo))
+
+              let labStatus = 'Pending QC'
+              if (qc?.status === 'Passed' || prod?.labStatus === 'Passed') {
+                labStatus = 'Passed / Cleared'
+              } else if (qc?.status === 'Failed / Rejected' || prod?.labStatus === 'Failed / Rejected') {
+                labStatus = 'Failed / Rejected'
+              } else if (qc?.status === 'Quarantine / Under Test' || prod?.labStatus === 'Quarantine / Under Test') {
+                labStatus = 'Under QC Test'
+              } else {
+                labStatus = 'Pending QC'
+              }
+
               mapped.push({
                 id: `${g._id}-${idx}`,
                 grnNo: g.grnNo,
@@ -150,11 +171,11 @@ export default function PutAwayCheckIn() {
                 quantity: m.totalBaseQty || (m.packageQty * m.packSize) || 1250,
                 uom: m.baseUnit || 'Kg',
                 shadeId: g.shade || 'SH01',
-                recommendedLocation: `${g.shade ? g.shade.split(' ')[0] : 'SH01'}-R1-C1`,
+                recommendedLocation: `${g.shade ? g.shade.split(' ')[0] : 'SH01'}-R01-C01`,
                 receivedOn: new Date(g.createdAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
                 priority: 'High',
                 status: 'Pending',
-                labStatus: 'Quality Cleared',
+                labStatus: labStatus,
               })
             })
           }
@@ -169,28 +190,6 @@ export default function PutAwayCheckIn() {
           setFormUnitsPerPack(mapped[0].unitsPerPack)
           setFormPacksCount(mapped[0].packsCount)
         }
-      } else {
-        // Default initial demo queue
-        setQueueItems([
-          {
-            id: 1,
-            grnNo: 'GRN-2026-0001',
-            productName: 'Basmati Rice Superior (25kg)',
-            sku: 'PRD-RIC-001',
-            batchNo: 'BTH-2026-081',
-            packUnit: 'Bags',
-            packsCount: 100,
-            unitsPerPack: 25,
-            quantity: 2500,
-            uom: 'Kg',
-            shadeId: 'SH01',
-            recommendedLocation: 'SH01-RK01-R1-C1',
-            receivedOn: '21 Sep 2026',
-            priority: 'High',
-            status: 'Pending',
-            labStatus: 'Quality Cleared',
-          },
-        ])
       }
     }).catch(() => {})
   }, [])
@@ -310,9 +309,10 @@ export default function PutAwayCheckIn() {
   const stats = useMemo(() => {
     const pendingCount = queueItems.filter((i) => i.status === 'Pending').length
     const completedCount = queueItems.filter((i) => i.status === 'Completed').length
-    const labPending = queueItems.filter((i) => i.labStatus.includes('Pending')).length
+    const qcTested = queueItems.filter((i) => i.labStatus.includes('Test') || i.labStatus.includes('Quarantine')).length
+    const qcCleared = queueItems.filter((i) => i.labStatus.includes('Passed') || i.labStatus.includes('Cleared')).length
     const totalProcessedUnits = queueItems.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0)
-    return { pendingCount, completedCount, labPending, totalProcessedUnits }
+    return { pendingCount, completedCount, qcTested, qcCleared, totalProcessedUnits }
   }, [queueItems])
 
   // Load Queue Item into Form
@@ -505,11 +505,13 @@ export default function PutAwayCheckIn() {
             <FlaskConical className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Sent to QC Lab</p>
+            <p className="text-xs font-semibold text-slate-500">QC Lab Cleared</p>
             <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">
-              {stats.labPending} Lots
+              {stats.qcCleared} of {queueItems.length} Lots
             </h3>
-            <p className="text-[11px] text-indigo-600 font-medium">Quarantined for test</p>
+            <p className="text-[11px] text-indigo-600 font-medium">
+              {stats.qcTested > 0 ? `${stats.qcTested} under test` : `${queueItems.length - stats.qcCleared} awaiting QC`}
+            </p>
           </div>
         </div>
 
@@ -898,10 +900,14 @@ export default function PutAwayCheckIn() {
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          row.labStatus.includes('Passed')
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-800'
+                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          row.labStatus.includes('Passed') || row.labStatus.includes('Cleared')
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : row.labStatus.includes('Failed')
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : row.labStatus.includes('Test') || row.labStatus.includes('Quarantine')
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
                         }`}
                       >
                         {row.labStatus}
