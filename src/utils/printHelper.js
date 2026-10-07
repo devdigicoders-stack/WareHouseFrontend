@@ -3,7 +3,7 @@
  * @param {HTMLElement|string} target - DOM Element or selector to print
  * @param {string} title - Document title for the printed document
  */
-export function printSpecificElement(target, title = 'Warehouse Document') {
+export function printSpecificElement(target, title = 'Warehouse Document', customPageStyle = '') {
   const element = typeof target === 'string' ? document.querySelector(target) : target
   if (!element) {
     window.print()
@@ -44,10 +44,11 @@ export function printSpecificElement(target, title = 'Warehouse Document') {
           *, *::before, *::after {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            box-sizing: border-box !important;
           }
           html, body {
             margin: 0 !important;
-            padding: 16px !important;
+            padding: 12px !important;
             background: #ffffff !important;
             color: #0f172a !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
@@ -56,9 +57,10 @@ export function printSpecificElement(target, title = 'Warehouse Document') {
             display: none !important;
           }
           @page {
-            margin: 12mm;
+            margin: 8mm;
             size: auto;
           }
+          ${customPageStyle}
         </style>
       </head>
       <body>

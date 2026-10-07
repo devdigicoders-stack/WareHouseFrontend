@@ -114,11 +114,12 @@ export default function LabelGeneration() {
   const [selectedGrnObject, setSelectedGrnObject] = useState(null)
   const [selectedItemIndex, setSelectedItemIndex] = useState(0)
 
+  const [selectedCategory, setSelectedCategory] = useState('All')
   const [labelCategory, setLabelCategory] = useState('Product Label') // 'Product Label' | 'Batch Label' | 'Location Label' | 'Pallet Master'
   const [selectedProductSku, setSelectedProductSku] = useState('')
   const [selectedBatchNo, setSelectedBatchNo] = useState('')
   const [labelFormat, setLabelFormat] = useState('Product + Batch Barcode')
-  const [labelSize, setLabelSize] = useState('60mm x 40mm')
+  const [labelSize, setLabelSize] = useState('4" x 4" (100mm x 100mm)')
   const [quantity, setQuantity] = useState('10')
   const [storageLocation, setStorageLocation] = useState('Shade 1 (General Stores)')
   const [mfgDate, setMfgDate] = useState(() => new Date().toISOString().split('T')[0])
@@ -358,15 +359,15 @@ export default function LabelGeneration() {
     triggerToast(`Selected ${item.productName || item.sku}`)
   }
 
-  // Dynamic KPI Stats
+  // Dynamic KPI Stats (Accurate real database & history values)
   const stats = useMemo(() => {
     const totalCount = recentLabels.reduce((acc, r) => acc + (Number(r.quantity) || 0), 0)
     const uniqueSkus = new Set(recentLabels.map((r) => r.sku)).size
     return {
-      totalPrinted: totalCount || 450,
-      activeSkus: uniqueSkus || products.length || 1,
-      totalBatches: grnList.length || 6,
-      totalJobs: recentLabels.length || 8,
+      totalPrinted: totalCount,
+      activeSkus: products.length || uniqueSkus,
+      totalBatches: grnList.length,
+      totalJobs: recentLabels.length,
     }
   }, [recentLabels, products, grnList])
 
@@ -380,7 +381,7 @@ export default function LabelGeneration() {
       setStorageLocation(products[0].storageZone || 'Shade 1')
     }
     setLabelFormat('Product + Batch Barcode')
-    setLabelSize('60mm x 40mm')
+    setLabelSize('4" x 4" (100mm x 100mm)')
     setQuantity('10')
     setMfgDate(new Date().toISOString().split('T')[0])
     const d = new Date()
@@ -407,14 +408,52 @@ export default function LabelGeneration() {
     setRecentLabels([newEntry, ...recentLabels])
   }
 
-  // Print single label handler with rolling spinner
+  // Print single label handler with exact 4" x 4" thermal page styles
   const handlePrintSingle = async () => {
     if (isPrintingSingle) return
     setIsPrintingSingle(true)
     handleQueuePrint()
     try {
-      await printSpecificElement('#printable-thermal-label-preview', `Thermal Label - ${activeProduct.sku} (${quantity})`)
-      triggerToast(`Sent ${quantity} scannable labels to thermal printer!`)
+      const is4x4 = labelSize.includes('4" x 4"') || labelSize.includes('100mm x 100mm')
+      const customPrintStyle = is4x4
+        ? `
+          @page {
+            size: 4in 4in !important;
+            margin: 0 !important;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 4in !important;
+            height: 4in !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: #ffffff !important;
+          }
+          #printable-thermal-label-preview {
+            width: 3.82in !important;
+            height: 3.82in !important;
+            max-width: 3.82in !important;
+            max-height: 3.82in !important;
+            margin: auto !important;
+            box-sizing: border-box !important;
+            border: 2px solid #000000 !important;
+            border-radius: 8px !important;
+            padding: 12px 14px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+          }
+        `
+        : `
+          @page {
+            size: auto;
+            margin: 4mm;
+          }
+        `
+      await printSpecificElement('#printable-thermal-label-preview', `Thermal Label - ${activeProduct.sku} (${quantity})`, customPrintStyle)
+      triggerToast(`Sent ${quantity} scannable 4" × 4" labels to thermal printer!`)
     } catch {
       triggerToast('Printing initiated.')
     } finally {
@@ -440,6 +479,8 @@ export default function LabelGeneration() {
   }
 
   const labelSizeOptions = [
+    { value: '4" x 4" (100mm x 100mm)', label: '4" × 4" (100mm × 100mm - Standard Thermal Warehouse Tag)' },
+    { value: '4" x 6" (100mm x 150mm)', label: '4" × 6" (100mm × 150mm - Standard Shipping Label)' },
     { value: '60mm x 40mm', label: '60mm × 40mm (Standard Bag/Box Sticker)' },
     { value: '50mm x 30mm', label: '50mm × 30mm (Compact Item Tag)' },
     { value: '100mm x 50mm', label: '100mm × 50mm (Master Carton / Pallet)' },
@@ -990,13 +1031,13 @@ export default function LabelGeneration() {
 
           {/* Realistic High-Contrast Thermal Label Canvas */}
           <div className="border-2 border-dashed border-slate-300 rounded-2xl p-4 bg-slate-50/50 flex items-center justify-center">
-            <div id="printable-thermal-label-preview" className="printable-area w-full max-w-sm bg-white border-2 border-slate-900 rounded-xl p-4 shadow-md space-y-3 font-sans">
+            <div id="printable-thermal-label-preview" className="printable-area w-full max-w-[390px] min-h-[380px] aspect-square bg-white border-2 border-slate-900 rounded-xl p-4 shadow-md flex flex-col justify-between font-sans">
               {labelCategory === 'Location Label' ? (
                 /* Location & Rack Bin Sticker Preview */
-                <div className="space-y-3">
+                <div className="flex flex-col justify-between h-full space-y-3">
                   <div className="flex items-center justify-between border-b pb-2 border-slate-900">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
+                      <div className="w-8 h-8 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
                         WH
                       </div>
                       <div>
@@ -1005,13 +1046,13 @@ export default function LabelGeneration() {
                       </div>
                     </div>
                     <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded border border-slate-200">
-                      {labelSize}
+                      4" × 4"
                     </span>
                   </div>
 
-                  <div className="bg-slate-100/70 rounded-lg p-2.5 border border-slate-300 text-center space-y-1">
+                  <div className="bg-slate-100/70 rounded-lg p-3 border border-slate-300 text-center space-y-1 my-auto">
                     <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{selectedZone}</p>
-                    <div className="text-lg font-black text-slate-900 font-mono tracking-wider py-1 bg-white rounded border border-dashed border-slate-400">
+                    <div className="text-xl font-black text-slate-900 font-mono tracking-wider py-1.5 bg-white rounded border border-dashed border-slate-400">
                       {rackBinCode || 'SH01-RK01-R1-C1'}
                     </div>
                     {additionalInfo && (
@@ -1019,27 +1060,27 @@ export default function LabelGeneration() {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between gap-3 pt-1">
+                  <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-200">
                     {includeQr && qrCodeDataUrl && (
-                      <div className="w-16 h-16 bg-white border border-slate-400 p-1 rounded shrink-0 flex items-center justify-center">
+                      <div className="w-18 h-18 bg-white border border-slate-400 p-1 rounded shrink-0 flex items-center justify-center">
                         <img src={qrCodeDataUrl} alt="Location QR Code" className="w-full h-full object-contain" />
                       </div>
                     )}
 
                     {includeBarcode && (
                       <div className="flex-1 text-center">
-                        <svg ref={barcodeSvgRef} className="max-w-[170px] mx-auto"></svg>
+                        <svg ref={barcodeSvgRef} className="max-w-[190px] mx-auto"></svg>
                       </div>
                     )}
                   </div>
                 </div>
               ) : (
-                /* Product Thermal Sticker Preview */
-                <>
+                /* Product Thermal Sticker Preview (4" x 4" Balanced Layout) */
+                <div className="flex flex-col justify-between h-full space-y-2">
                   <div className="flex items-start justify-between border-b pb-2 border-slate-900">
                     {includeLogo ? (
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                        <div className="w-8 h-8 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
                           WH
                         </div>
                         <div>
@@ -1077,7 +1118,7 @@ export default function LabelGeneration() {
                     </div>
                   </div>
 
-                  <div className="space-y-1 text-[10px] font-mono text-slate-800 bg-slate-100/60 p-2 rounded border border-slate-300">
+                  <div className="space-y-1 text-[10px] font-mono text-slate-800 bg-slate-100/70 p-2.5 rounded-lg border border-slate-300">
                     <div className="flex justify-between">
                       <span className="text-slate-500 font-sans">Mfg Date:</span>
                       <span className="font-bold">{mfgDate}</span>
@@ -1106,10 +1147,10 @@ export default function LabelGeneration() {
 
                   {includeBarcode && (
                     <div className="text-center pt-0.5">
-                      <svg ref={barcodeSvgRef} className="max-w-[220px] mx-auto"></svg>
+                      <svg ref={barcodeSvgRef} className="max-w-[240px] mx-auto"></svg>
                     </div>
                   )}
-                </>
+                </div>
               )}
             </div>
           </div>
