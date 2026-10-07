@@ -176,51 +176,32 @@ export default function LocationMaster() {
           const defaultCode = `${rack.shadeCode}-${rack.rackNumber}-R${r}-C${c}`
           const existingCell = rawCells.find((cell) => Number(cell.row) === r && Number(cell.col) === c)
 
-          let status = existingCell?.status || 'Empty'
-          let productName = existingCell?.productName || ''
-          let batchNo = existingCell?.batchNo || ''
-          let currentStock = Number(existingCell?.currentStock) || 0
+          let status = 'Empty'
+          let productName = ''
+          let batchNo = ''
+          let currentStock = 0
           let cellCode = existingCell?.code || defaultCode
 
-          if (existingCell && (existingCell.status === 'Occupied' || existingCell.status === 'Full' || Number(existingCell.currentStock) > 0)) {
-            status = existingCell.status || 'Occupied'
-            productName = existingCell.productName
-            batchNo = existingCell.batchNo
-            currentStock = Number(existingCell.currentStock) || 1
-          }
+          if (existingCell) {
+            status = existingCell.status || 'Empty'
+            productName = existingCell.productName || ''
+            batchNo = existingCell.batchNo || ''
+            currentStock = Number(existingCell.currentStock) || 0
+          } else {
+            // If cell not in rack.cells list, check GRN allocations
+            const matchingGrn = allocatedFromGrn.find((a) => {
+              if (!a.location) return false
+              const locClean = a.location.toUpperCase().trim()
+              if (locClean === cellCode.toUpperCase() || locClean === defaultCode.toUpperCase()) return true
+              return false
+            })
 
-          // Also check GRN allocations matching cell code or (shade, rack, row, col)
-          const matchingGrn = allocatedFromGrn.find((a) => {
-            if (!a.location) return false
-            const locClean = a.location.toUpperCase().trim()
-            if (locClean === cellCode.toUpperCase() || locClean === defaultCode.toUpperCase()) return true
-
-            const sMatch = a.location.match(/SH[-_]?0?(\d+)/i)
-            const rkMatch = a.location.match(/RK[-_]?0?(\d+)/i)
-            const rMatch = a.location.match(/R0?(\d+)/i)
-            const cMatch = a.location.match(/C0?(\d+)/i)
-
-            const rackSMatch = (rack.shadeCode || '').match(/SH[-_]?0?(\d+)/i)
-            const rackRKMatch = (rack.rackNumber || '').match(/RK[-_]?0?(\d+)/i)
-
-            if (sMatch && rMatch && cMatch && rackSMatch) {
-              const shadeMatch = parseInt(sMatch[1]) === parseInt(rackSMatch[1])
-              const rowMatch = parseInt(rMatch[1]) === r
-              const colMatch = parseInt(cMatch[1]) === c
-
-              const targetRackNum = rkMatch ? parseInt(rkMatch[1]) : 1
-              const currentRackNum = rackRKMatch ? parseInt(rackRKMatch[1]) : 1
-
-              return shadeMatch && targetRackNum === currentRackNum && rowMatch && colMatch
+            if (matchingGrn) {
+              status = 'Occupied'
+              productName = matchingGrn.productName
+              batchNo = matchingGrn.batchNo
+              currentStock = Number(matchingGrn.quantity) || 1
             }
-            return false
-          })
-
-          if (matchingGrn && status === 'Empty') {
-            status = 'Occupied'
-            productName = matchingGrn.productName
-            batchNo = matchingGrn.batchNo
-            currentStock = Number(matchingGrn.quantity) || 1
           }
 
           cellsList.push({
