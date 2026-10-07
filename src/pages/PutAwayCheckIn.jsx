@@ -145,7 +145,7 @@ export default function PutAwayCheckIn() {
         grnRes.value.forEach((g) => {
           if (g.materials && g.materials.length > 0) {
             g.materials.forEach((m, idx) => {
-              const prod = prods.find((p) => p.sku === m.sku)
+              const prod = prods.find((p) => p.sku === m.sku || p.name === m.productName)
               const qc = qcs.find((q) => q.grnNo === g.grnNo && (q.sku === m.sku || q.batchNo === m.batchNo))
 
               let labStatus = 'Pending QC'
@@ -159,6 +159,9 @@ export default function PutAwayCheckIn() {
                 labStatus = 'Pending QC'
               }
 
+              const isCompleted = m.putAwayStatus === 'Completed' || Boolean(m.location) || Boolean(prod?.binLocation)
+              const assignedLocation = m.location || prod?.binLocation || `${g.shade ? g.shade.split(' ')[0] : 'SH01'}-R01-C01`
+
               mapped.push({
                 id: `${g._id}-${idx}`,
                 grnNo: g.grnNo,
@@ -171,10 +174,10 @@ export default function PutAwayCheckIn() {
                 quantity: m.totalBaseQty || (m.packageQty * m.packSize) || 1250,
                 uom: m.baseUnit || 'Kg',
                 shadeId: g.shade || 'SH01',
-                recommendedLocation: `${g.shade ? g.shade.split(' ')[0] : 'SH01'}-R01-C01`,
+                recommendedLocation: assignedLocation,
                 receivedOn: new Date(g.createdAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
                 priority: 'High',
-                status: 'Pending',
+                status: isCompleted ? 'Completed' : 'Pending',
                 labStatus: labStatus,
               })
             })
@@ -182,13 +185,14 @@ export default function PutAwayCheckIn() {
         })
         if (mapped.length > 0) {
           setQueueItems(mapped)
-          setFormGRN(mapped[0].grnNo)
-          setFormProduct(mapped[0].productName)
-          setFormBatch(mapped[0].batchNo)
-          setFormPackUnit(mapped[0].packUnit)
-          setFormBaseUnit(mapped[0].uom)
-          setFormUnitsPerPack(mapped[0].unitsPerPack)
-          setFormPacksCount(mapped[0].packsCount)
+          const firstPending = mapped.find((item) => item.status === 'Pending') || mapped[0]
+          setFormGRN(firstPending.grnNo)
+          setFormProduct(firstPending.productName)
+          setFormBatch(firstPending.batchNo)
+          setFormPackUnit(firstPending.packUnit)
+          setFormBaseUnit(firstPending.uom)
+          setFormUnitsPerPack(firstPending.unitsPerPack)
+          setFormPacksCount(firstPending.packsCount)
         }
       }
     }).catch(() => {})
@@ -456,18 +460,34 @@ export default function PutAwayCheckIn() {
       return
     }
 
-    // Allocate in backend
+    // Allocate in backend (both GRN and Rack collections)
     try {
-      await apiRequest('/rack/allocate-cell', {
-        method: 'POST',
-        body: JSON.stringify({
-          cellCode: autoBin.code,
-          productName: item.productName,
-          batchNo: item.batchNo,
-          quantity: item.quantity,
-          uom: item.uom,
+      await Promise.allSettled([
+        apiRequest('/grn/allocate-item', {
+          method: 'POST',
+          body: JSON.stringify({
+            grnNo: item.grnNo,
+            batchNo: item.batchNo,
+            sku: item.sku,
+            cellCode: autoBin.code,
+            shade: autoBin.shade,
+            row: autoBin.row,
+            col: autoBin.col,
+            productName: item.productName,
+            quantity: item.quantity,
+          }),
         }),
-      }).catch(() => {})
+        apiRequest('/rack/allocate-cell', {
+          method: 'POST',
+          body: JSON.stringify({
+            cellCode: autoBin.code,
+            productName: item.productName,
+            batchNo: item.batchNo,
+            quantity: item.quantity,
+            uom: item.uom,
+          }),
+        }),
+      ])
     } catch (err) {
       console.warn('Backend cell allocation notice:', err)
     }
@@ -530,17 +550,32 @@ export default function PutAwayCheckIn() {
     setShowHazmatModal(false)
 
     try {
-      // Allocate cell in MongoDB backend
-      await apiRequest('/rack/allocate-cell', {
-        method: 'POST',
-        body: JSON.stringify({
-          cellCode: formLocationCode,
-          productName: formProduct,
-          batchNo: formBatch,
-          quantity: baseQuantityComputed,
-          uom: formBaseUnit,
+      // Allocate in backend (both GRN and Rack collections)
+      await Promise.allSettled([
+        apiRequest('/grn/allocate-item', {
+          method: 'POST',
+          body: JSON.stringify({
+            grnNo: formGRN,
+            batchNo: formBatch,
+            cellCode: formLocationCode,
+            shade: formSelectedShade,
+            row: formSelectedRow,
+            col: formSelectedCol,
+            productName: formProduct,
+            quantity: baseQuantityComputed,
+          }),
         }),
-      }).catch(() => {})
+        apiRequest('/rack/allocate-cell', {
+          method: 'POST',
+          body: JSON.stringify({
+            cellCode: formLocationCode,
+            productName: formProduct,
+            batchNo: formBatch,
+            quantity: baseQuantityComputed,
+            uom: formBaseUnit,
+          }),
+        }),
+      ])
     } catch (err) {
       console.warn('Backend cell allocation notice:', err)
     }
