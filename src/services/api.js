@@ -67,3 +67,9 @@ export const createPartner = (data) => apiRequest('/partners', { method: 'POST',
 
 // 10. Analytics Summary
 export const fetchAnalyticsSummary = () => apiRequest('/analytics/summary')
+
+// 11. Gate Pass Management (Security & Outward)
+export const fetchGatePasses = (params = '') => apiRequest(`/gate-pass${params}`)
+export const createGatePass = (data) => apiRequest('/gate-pass', { method: 'POST', body: JSON.stringify(data) })
+export const updateGatePassStatus = (id, status, remarks) => apiRequest(`/gate-pass/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, remarks }) })
+export const deleteGatePass = (id) => apiRequest(`/gate-pass/${id}`, { method: 'DELETE' })

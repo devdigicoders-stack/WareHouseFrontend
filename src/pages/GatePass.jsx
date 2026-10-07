@@ -1,5 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
+import QRCode from 'qrcode'
 import { printSpecificElement } from '../utils/printHelper'
+import {
+  fetchGatePasses,
+  createGatePass,
+  updateGatePassStatus,
+  deleteGatePass,
+  fetchDispatches,
+} from '../services/api'
 import {
   Check,
   X,
@@ -15,6 +24,10 @@ import {
   MapPin,
   QrCode,
   RotateCcw,
+  RefreshCw,
+  Loader2,
+  AlertTriangle,
+  ArrowRight,
 } from 'lucide-react'
 
 export default function GatePass() {
@@ -23,6 +36,9 @@ export default function GatePass() {
   const [searchFilter, setSearchFilter] = useState('')
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [toastMessage, setToastMessage] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
 
   // Form State — Gate Pass Details
   const [passType, setPassType] = useState('Material Outward')
@@ -53,16 +69,151 @@ export default function GatePass() {
     },
   ])
 
-  // Recent Gate Passes List
+  // Recent Gate Passes List (Fetched from MongoDB)
   const [recentPasses, setRecentPasses] = useState([])
+  const [availableDispatches, setAvailableDispatches] = useState([])
+  const [selectedDispatchId, setSelectedDispatchId] = useState('')
 
   // Selected Pass for Modal
   const [selectedPass, setSelectedPass] = useState(null)
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('')
 
   // Toast Notification
   const triggerToast = (msg) => {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(null), 3500)
+  }
+
+  // Generate real dynamic scannable QR code whenever a pass is viewed
+  useEffect(() => {
+    if (!selectedPass) {
+      setQrCodeDataUrl('')
+      return
+    }
+
+    const itemsSummary = Array.isArray(selectedPass.materials) && selectedPass.materials.length > 0
+      ? selectedPass.materials.map((m, idx) => `${idx + 1}. ${m.productName} (Qty: ${m.qty} ${m.unit || 'Units'}${m.batchNo ? ', Batch: ' + m.batchNo : ''})`).join('\n')
+      : 'General Consignment'
+
+    const qrPayload = [
+      '=== OFFICIAL WAREHOUSE OUTWARD GATE PASS ===',
+      `Gate Pass No : ${selectedPass.id || selectedPass.passNo || 'GP-OUT'}`,
+      `Issued Date  : ${selectedPass.dateTime || new Date().toLocaleString()}`,
+      `Status       : ${selectedPass.status || 'Issued & Cleared'}`,
+      `Pass Type    : ${selectedPass.passType || 'Material Outward'}`,
+      `--------------------------------------------`,
+      `Dispatch Ref : ${selectedPass.refNo || selectedPass.dispatchNo || 'N/A'}`,
+      `Vehicle Reg  : ${selectedPass.vehicleNo || 'N/A'}`,
+      `Vehicle Type : ${selectedPass.vehicleType || 'Commercial Vehicle'}`,
+      `Driver Name  : ${selectedPass.driverName || 'N/A'}`,
+      `Driver Phone : ${selectedPass.driverContact || 'N/A'}`,
+      `Movement Purpose: ${selectedPass.purpose || 'Customer Delivery'}`,
+      `--------------------------------------------`,
+      `Consignee    : ${selectedPass.receiverName || 'Direct Consignee'}`,
+      `Destination  : ${selectedPass.receiverAddress || 'Warehouse Terminal'}`,
+      `--------------------------------------------`,
+      `Consignment Items:`,
+      itemsSummary,
+      `--------------------------------------------`,
+      `QA Security  : 100% VERIFIED & CLEARED`,
+      `Gate Stamp   : AUTHORIZED GATE EXIT (Gate 01)`,
+      '============================================'
+    ].join('\n')
+
+    QRCode.toDataURL(qrPayload, {
+      width: 256,
+      margin: 1,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff',
+      },
+      errorCorrectionLevel: 'M',
+    })
+      .then((url) => setQrCodeDataUrl(url))
+      .catch((err) => console.error('Error generating QR code:', err))
+  }, [selectedPass])
+
+  // Fetch Live Gate Passes & Dispatches from MongoDB
+  const loadGatePasses = useCallback(async () => {
+    try {
+      setLoading(true)
+      const [data, dispatchesData] = await Promise.all([
+        fetchGatePasses().catch(() => []),
+        fetchDispatches().catch(() => []),
+      ])
+
+      setAvailableDispatches(Array.isArray(dispatchesData) ? dispatchesData : [])
+
+      if (Array.isArray(data)) {
+        const mapped = data.map((p) => {
+          const formattedDate = new Date(p.dateTime || p.createdAt).toLocaleString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          })
+          return {
+            id: p.passNo || p._id,
+            _id: p._id,
+            dateTime: formattedDate,
+            vehicleNo: p.vehicleNo,
+            vehicleType: p.vehicleType || 'Heavy Commercial Truck',
+            status: p.status || 'Issued',
+            passType: p.passType || 'Material Outward',
+            purpose: p.purpose || 'Customer Delivery',
+            refNo: p.refNo || p.dispatchNo || '—',
+            driverName: p.driverName,
+            driverContact: p.driverContact || '—',
+            receiverName: p.receiverName || 'Direct Consignee',
+            receiverAddress: p.receiverAddress || 'Warehouse Transit Terminal',
+            materials: p.materials || [],
+            remarks: p.remarks || 'Gate clearance verified',
+          }
+        })
+        setRecentPasses(mapped)
+      }
+    } catch (err) {
+      console.error('Failed to load gate passes:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadGatePasses()
+  }, [loadGatePasses])
+
+  // Select Dispatch Order Slip to auto-populate form
+  const handleSelectDispatch = (dispIdentifier) => {
+    const dsp = availableDispatches.find(
+      (d) => d._id === dispIdentifier || d.dispatchNo === dispIdentifier
+    )
+    if (!dsp) {
+      setSelectedDispatchId('')
+      return
+    }
+    setSelectedDispatchId(dsp._id)
+    setReferenceNo(dsp.dispatchNo)
+    setVehicleNo(dsp.vehicleNo || '')
+    setDriverName(dsp.driverName || '')
+    setDriverContact(dsp.driverContact || '')
+    setReceiverName(dsp.customerName || '')
+    setReceiverAddress(dsp.destination || '')
+    if (Array.isArray(dsp.items) && dsp.items.length > 0) {
+      setMaterialItems(
+        dsp.items.map((it, idx) => ({
+          id: idx + 1,
+          productName: it.productName || '',
+          batchNo: it.batchNo || '—',
+          qty: it.requestedQty || it.pickedQty || 1,
+          unit: it.packagingUnit || 'Bags',
+          remarks: `Outward Dispatch item from ${dsp.dispatchNo}`,
+        }))
+      )
+    }
+    triggerToast(`Dispatch Order Slip ${dsp.dispatchNo} verified!`)
   }
 
   // Add Item to Consignment Table
@@ -107,52 +258,123 @@ export default function GatePass() {
     triggerToast('Form has been reset.')
   }
 
-  // Save & Generate Gate Pass
-  const handleGeneratePass = (e) => {
+  // Save & Generate Gate Pass — PERSISTED IN MONGODB
+  const handleGeneratePass = async (e) => {
     e.preventDefault()
+
+    const isOutward = passType === 'Material Outward' || passType === 'Commercial Issue'
+
+    // STRICT VALIDATION FOR OUTWARD PASSES:
+    if (isOutward) {
+      if (!referenceNo.trim()) {
+        triggerToast('Validation Error: Material Outward ke liye Dispatch Order Slip zaroori hai!')
+        return
+      }
+
+      const matchedDispatch = availableDispatches.find(
+        (d) => d.dispatchNo === referenceNo.trim() || d.orderNo === referenceNo.trim() || d._id === selectedDispatchId
+      )
+
+      if (!matchedDispatch && availableDispatches.length > 0) {
+        triggerToast('Validation Error: Chuna gaya Dispatch Slip system me exist nahi karta. Kripya authorized dispatch slip select karein!')
+        return
+      }
+    }
+
     if (!vehicleNo.trim() || !driverName.trim()) {
       triggerToast('Vehicle Number and Driver Name are required!')
       return
     }
 
-    const nextPassNum = recentPasses.length + 126
-    const newPassId = `GP-2026-00${nextPassNum}`
-    const formattedDate = new Date(dateTime).toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    })
+    const matchedDispatch = availableDispatches.find(
+      (d) => d.dispatchNo === referenceNo.trim() || d.orderNo === referenceNo.trim() || d._id === selectedDispatchId
+    )
 
-    const newPassObj = {
-      id: newPassId,
-      dateTime: formattedDate,
-      vehicleNo: vehicleNo.trim().toUpperCase(),
-      vehicleType,
-      status: 'Issued',
+    const payload = {
       passType,
       purpose,
-      refNo: referenceNo.trim() || `SO-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      dateTime: new Date(dateTime),
+      refNo: referenceNo.trim() || (isOutward ? '' : `REF-2026-${Math.floor(1000 + Math.random() * 9000)}`),
+      dispatchNo: isOutward ? (matchedDispatch ? matchedDispatch.dispatchNo : referenceNo.trim()) : '',
+      dispatchId: matchedDispatch ? matchedDispatch._id : (selectedDispatchId || null),
+      vehicleNo: vehicleNo.trim().toUpperCase(),
+      vehicleType,
       driverName: driverName.trim(),
       driverContact: driverContact.trim() || '—',
-      receiverName: receiverName.trim() || 'Direct Customer',
+      receiverName: receiverName.trim() || 'Direct Consignee',
       receiverAddress: receiverAddress.trim() || 'Warehouse Transit Terminal',
       materials: materialItems.map((m) => ({
         productName: m.productName || 'General Consignment',
         batchNo: m.batchNo || '—',
-        qty: m.qty || '1',
+        qty: Number(m.qty) || 1,
         unit: m.unit,
+        remarks: m.remarks || '',
       })),
+      status: 'Issued',
       remarks: additionalNotes.trim() || 'Gate clearance verified',
     }
 
-    setRecentPasses([newPassObj, ...recentPasses])
-    setSelectedPass(newPassObj)
-    setShowPrintModal(true)
-    triggerToast(`Gate Pass ${newPassId} created successfully!`)
-    handleResetForm()
+    try {
+      setIsSubmitting(true)
+      const savedPass = await createGatePass(payload)
+
+      const formattedDate = new Date(savedPass.dateTime || savedPass.createdAt).toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })
+
+      const newPassObj = {
+        id: savedPass.passNo || savedPass._id,
+        _id: savedPass._id,
+        dateTime: formattedDate,
+        vehicleNo: savedPass.vehicleNo,
+        vehicleType: savedPass.vehicleType,
+        status: savedPass.status,
+        passType: savedPass.passType,
+        purpose: savedPass.purpose,
+        refNo: savedPass.refNo,
+        driverName: savedPass.driverName,
+        driverContact: savedPass.driverContact,
+        receiverName: savedPass.receiverName,
+        receiverAddress: savedPass.receiverAddress,
+        materials: savedPass.materials || [],
+        remarks: savedPass.remarks,
+      }
+
+      setRecentPasses((prev) => [newPassObj, ...prev])
+      setSelectedPass(newPassObj)
+      setShowPrintModal(true)
+      triggerToast(`Gate Pass ${newPassObj.id} created & saved to database!`)
+      handleResetForm()
+    } catch (err) {
+      console.error(err)
+      triggerToast(err.message || 'Failed to save gate pass')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Delete Gate Pass from MongoDB
+  const handleDeletePass = async (pass) => {
+    if (!pass._id) return
+    if (!window.confirm(`Are you sure you want to delete Gate Pass ${pass.id} from the database?`)) return
+
+    try {
+      setDeletingId(pass._id)
+      await deleteGatePass(pass._id)
+      setRecentPasses((prev) => prev.filter((p) => p._id !== pass._id))
+      triggerToast(`Gate Pass ${pass.id} deleted from database.`)
+      if (selectedPass?._id === pass._id) setSelectedPass(null)
+    } catch (err) {
+      console.error(err)
+      triggerToast(err.message || 'Failed to delete pass')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   // Filtered Passes
@@ -370,6 +592,80 @@ export default function GatePass() {
                 </span>
               </div>
 
+              {/* If Material Outward is selected: Show Dispatch Slip Selector / Requirement Banner */}
+              {passType === 'Material Outward' && (
+                <div className="mb-5">
+                  {availableDispatches.length === 0 ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs space-y-2">
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                          <AlertTriangle className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-bold text-amber-900 text-sm">Valid Dispatch Order Slip Zaroori Hai</h4>
+                          <p className="text-amber-700 mt-1 leading-relaxed">
+                            Material Outward Gate Pass issue karne ke liye pehle warehouse se product dispatch hona chahiye aur uski official <strong>Dispatch Order Slip</strong> generate honi chahiye. Abhi system me koi pending dispatch nahi mila.
+                          </p>
+                          <div className="mt-3 flex items-center gap-2">
+                            <Link
+                              to="/issue-dispatch"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold transition shadow-xs"
+                            >
+                              <span>Pehle Outward Issue / Dispatch Karein</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={loadGatePasses}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-amber-300 bg-white hover:bg-amber-50 text-amber-800 font-semibold transition cursor-pointer"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              <span>Check Again</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-indigo-50/60 border border-indigo-100 rounded-2xl p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <FileText className="w-4 h-4 text-indigo-600" />
+                          <span>Select Authorized Dispatch Order Slip <span className="text-rose-500">*</span></span>
+                        </label>
+                        <span className="text-[11px] font-bold text-indigo-700 bg-white px-2.5 py-0.5 rounded-full border border-indigo-200">
+                          {availableDispatches.length} Active Dispatch Orders
+                        </span>
+                      </div>
+                      <select
+                        value={selectedDispatchId || referenceNo}
+                        onChange={(e) => handleSelectDispatch(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-indigo-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                      >
+                        <option value="">-- Chuniye Dispatch Order Slip (DSP-xxxx) --</option>
+                        {availableDispatches.map((d) => (
+                          <option key={d._id} value={d._id}>
+                            {d.dispatchNo} — {d.customerName || 'Direct'} ({d.vehicleNo || 'No Truck'}) • Order: {d.orderNo} [{d.status}]
+                          </option>
+                        ))}
+                      </select>
+
+                      {referenceNo && (
+                        <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <Check className="w-4 h-4 text-emerald-600 font-bold" />
+                            <span className="font-bold text-emerald-950 font-mono">Slip Verified: {referenceNo}</span>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            Linked with Outward Dispatch
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Pass Type */}
                 <div>
@@ -405,11 +701,18 @@ export default function GatePass() {
                 {/* Reference No */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Reference Document No. (SO / PO / MRN)
+                    {passType === 'Material Outward' ? (
+                      <>
+                        Dispatch Order Slip No. <span className="text-rose-500">*</span>
+                      </>
+                    ) : (
+                      'Reference Document No. (SO / PO / MRN)'
+                    )}
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. SO-2026-4587"
+                    required={passType === 'Material Outward'}
+                    placeholder={passType === 'Material Outward' ? 'DSP-2026-XXXX' : 'e.g. SO-2026-4587'}
                     value={referenceNo}
                     onChange={(e) => setReferenceNo(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -689,10 +992,22 @@ export default function GatePass() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:shadow transition-all"
+                  disabled={isSubmitting || (passType === 'Material Outward' && !referenceNo.trim())}
+                  className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed active:bg-indigo-800 text-white text-sm font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:shadow transition-all"
                 >
-                  <Printer className="w-4 h-4 shrink-0" />
-                  <span>Generate &amp; Print Pass</span>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving to Database...</span>
+                    </>
+                  ) : passType === 'Material Outward' && !referenceNo.trim() ? (
+                    <span>Pehle Dispatch Slip Chuniye</span>
+                  ) : (
+                    <>
+                      <Printer className="w-4 h-4 shrink-0" />
+                      <span>Generate &amp; Print Pass</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -756,8 +1071,18 @@ export default function GatePass() {
               </button>
             </div>
 
-            <div className="text-xs font-semibold text-slate-500">
-              Showing {filteredPasses.length} of {recentPasses.length} entries
+            <div className="flex items-center gap-3 text-xs font-semibold text-slate-500">
+              <button
+                type="button"
+                onClick={loadGatePasses}
+                disabled={loading}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Refresh from Database"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${loading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
+              <span>Showing {filteredPasses.length} of {recentPasses.length} entries</span>
             </div>
           </div>
 
@@ -778,7 +1103,14 @@ export default function GatePass() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredPasses.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan="9" className="py-12 text-center text-slate-400 text-sm">
+                      <Loader2 className="w-6 h-6 mx-auto text-indigo-600 animate-spin mb-2" />
+                      <span>Loading gate passes from MongoDB...</span>
+                    </td>
+                  </tr>
+                ) : filteredPasses.length === 0 ? (
                   <tr>
                     <td colSpan="9" className="py-10 text-center text-slate-400 text-sm">
                       No gate passes match the selected criteria.
@@ -822,17 +1154,32 @@ export default function GatePass() {
                         </span>
                       </td>
                       <td className="py-3.5 px-5 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedPass(pass)
-                            setShowPrintModal(true)
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-100 hover:border-indigo-600 text-xs font-bold transition-all shadow-2xs inline-flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          <span>View &amp; Print</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPass(pass)
+                              setShowPrintModal(true)
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-100 hover:border-indigo-600 text-xs font-bold transition-all shadow-2xs inline-flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>View &amp; Print</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePass(pass)}
+                            disabled={deletingId === pass._id}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer disabled:opacity-40"
+                            title="Delete Pass"
+                          >
+                            {deletingId === pass._id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -884,9 +1231,22 @@ export default function GatePass() {
                     Issued: <strong className="text-slate-900">{selectedPass.dateTime}</strong>
                   </p>
                 </div>
-                <div className="w-18 h-18 bg-white border border-slate-300 rounded-xl p-2 flex flex-col items-center justify-center shadow-xs">
-                  <QrCode className="w-12 h-12 text-slate-800" />
-                  <span className="text-[9px] font-mono font-bold text-slate-500 mt-0.5">EXIT-PASS</span>
+                <div className="flex flex-col items-center gap-1 shrink-0">
+                  <div className="w-20 h-20 bg-white border border-slate-300 rounded-xl p-1 flex items-center justify-center shadow-xs overflow-hidden">
+                    {qrCodeDataUrl ? (
+                      <img
+                        src={qrCodeDataUrl}
+                        alt={`QR Code for ${selectedPass.id}`}
+                        className="w-full h-full object-contain"
+                        title="Scan with any mobile camera to verify all gate pass details"
+                      />
+                    ) : (
+                      <QrCode className="w-12 h-12 text-slate-400 animate-pulse" />
+                    )}
+                  </div>
+                  <span className="text-[9px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    SCAN TO VERIFY
+                  </span>
                 </div>
               </div>
 

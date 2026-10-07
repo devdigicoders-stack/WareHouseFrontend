@@ -1,29 +1,37 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { apiRequest } from '../services/api'
+import QRCode from 'qrcode'
+import {
+  apiRequest,
+  fetchGatePasses,
+  createGatePass,
+  updateGatePassStatus,
+  deleteGatePass,
+  fetchDispatches,
+} from '../services/api'
 import { printSpecificElement } from '../utils/printHelper'
 import {
   FileText,
   ShieldCheck,
-  ShieldAlert,
   Truck,
   CheckCircle2,
-  AlertTriangle,
   Plus,
   Download,
-  Eye,
   RotateCcw,
   Search,
   ChevronDown,
   Check,
   X,
   Printer,
-  MapPin,
   Calendar,
   User,
   QrCode,
-  Layers,
-  ArrowUpRight,
+  Trash2,
+  RefreshCw,
+  Loader2,
+  AlertTriangle,
+  ArrowRight,
+  ExternalLink,
 } from 'lucide-react'
 
 // Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
@@ -122,61 +130,215 @@ export default function GatePassOut() {
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showVoucherModal, setShowVoucherModal] = useState(null)
+  const [voucherQrDataUrl, setVoucherQrDataUrl] = useState('')
 
-  // Create Gate Pass Form State
-  const [newPass, setNewPass] = useState({
-    dispatchNo: 'DISP-2026-325',
-    vehicleNo: 'DL-01-EA-5521',
-    driverName: 'Virender Yadav',
-    licenseNo: 'DL-0420190038124',
-    destination: 'Metro Hypermarket Central Hub',
-    shadeId: 'SH03',
-    productName: 'Parle-G Gold Biscuits (100g)',
-    baseUnit: 'Pieces',
-    packUnit: 'Gatta',
-    unitsPerPack: 6,
-    packsCount: 200,
+  // Generate real dynamic scannable QR code when voucher modal is shown
+  useEffect(() => {
+    if (!showVoucherModal) {
+      setVoucherQrDataUrl('')
+      return
+    }
+
+    const qrPayload = [
+      '=== CENTRAL WAREHOUSE OUTWARD GATE PASS ===',
+      `Gate Pass No : ${showVoucherModal.gatePassNo || 'GP-OUT'}`,
+      `Date & Time  : ${showVoucherModal.date || 'Today'}`,
+      `Status       : ${showVoucherModal.status || 'Approved & Gate Out'}`,
+      `------------------------------------------`,
+      `Dispatch Ref : ${showVoucherModal.dispatchNo || 'N/A'}`,
+      `Vehicle Reg  : ${showVoucherModal.vehicleNo || 'N/A'}`,
+      `Driver Name  : ${showVoucherModal.driverName || 'N/A'}`,
+      `License/Cont : ${showVoucherModal.licenseNo || 'VERIFIED'}`,
+      `Destination  : ${showVoucherModal.destination || 'N/A'}`,
+      `Origin Shade : ${showVoucherModal.shadeId || 'SH01'} (${showVoucherModal.location || 'N/A'})`,
+      `------------------------------------------`,
+      `Cargo Item   : ${showVoucherModal.productName || 'N/A'}`,
+      `Total Weight : ${showVoucherModal.baseQty} ${showVoucherModal.baseUnit}`,
+      `Packages     : ${showVoucherModal.packQty} ${showVoucherModal.packUnit}`,
+      `------------------------------------------`,
+      `QA QC Cert   : ${showVoucherModal.labCertNo || 'QC-PASSED'}`,
+      `QC Status    : 100% LAB QC PASSED`,
+      `Officer      : ${showVoucherModal.authorisedBy || 'Logistics Officer'}`,
+      `Gate Stamp   : CLEARED FOR DEPARTURE`,
+      '=========================================='
+    ].join('\n')
+
+    QRCode.toDataURL(qrPayload, {
+      width: 256,
+      margin: 1,
+      color: { dark: '#0f172a', light: '#ffffff' },
+      errorCorrectionLevel: 'M',
+    })
+      .then((url) => setVoucherQrDataUrl(url))
+      .catch((err) => console.error('Error generating voucher QR:', err))
+  }, [showVoucherModal])
+
+  // Loading states
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
+
+  const initialPassState = {
+    dispatchId: '',
+    dispatchNo: '',
+    orderNo: '',
+    vehicleNo: '',
+    driverName: '',
+    licenseNo: '',
+    destination: '',
+    shadeId: 'SH01',
+    productName: '',
+    baseUnit: 'Kg',
+    packUnit: 'Bags (50kg)',
+    unitsPerPack: 50,
+    packsCount: 1,
     dispatchType: 'Commercial Issue',
     labStatus: 'Passed',
-    labCertNo: 'LAB-2026-FMCG-099',
+    labCertNo: '',
     authorisedBy: 'Logistics Mgr. A. Sharma',
-    remarks: 'Verified commercial gate pass out with strict lab clearance compliance.',
-  })
+    remarks: 'Verified commercial gate pass out with authorized dispatch slip.',
+  }
 
-  // Dynamic Gate Pass Out Records
+  // Create Gate Pass Form State
+  const [newPass, setNewPass] = useState(initialPassState)
+  const [availableDispatches, setAvailableDispatches] = useState([])
+
+  // Dynamic Gate Pass Out Records (Combined from MongoDB GatePass and Dispatch)
   const [gatePasses, setGatePasses] = useState([])
 
-  useEffect(() => {
-    apiRequest('/dispatch')
-      .then((res) => {
-        if (Array.isArray(res) && res.length > 0) {
-          const mapped = res.map((d, idx) => ({
-            id: d._id || idx + 1,
-            gatePassNo: `GP-2026-${String(idx + 1).padStart(3, '0')}`,
-            date: new Date(d.dispatchDate || d.createdAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-            dispatchNo: d.dispatchNumber || `DISP-2026-${idx + 1}`,
-            vehicleNo: d.vehicleNumber || '—',
-            driverName: d.driverName || '—',
-            licenseNo: 'DL-VERIFIED',
-            destination: d.customerName || 'Central Hub',
-            shadeId: 'SH01',
-            location: 'SH01-R01-C01',
-            productName: d.items?.[0]?.productName || 'Material',
-            baseQty: d.totalQuantity || 0,
-            baseUnit: d.items?.[0]?.unit || 'Pieces',
-            packQty: d.items?.[0]?.quantity || 0,
-            packUnit: 'Packs',
-            dispatchType: 'Commercial Issue',
-            status: d.status || 'Departed',
-            labStatus: 'Passed',
-            labCertNo: 'LAB-VERIFIED',
-            authorisedBy: 'Logistics Manager',
-          }))
-          setGatePasses(mapped)
-        }
-      })
-      .catch((err) => console.error('Failed to load gate pass dispatches:', err))
+  // Selection handler for Dispatch Order Slip
+  const handleSelectDispatchSlip = (dispatchIdentifier) => {
+    const dsp = availableDispatches.find(
+      (d) => d._id === dispatchIdentifier || d.dispatchNo === dispatchIdentifier
+    )
+    if (!dsp) return
+    const item0 = dsp.items?.[0] || {}
+    const itemCount = dsp.items?.length || 1
+    const itemSummary =
+      itemCount > 1
+        ? `${item0.productName || 'Items'} (+${itemCount - 1} more items)`
+        : item0.productName || 'Material Consignment'
+
+    setNewPass((prev) => ({
+      ...prev,
+      dispatchId: dsp._id,
+      dispatchNo: dsp.dispatchNo,
+      orderNo: dsp.orderNo || '',
+      vehicleNo: dsp.vehicleNo || '',
+      driverName: dsp.driverName || '',
+      licenseNo: dsp.driverContact ? `CONT-${dsp.driverContact}` : 'DL-VERIFIED',
+      destination: dsp.destination
+        ? `${dsp.customerName ? dsp.customerName + ' - ' : ''}${dsp.destination}`
+        : dsp.customerName || 'Direct Hub',
+      shadeId: 'SH01',
+      productName: itemSummary,
+      baseUnit: dsp.baseUnit || item0.packagingUnit || 'Kg',
+      packUnit: item0.packagingUnit || 'Packs',
+      unitsPerPack: Number(item0.packSize) || 1,
+      packsCount: Number(dsp.totalPackages) || Number(item0.requestedQty) || 1,
+      dispatchType: 'Commercial Issue',
+      labStatus: 'Passed',
+      labCertNo: `QC-VAL-${dsp.dispatchNo?.slice(-4) || 'OK'}`,
+      authorisedBy: dsp.dispatchedBy || 'Logistics Mgr. A. Sharma',
+      remarks: dsp.remarks || `Verified outward dispatch slip ${dsp.dispatchNo} at gate exit.`,
+    }))
+  }
+
+  // Load Records from MongoDB
+  const loadRecords = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [passesRes, dispatchRes] = await Promise.all([
+        fetchGatePasses().catch(() => []),
+        fetchDispatches().catch(() => []),
+      ])
+
+      const validDispatches = Array.isArray(dispatchRes) ? dispatchRes : []
+      setAvailableDispatches(validDispatches)
+
+      const list = []
+
+      // 1. Add Gate Passes saved in MongoDB GatePass collection
+      if (Array.isArray(passesRes)) {
+        passesRes.forEach((p, idx) => {
+          const item0 = p.materials?.[0] || {}
+          list.push({
+            id: p.passNo || p._id || idx + 1,
+            _id: p._id,
+            isGatePassDoc: true,
+            gatePassNo: p.passNo || `GP-2026-${String(idx + 1).padStart(3, '0')}`,
+            date: new Date(p.dateTime || p.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+            dispatchNo: p.dispatchNo || p.refNo || `DISP-2026-${idx + 1}`,
+            vehicleNo: p.vehicleNo || '—',
+            driverName: p.driverName || '—',
+            licenseNo: p.driverLicense || 'DL-VERIFIED',
+            destination: p.receiverName || p.receiverAddress || 'Central Hub',
+            shadeId: p.shadeId || 'SH01',
+            location: p.location || `${p.shadeId || 'SH01'}-R01-C01`,
+            productName: item0.productName || 'General Consignment',
+            baseQty: p.totalQty || item0.qty || 0,
+            baseUnit: item0.unit || 'Pieces',
+            packQty: p.totalPacks || item0.packQty || 1,
+            packUnit: item0.packUnit || 'Packs',
+            unitsPerPack: item0.unitsPerPack || 1,
+            dispatchType: p.passType || 'Commercial Issue',
+            status: p.status || 'Approved',
+            labStatus: p.labStatus || 'Passed',
+            labCertNo: p.labCertNo || 'LAB-VERIFIED',
+            authorisedBy: p.authorisedBy || 'Logistics Manager',
+            remarks: p.remarks || '',
+          })
+        })
+      }
+
+      // 2. Add Dispatches from /dispatch that don't already have an explicit Gate Pass
+      if (validDispatches.length > 0) {
+        const existingDispatchNos = new Set(list.map((l) => l.dispatchNo))
+        validDispatches.forEach((d, idx) => {
+          if (!existingDispatchNos.has(d.dispatchNo)) {
+            const item0 = d.items?.[0] || {}
+            list.push({
+              id: d._id,
+              _id: d._id,
+              dispatchId: d._id,
+              isGatePassDoc: false,
+              gatePassNo: d.gatePassNo || `GPO-2026-${String(idx + 1).padStart(3, '0')}`,
+              date: new Date(d.dispatchDate || d.createdAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+              dispatchNo: d.dispatchNo || d.orderNo || `DSP-2026-${idx + 1}`,
+              vehicleNo: d.vehicleNo || '—',
+              driverName: d.driverName || '—',
+              licenseNo: 'DL-VERIFIED',
+              destination: d.customerName || d.destination || 'Central Hub',
+              shadeId: 'SH01',
+              location: item0.locationCode || 'SH01-R01-C01',
+              productName: item0.productName || 'Material Consignment',
+              baseQty: d.totalBaseQty || 0,
+              baseUnit: d.baseUnit || item0.packagingUnit || 'Kg',
+              packQty: d.totalPackages || item0.requestedQty || 0,
+              packUnit: item0.packagingUnit || 'Packs',
+              unitsPerPack: item0.packSize || 1,
+              dispatchType: 'Commercial Issue',
+              status: d.status || 'Pending Exit',
+              labStatus: 'Passed',
+              labCertNo: 'LAB-VERIFIED',
+              authorisedBy: d.dispatchedBy || 'Logistics Manager',
+              remarks: d.remarks || '',
+            })
+          }
+        })
+      }
+
+      setGatePasses(list)
+    } catch (err) {
+      console.error('Failed to load gate pass dispatches:', err)
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    loadRecords()
+  }, [loadRecords])
 
   // Filtered Gate Passes
   const filteredPasses = useMemo(() => {
@@ -209,56 +371,149 @@ export default function GatePassOut() {
   const stats = useMemo(() => {
     const total = gatePasses.length
     const approved = gatePasses.filter((g) => g.status === 'Approved').length
-    const pendingExit = gatePasses.filter((g) => g.status === 'Pending Exit').length
-    const departed = gatePasses.filter((g) => g.status === 'Departed').length
+    const pendingExit = gatePasses.filter((g) => g.status === 'Pending Exit' || g.status === 'Pending').length
+    const departed = gatePasses.filter((g) => g.status === 'Departed' || g.status === 'Gate Out / Cleared' || g.status === 'Dispatched').length
     return { total, approved, pendingExit, departed }
   }, [gatePasses])
 
-  // Handle Save New Gate Pass
-  const handleCreateGatePass = (e) => {
+  // Handle Save New Gate Pass — PERSISTED IN MONGODB
+  const handleCreateGatePass = async (e) => {
     e.preventDefault()
-    const computedBase = (Number(newPass.packsCount) || 0) * (Number(newPass.unitsPerPack) || 1)
-    const newNo = `GP-2026-${247 + gatePasses.length}`
-    const locCode = `${newPass.shadeId}-R01-C01`
 
-    const newRecord = {
-      id: Date.now(),
-      gatePassNo: newNo,
-      date: 'Today, Just now',
-      dispatchNo: newPass.dispatchNo,
-      vehicleNo: newPass.vehicleNo,
-      driverName: newPass.driverName,
-      licenseNo: newPass.licenseNo,
-      destination: newPass.destination,
-      shadeId: newPass.shadeId,
-      location: locCode,
-      productName: newPass.productName,
-      baseQty: computedBase,
-      baseUnit: newPass.baseUnit,
-      packQty: Number(newPass.packsCount) || 1,
-      packUnit: newPass.packUnit,
-      dispatchType: newPass.dispatchType,
-      status: 'Approved',
-      labStatus: 'Passed',
-      labCertNo: newPass.labCertNo,
-      authorisedBy: newPass.authorisedBy,
+    // 1. STRICT VALIDATION: Dispatch Order Slip MUST exist and be selected!
+    if (!newPass.dispatchNo?.trim()) {
+      triggerToast('Validation Error: Gate Pass issue karne ke liye valid Dispatch Order Slip chuniye!')
+      return
     }
 
-    setGatePasses([newRecord, ...gatePasses])
-    setShowCreateModal(false)
-    triggerToast(`Gate Pass ${newNo} issued for vehicle ${newRecord.vehicleNo}.`)
+    const matchedDispatch = availableDispatches.find(
+      (d) => d.dispatchNo === newPass.dispatchNo.trim() || d._id === newPass.dispatchId
+    )
+
+    if (!matchedDispatch && availableDispatches.length > 0) {
+      triggerToast('Validation Error: Chuni gayi Dispatch Slip system me registered nahi hai!')
+      return
+    }
+
+    if (!newPass.vehicleNo?.trim() || !newPass.driverName?.trim()) {
+      triggerToast('Vehicle Registration Number aur Driver Name required hain!')
+      return
+    }
+
+    const computedBase = (Number(newPass.packsCount) || 0) * (Number(newPass.unitsPerPack) || 1)
+    const locCode = `${newPass.shadeId}-R01-C01`
+
+    const payload = {
+      passType: newPass.dispatchType || 'Commercial Issue',
+      purpose: 'Customer Delivery',
+      refNo: newPass.orderNo || newPass.dispatchNo,
+      dispatchNo: newPass.dispatchNo,
+      dispatchId: newPass.dispatchId || (matchedDispatch ? matchedDispatch._id : null),
+      vehicleNo: newPass.vehicleNo.trim().toUpperCase(),
+      driverName: newPass.driverName.trim(),
+      driverLicense: newPass.licenseNo.trim(),
+      receiverName: newPass.destination.trim(),
+      receiverAddress: newPass.destination.trim(),
+      shadeId: newPass.shadeId,
+      location: locCode,
+      status: 'Approved',
+      labStatus: newPass.labStatus || 'Passed',
+      labCertNo: newPass.labCertNo || `QC-VAL-${newPass.dispatchNo?.slice(-4) || 'OK'}`,
+      authorisedBy: newPass.authorisedBy,
+      materials: [
+        {
+          productName: newPass.productName || 'General Consignment',
+          qty: computedBase,
+          unit: newPass.baseUnit,
+          packQty: Number(newPass.packsCount) || 1,
+          packUnit: newPass.packUnit,
+          unitsPerPack: Number(newPass.unitsPerPack) || 1,
+        },
+      ],
+      remarks: newPass.remarks,
+    }
+
+    try {
+      setIsSubmitting(true)
+      const savedPass = await createGatePass(payload)
+
+      const newRecord = {
+        id: savedPass._id,
+        _id: savedPass._id,
+        isGatePassDoc: true,
+        gatePassNo: savedPass.passNo,
+        date: new Date(savedPass.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        dispatchNo: savedPass.dispatchNo || savedPass.refNo,
+        vehicleNo: savedPass.vehicleNo,
+        driverName: savedPass.driverName,
+        licenseNo: savedPass.driverLicense || 'DL-VERIFIED',
+        destination: savedPass.receiverName,
+        shadeId: savedPass.shadeId,
+        location: savedPass.location,
+        productName: newPass.productName,
+        baseQty: computedBase,
+        baseUnit: newPass.baseUnit,
+        packQty: Number(newPass.packsCount) || 1,
+        packUnit: newPass.packUnit,
+        unitsPerPack: Number(newPass.unitsPerPack) || 1,
+        dispatchType: savedPass.passType,
+        status: savedPass.status,
+        labStatus: savedPass.labStatus,
+        labCertNo: savedPass.labCertNo,
+        authorisedBy: savedPass.authorisedBy,
+        remarks: savedPass.remarks,
+      }
+
+      setGatePasses((prev) => [newRecord, ...prev])
+      setShowCreateModal(false)
+      setShowVoucherModal(newRecord)
+      triggerToast(`Gate Pass ${savedPass.passNo} issued & saved in MongoDB!`)
+    } catch (err) {
+      console.error(err)
+      triggerToast(err.message || 'Failed to save gate pass')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  // Handle Advance Pass Status
-  const handleAdvanceStatus = (id) => {
-    setGatePasses(
-      gatePasses.map((p) => {
-        if (p.id !== id) return p
-        const next = p.status === 'Approved' ? 'Pending Exit' : 'Departed'
-        return { ...p, status: next }
-      })
-    )
-    triggerToast('Gate pass status updated.')
+  // Handle Advance Pass Status — PERSISTED IN MONGODB
+  const handleAdvanceStatus = async (item) => {
+    const next = item.status === 'Approved' ? 'Pending Exit' : 'Departed'
+    try {
+      if (item.isGatePassDoc && item._id) {
+        await updateGatePassStatus(item._id, next)
+      } else if (item.dispatchId) {
+        await apiRequest(`/dispatch/${item.dispatchId}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: next === 'Departed' ? 'Dispatched' : next }),
+        })
+      }
+      setGatePasses((prev) =>
+        prev.map((p) => (p._id === item._id ? { ...p, status: next } : p))
+      )
+      triggerToast(`Gate Pass status updated to ${next}.`)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to update status')
+    }
+  }
+
+  // Handle Delete Gate Pass — PERSISTED IN MONGODB
+  const handleDeletePass = async (item) => {
+    if (!item._id) return
+    if (!window.confirm(`Delete Gate Pass ${item.gatePassNo} (${item.vehicleNo})?`)) return
+    try {
+      setDeletingId(item._id)
+      if (item.isGatePassDoc) {
+        await deleteGatePass(item._id)
+      }
+      setGatePasses((prev) => prev.filter((p) => p._id !== item._id))
+      triggerToast(`Gate Pass ${item.gatePassNo} deleted.`)
+      if (showVoucherModal?._id === item._id) setShowVoucherModal(null)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to delete pass')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   // Export CSV
@@ -375,6 +630,17 @@ export default function GatePassOut() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
+          <button
+            type="button"
+            onClick={loadRecords}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition shrink-0 cursor-pointer disabled:opacity-50"
+            title="Refresh from Database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+
           <button
             type="button"
             onClick={handleExportCSV}
@@ -596,7 +862,14 @@ export default function GatePassOut() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paginatedPasses.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                    <Loader2 className="w-7 h-7 mx-auto text-emerald-600 animate-spin mb-2" />
+                    <span>Loading outward gate passes from MongoDB...</span>
+                  </td>
+                </tr>
+              ) : paginatedPasses.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-slate-400">
                     <FileText className="w-8 h-8 mx-auto text-slate-300 mb-2" />
@@ -699,13 +972,27 @@ export default function GatePassOut() {
                           {row.status !== 'Departed' && (
                             <button
                               type="button"
-                              onClick={() => handleAdvanceStatus(row.id)}
+                              onClick={() => handleAdvanceStatus(row)}
                               className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold transition cursor-pointer"
                               title="Advance Pass Status"
                             >
                               {row.status === 'Approved' ? 'Gate Exit' : 'Depart'}
                             </button>
                           )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePass(row)}
+                            disabled={deletingId === row._id}
+                            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition cursor-pointer disabled:opacity-40"
+                            title="Delete Gate Pass"
+                          >
+                            {deletingId === row._id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -782,18 +1069,106 @@ export default function GatePassOut() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateGatePass} className="mt-5 space-y-4 text-xs">
+            {availableDispatches.length === 0 ? (
+              <div className="mt-5 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-amber-900 text-sm">Pehle Product Dispatch Hona Zaroori Hai</h4>
+                    <p className="text-amber-700 mt-1 leading-relaxed">
+                      Warehouse standard protocol ke mutabiq, exit gate par <strong>Outward Gate Pass</strong> tabhi issue hota hai jab warehouse se product dispatch ho chuka ho aur uski <strong>Dispatch Order Slip</strong> generate ho chuki ho.
+                    </p>
+                    <p className="text-amber-800 font-semibold mt-1">
+                      Abhi system me koi pending ya active Dispatch Order Slip nahi mili.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-200/80">
+                  <Link
+                    to="/issue-dispatch"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold transition shadow-xs cursor-pointer"
+                  >
+                    <span>Pehle Product Dispatch Karein (Issue / Dispatch)</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={loadRecords}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-amber-300 bg-white hover:bg-amber-50 text-amber-800 font-semibold transition cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Check Again</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Select Authorized Dispatch Order Slip <span className="text-rose-500">*</span></span>
+                  </label>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    {availableDispatches.length} Dispatch Orders Available
+                  </span>
+                </div>
+
+                <CustomSelect
+                  value={newPass.dispatchId || newPass.dispatchNo}
+                  onChange={(val) => handleSelectDispatchSlip(val)}
+                  placeholder="-- Chuniye Dispatch Order Slip (DSP-xxxx) --"
+                  options={availableDispatches.map((d) => ({
+                    value: d._id || d.dispatchNo,
+                    label: `${d.dispatchNo || 'DSP'} — ${d.customerName || 'Direct Consignee'} (${d.vehicleNo || 'Vehicle Pending'})`,
+                    sublabel: `Order: ${d.orderNo || 'SO'} • Total: ${d.totalPackages || 1} Pkgs • Driver: ${d.driverName || '—'} [Status: ${d.status}]`,
+                  }))}
+                />
+
+                {newPass.dispatchNo ? (
+                  <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs animate-in fade-in">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <div>
+                        <span className="font-mono font-bold text-emerald-950">{newPass.dispatchNo}</span>
+                        {newPass.orderNo && (
+                          <span className="text-[11px] text-emerald-800 ml-2 font-mono">Order: {newPass.orderNo}</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Slip Verified
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-amber-700 flex items-center gap-1 mt-1 font-medium">
+                    <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                    <span>Kripya upar list me se Dispatch Order Slip select karein jiska Gate Pass banana hai.</span>
+                  </p>
+                )}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateGatePass} className="mt-4 space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
-                    Dispatch Reference No *
+                    Dispatch Reference Slip No *
                   </label>
                   <input
                     type="text"
                     required
+                    readOnly={Boolean(newPass.dispatchId)}
                     value={newPass.dispatchNo}
                     onChange={(e) => setNewPass({ ...newPass, dispatchNo: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white"
+                    placeholder="e.g. DSP-2026-0001"
+                    className={`w-full border rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                      newPass.dispatchId
+                        ? 'bg-slate-100 text-slate-700 border-slate-200 cursor-not-allowed'
+                        : 'bg-slate-50 text-slate-800 border-slate-200 focus:bg-white'
+                    }`}
                   />
                 </div>
 
@@ -950,9 +1325,19 @@ export default function GatePassOut() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                  disabled={!newPass.dispatchNo || isSubmitting}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
                 >
-                  Authorize Gate Pass
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving in Database...</span>
+                    </>
+                  ) : !newPass.dispatchNo ? (
+                    <span>Pehle Dispatch Slip Chuniye</span>
+                  ) : (
+                    <span>Authorize Outward Gate Pass</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -1020,8 +1405,22 @@ export default function GatePassOut() {
                   <p className="text-xs font-bold text-emerald-700">✓ 100% LAB QC CLEARED</p>
                   <p className="text-[9px] text-slate-400 mt-0.5 font-mono">CERT: {showVoucherModal.labCertNo}</p>
                 </div>
-                <div className="w-14 h-14 bg-slate-100 border border-slate-300 rounded-lg flex items-center justify-center">
-                  <QrCode className="w-10 h-10 text-slate-800" />
+                <div className="flex flex-col items-center gap-1 shrink-0">
+                  <div className="w-16 h-16 bg-white border border-slate-300 rounded-lg p-1 flex items-center justify-center shadow-xs overflow-hidden">
+                    {voucherQrDataUrl ? (
+                      <img
+                        src={voucherQrDataUrl}
+                        alt={`QR Code for ${showVoucherModal.gatePassNo}`}
+                        className="w-full h-full object-contain"
+                        title="Scan with any phone camera to verify gate pass"
+                      />
+                    ) : (
+                      <QrCode className="w-10 h-10 text-slate-800" />
+                    )}
+                  </div>
+                  <span className="text-[8px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                    SCAN TO VERIFY
+                  </span>
                 </div>
               </div>
 

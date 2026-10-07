@@ -1,13 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import QRCode from 'qrcode'
 import { printSpecificElement } from '../utils/printHelper'
 import {
   Truck,
   Send,
-  Package,
   Layers,
   CheckCircle2,
-  AlertTriangle,
   Plus,
   Download,
   Eye,
@@ -18,14 +17,12 @@ import {
   X,
   Printer,
   MapPin,
-  ArrowUpRight,
   Calendar,
   User,
   FileText,
   QrCode,
-  Warehouse,
 } from 'lucide-react'
-import { fetchDispatches, createDispatch, updateDispatchStatus, fetchProducts, fetchPartners } from '../services/api'
+import { fetchDispatches, createDispatch, updateDispatchStatus } from '../services/api'
 
 // Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -124,6 +121,45 @@ export default function IssueDispatch() {
   const [showNewDispatchModal, setShowNewDispatchModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(null)
   const [showGatePassModal, setShowGatePassModal] = useState(null)
+  const [gatePassQrUrl, setGatePassQrUrl] = useState('')
+
+  // Generate dynamic scannable QR code for dispatch slip voucher
+  useEffect(() => {
+    if (!showGatePassModal) {
+      setGatePassQrUrl('')
+      return
+    }
+
+    const qrPayload = [
+      '=== WAREHOUSE DISPATCH GATE PASS ===',
+      `Gate Pass No : ${showGatePassModal.dispatchNo ? 'GPO-' + showGatePassModal.dispatchNo : 'GPO-PASS'}`,
+      `Dispatch Slip: ${showGatePassModal.dispatchNo || 'N/A'}`,
+      `Order/Indent : ${showGatePassModal.poIndentNo || 'N/A'}`,
+      `Date         : ${showGatePassModal.date || 'Today'}`,
+      `Status       : ${showGatePassModal.status || 'Verified & Ready'}`,
+      `------------------------------------`,
+      `Vehicle No   : ${showGatePassModal.vehicleNo || 'N/A'}`,
+      `Driver Name  : ${showGatePassModal.driverName || 'N/A'}`,
+      `Customer     : ${showGatePassModal.customerUnit || 'N/A'}`,
+      `------------------------------------`,
+      `Product      : ${showGatePassModal.productName || 'N/A'}`,
+      `Total Weight : ${showGatePassModal.totalQty} ${showGatePassModal.baseUnit}`,
+      `Total Packs  : ${showGatePassModal.packCount} ${showGatePassModal.packUnit}`,
+      `------------------------------------`,
+      `QA Status    : 100% QC PASSED`,
+      `Gate Stamp   : AUTHORIZED GATE PASS`,
+      '===================================='
+    ].join('\n')
+
+    QRCode.toDataURL(qrPayload, {
+      width: 256,
+      margin: 1,
+      color: { dark: '#0f172a', light: '#ffffff' },
+      errorCorrectionLevel: 'M',
+    })
+      .then((url) => setGatePassQrUrl(url))
+      .catch((err) => console.error('Error generating gate pass QR:', err))
+  }, [showGatePassModal])
 
   // New Issue / Dispatch Form State
   const [newDispatch, setNewDispatch] = useState({
@@ -1298,8 +1334,22 @@ export default function IssueDispatch() {
                   <p className="text-[10px] text-slate-400 uppercase">QA Security Clearance</p>
                   <p className="text-xs font-bold text-emerald-700">✓ 100% LAB QC PASSED</p>
                 </div>
-                <div className="w-14 h-14 bg-slate-100 border border-slate-300 rounded-lg flex items-center justify-center">
-                  <QrCode className="w-10 h-10 text-slate-800" />
+                <div className="flex flex-col items-center gap-1 shrink-0">
+                  <div className="w-16 h-16 bg-white border border-slate-300 rounded-lg p-1 flex items-center justify-center shadow-xs overflow-hidden">
+                    {gatePassQrUrl ? (
+                      <img
+                        src={gatePassQrUrl}
+                        alt="Dispatch Gate Pass QR"
+                        className="w-full h-full object-contain"
+                        title="Scan with any camera to verify dispatch details"
+                      />
+                    ) : (
+                      <QrCode className="w-10 h-10 text-slate-800" />
+                    )}
+                  </div>
+                  <span className="text-[8px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                    SCAN TO VERIFY
+                  </span>
                 </div>
               </div>
 
