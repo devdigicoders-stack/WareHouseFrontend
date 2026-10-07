@@ -243,7 +243,93 @@ export default function PutAwayCheckIn() {
     return s.includes('chem') || s.includes('hygiene') || s.includes('sh05') || s.includes('hazard') || s.includes('toxic')
   }
 
-  const formLocationCode = `${formSelectedShade}-${formSelectedRow}-${formSelectedCol}`
+  // Set of all currently occupied location codes in the warehouse
+  const occupiedLocationCodes = useMemo(() => {
+    const codes = new Set()
+    racksList.forEach((rack) => {
+      if (rack.cells && Array.isArray(rack.cells)) {
+        rack.cells.forEach((cell) => {
+          if (cell.status === 'Occupied' || cell.status === 'Blocked' || cell.currentStock > 0) {
+            codes.add(cell.code)
+          }
+        })
+      }
+    })
+    queueItems.forEach((item) => {
+      if (item.status === 'Completed' && item.recommendedLocation) {
+        codes.add(item.recommendedLocation)
+      }
+    })
+    return codes
+  }, [racksList, queueItems])
+
+  // Helper to find the next available empty bin in any shade
+  const findNextAvailableBin = (shadeCode) => {
+    const cleanShade = shadeCode ? shadeCode.split(' ')[0] : 'SH01'
+    const matchingRacks = racksList.filter((r) => r.shadeCode === cleanShade || r.shadeId === cleanShade)
+
+    if (matchingRacks.length > 0) {
+      for (const rack of matchingRacks) {
+        if (rack.cells && Array.isArray(rack.cells)) {
+          for (const cell of rack.cells) {
+            if (cell.status === 'Empty' && !occupiedLocationCodes.has(cell.code)) {
+              return {
+                shade: cleanShade,
+                row: cell.row < 10 ? `R0${cell.row}` : `R${cell.row}`,
+                col: cell.col < 10 ? `C0${cell.col}` : `C${cell.col}`,
+                code: `${cleanShade}-${cell.row < 10 ? `R0${cell.row}` : `R${cell.row}`}-${cell.col < 10 ? `C0${cell.col}` : `C${cell.col}`}`,
+                found: true,
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Default search across 4 Rows x 6 Columns in this shade
+    for (let r = 1; r <= 4; r++) {
+      for (let c = 1; c <= 6; c++) {
+        const rowStr = `R0${r}`
+        const colStr = `C0${c}`
+        const testCode = `${cleanShade}-${rowStr}-${colStr}`
+        if (!occupiedLocationCodes.has(testCode)) {
+          return {
+            shade: cleanShade,
+            row: rowStr,
+            col: colStr,
+            code: testCode,
+            found: true,
+          }
+        }
+      }
+    }
+
+    // No free bin available in this shade!
+    return {
+      shade: cleanShade,
+      row: '',
+      col: '',
+      code: '',
+      found: false,
+    }
+  }
+
+  // Current auto-allocated bin status for active shade
+  const currentAvailableBin = useMemo(() => {
+    return findNextAvailableBin(formSelectedShade)
+  }, [formSelectedShade, occupiedLocationCodes, racksList])
+
+  // Auto-fill row & col when shade changes or on mount
+  useEffect(() => {
+    if (currentAvailableBin.found) {
+      if (currentAvailableBin.row) setFormSelectedRow(currentAvailableBin.row)
+      if (currentAvailableBin.col) setFormSelectedCol(currentAvailableBin.col)
+    }
+  }, [formSelectedShade, occupiedLocationCodes])
+
+  const formLocationCode = currentAvailableBin.found && formSelectedRow && formSelectedCol
+    ? `${formSelectedShade}-${formSelectedRow}-${formSelectedCol}`
+    : `${formSelectedShade}-NO-SPACE`
   const baseQuantityComputed = (Number(formPacksCount) || 0) * (Number(formUnitsPerPack) || 0)
 
   const handleCreateRack = async (e) => {
@@ -315,7 +401,7 @@ export default function PutAwayCheckIn() {
     return { pendingCount, completedCount, qcTested, qcCleared, totalProcessedUnits }
   }, [queueItems])
 
-  // Load Queue Item into Form
+  // Load Queue Item into Form with Auto-Allocation
   const handleLoadQueueItem = (item) => {
     setFormGRN(item.grnNo)
     setFormProduct(item.productName)
@@ -325,16 +411,17 @@ export default function PutAwayCheckIn() {
     setFormUnitsPerPack(item.unitsPerPack)
     setFormPacksCount(item.packsCount)
 
-    if (item.recommendedLocation) {
-      const parts = item.recommendedLocation.split('-')
-      if (parts.length === 3) {
-        setFormSelectedShade(parts[0])
-        setFormSelectedRow(parts[1])
-        setFormSelectedCol(parts[2])
-      }
-    }
+    const targetShade = item.shadeId ? item.shadeId.split(' ')[0] : formSelectedShade
+    setFormSelectedShade(targetShade)
 
-    triggerToast(`Loaded "${item.productName}" into Put-Away Form.`)
+    const autoBin = findNextAvailableBin(targetShade)
+    if (autoBin.found) {
+      setFormSelectedRow(autoBin.row)
+      setFormSelectedCol(autoBin.col)
+      triggerToast(`Auto-allocated available bin: ${autoBin.code}`)
+    } else {
+      triggerToast(`Storage Full in ${targetShade}! Please choose another shade.`, 'error')
+    }
   }
 
   // Confirm Put-Away & Check-In
@@ -631,12 +718,23 @@ export default function PutAwayCheckIn() {
               </div>
             </div>
 
-            {/* Target Bin Location Coordinates */}
-            <div>
+            {/* Target Bin Location Coordinates & Auto-Allocation Indicator */}
+            <div className="space-y-2">
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-700">
-                  Target Warehouse Facility &amp; Coordinates <span className="text-rose-500">*</span>
-                </label>
+                <div className="flex items-center gap-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Target Warehouse Coordinates <span className="text-rose-500">*</span>
+                  </label>
+                  {currentAvailableBin.found ? (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      ✓ Auto-Allocated Free Bin
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                      ⚠️ Space Full
+                    </span>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => setShowAddRackModal(true)}
@@ -646,25 +744,55 @@ export default function PutAwayCheckIn() {
                   <span>+ Add New Rack</span>
                 </button>
               </div>
+
+              {/* Warning Alert if No Space in Selected Shade */}
+              {!currentAvailableBin.found && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-800">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">⚠️ Abhi is Shade me Space nahi hai (Storage Full)</p>
+                    <p className="text-[11px] text-rose-700 mt-0.5">
+                      Shade <strong>{formSelectedShade}</strong> ke sabhi storage bins currently occupied hain. Kripya neeche se doosra Shade select karein ya naya rack add karein.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-2.5">
-                <CustomSelect
-                  value={formSelectedShade}
-                  onChange={setFormSelectedShade}
-                  options={shadeOptions}
-                  zIndexClass="z-40"
-                />
-                <CustomSelect
-                  value={formSelectedRow}
-                  onChange={setFormSelectedRow}
-                  options={rowOptions}
-                  zIndexClass="z-30"
-                />
-                <CustomSelect
-                  value={formSelectedCol}
-                  onChange={setFormSelectedCol}
-                  options={colOptions}
-                  zIndexClass="z-30"
-                />
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Storage Shade</label>
+                  <CustomSelect
+                    value={formSelectedShade}
+                    onChange={(val) => {
+                      setFormSelectedShade(val)
+                      const next = findNextAvailableBin(val)
+                      if (next.found) {
+                        setFormSelectedRow(next.row)
+                        setFormSelectedCol(next.col)
+                      }
+                    }}
+                    options={shadeOptions}
+                    zIndexClass="z-40"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Rack / Row</label>
+                  <CustomSelect
+                    value={formSelectedRow}
+                    onChange={setFormSelectedRow}
+                    options={rowOptions}
+                    zIndexClass="z-30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Column Bin</label>
+                  <CustomSelect
+                    value={formSelectedCol}
+                    onChange={setFormSelectedCol}
+                    options={colOptions}
+                    zIndexClass="z-30"
+                  />
+                </div>
               </div>
             </div>
 
@@ -681,10 +809,15 @@ export default function PutAwayCheckIn() {
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2"
+                disabled={!currentAvailableBin.found}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  currentAvailableBin.found
+                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
               >
                 <Check className="w-4 h-4" />
-                <span>Confirm Put-Away &amp; Print QR</span>
+                <span>{currentAvailableBin.found ? 'Confirm Put-Away & Print QR' : 'Cannot Check-In (No Space in this Shade)'}</span>
               </button>
             </div>
           </form>
