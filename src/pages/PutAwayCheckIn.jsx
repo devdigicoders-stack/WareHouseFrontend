@@ -26,6 +26,7 @@ import {
   Plus,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -118,9 +119,11 @@ export default function PutAwayCheckIn() {
   const [formSelectedRow, setFormSelectedRow] = useState('R1')
   const [formSelectedCol, setFormSelectedCol] = useState('C1')
   const [formRemarks, setFormRemarks] = useState('Checked in from unloading dock in pristine sealed condition.')
+  const [loading, setLoading] = useState(true)
 
   // Fetch real data on mount
   useEffect(() => {
+    setLoading(true)
     Promise.allSettled([
       apiRequest('/grn'),
       apiRequest('/shade'),
@@ -195,7 +198,9 @@ export default function PutAwayCheckIn() {
           setFormPacksCount(firstPending.packsCount)
         }
       }
-    }).catch(() => {})
+    }).catch(() => {}).finally(() => {
+      setLoading(false)
+    })
   }, [])
 
   // 6 Dedicated Shades Reference
@@ -1192,7 +1197,17 @@ export default function PutAwayCheckIn() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {paginatedQueue.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="11" className="py-8">
+                    <DataLoader
+                      text="Loading Put-Away Tasks & Dock Inventory..."
+                      subtext="Matching pending GRN items with shade and rack slots..."
+                      size="md"
+                    />
+                  </td>
+                </tr>
+              ) : paginatedQueue.length === 0 ? (
                 <tr>
                   <td colSpan="11" className="py-10 text-center text-slate-400">
                     No items in this queue matching your filter criteria.

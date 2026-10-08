@@ -19,6 +19,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Select Component to eliminate native OS dropdown black-frame flicker
 function CustomSelect({ label, value, onChange, options, required, zIndexClass = 'z-20' }) {
@@ -135,14 +136,19 @@ export default function ProductEntry() {
 
   const [products, setProducts] = useState([])
   const [shades, setShades] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    apiRequest('/product').then(setProducts).catch(() => {})
-    apiRequest('/shade').then((res) => {
-      if (Array.isArray(res) && res.length > 0) {
-        setShades(res)
-      }
-    }).catch(() => {})
+    setLoading(true)
+    Promise.allSettled([
+      apiRequest('/product'),
+      apiRequest('/shade'),
+    ]).then(([prodRes, shadeRes]) => {
+      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) setProducts(prodRes.value)
+      if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value) && shadeRes.value.length > 0) setShades(shadeRes.value)
+    }).finally(() => {
+      setLoading(false)
+    })
   }, [])
 
   const storageZoneOptions = useMemo(() => {
@@ -517,7 +523,17 @@ export default function ProductEntry() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {filteredProducts.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="10" className="py-8">
+                    <DataLoader
+                      text="Loading Product Master Catalog..."
+                      subtext="Fetching registered items, SKUs, and packaging specs..."
+                      size="md"
+                    />
+                  </td>
+                </tr>
+              ) : filteredProducts.length === 0 ? (
                 <tr>
                   <td colSpan="10" className="py-10 text-center text-slate-400 text-sm">
                     No products found matching current category or search criteria.

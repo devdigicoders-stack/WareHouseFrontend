@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   FileCheck,
 } from 'lucide-react'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -120,8 +121,10 @@ export default function LabReports() {
 
   // Master Lab Reports Data
   const [reportsData, setReportsData] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    setLoading(true)
     apiRequest('/qc')
       .then((res) => {
         if (Array.isArray(res) && res.length > 0) {
@@ -150,6 +153,7 @@ export default function LabReports() {
         }
       })
       .catch((err) => console.error('Failed to load lab reports:', err))
+      .finally(() => setLoading(false))
   }, [])
 
   // Dynamic KPI Stats calculated live from state
@@ -542,7 +546,17 @@ export default function LabReports() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {paginatedReports.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="10" className="py-8">
+                    <DataLoader
+                      text="Loading QA Lab Reports & Inspection Certificates..."
+                      subtext="Syncing certified quality metrics and analysis parameters..."
+                      size="md"
+                    />
+                  </td>
+                </tr>
+              ) : paginatedReports.length === 0 ? (
                 <tr>
                   <td colSpan="10" className="py-10 text-center text-slate-400">
                     No quality reports found matching the filter criteria.

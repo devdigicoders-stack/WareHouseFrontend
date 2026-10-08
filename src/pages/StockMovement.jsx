@@ -29,6 +29,7 @@ import {
   Tag,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -576,9 +577,12 @@ export default function StockMovement() {
             <tbody className="divide-y divide-slate-100 bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan="11" className="py-12 text-center text-slate-400">
-                    <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-indigo-600" />
-                    <span>Loading stock movements from database...</span>
+                  <td colSpan="11" className="py-8">
+                    <DataLoader
+                      text="Loading Stock Movements & Inter-Shade Transfers..."
+                      subtext="Syncing internal warehouse relocations and pallet movements..."
+                      size="md"
+                    />
                   </td>
                 </tr>
               ) : paginatedMovements.length === 0 ? (

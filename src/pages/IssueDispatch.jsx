@@ -30,6 +30,7 @@ import {
   ShieldCheck,
   Building2
 } from 'lucide-react'
+import DataLoader from '../components/common/DataLoader'
 import {
   fetchDispatches,
   createDispatch,
@@ -1010,9 +1011,12 @@ export default function IssueDispatch() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-400">
-                    <RefreshCw className="w-8 h-8 mx-auto text-indigo-500 animate-spin mb-2" />
-                    Loading outward dispatches...
+                  <td colSpan={10} className="py-8">
+                    <DataLoader
+                      text="Loading Outward Dispatches..."
+                      subtext="Fetching orders, stock balances, and gate clearance status..."
+                      size="md"
+                    />
                   </td>
                 </tr>
               ) : paginatedDispatches.length === 0 ? (

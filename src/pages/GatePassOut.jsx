@@ -33,6 +33,7 @@ import {
   ArrowRight,
   ExternalLink,
 } from 'lucide-react'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -864,9 +865,12 @@ export default function GatePassOut() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
-                    <Loader2 className="w-7 h-7 mx-auto text-emerald-600 animate-spin mb-2" />
-                    <span>Loading outward gate passes from MongoDB...</span>
+                  <td colSpan={9} className="py-8">
+                    <DataLoader
+                      text="Loading Outward Gate Passes..."
+                      subtext="Syncing verified vehicle clearance and gate-out passes..."
+                      size="md"
+                    />
                   </td>
                 </tr>
               ) : paginatedPasses.length === 0 ? (

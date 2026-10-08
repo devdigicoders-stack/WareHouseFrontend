@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import QRCode from 'qrcode'
 import { printSpecificElement } from '../utils/printHelper'
+import DataLoader from '../components/common/DataLoader'
 import {
   Users,
   UserCheck,
@@ -601,10 +602,7 @@ export default function VisitorManagement() {
         </div>
 
         {loading ? (
-          <div className="py-16 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-            <p className="text-sm font-semibold text-slate-600">Loading visitors from database...</p>
-          </div>
+          <DataLoader text="Loading Visitor & Contractor Access Register..." subtext="Syncing secure digital gate badges and active entry logs..." size="md" />
         ) : (
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-left text-sm min-w-[1050px]">

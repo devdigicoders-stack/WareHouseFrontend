@@ -33,6 +33,7 @@ import {
   ArrowRight,
   Loader2,
 } from 'lucide-react'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Accessible Select Dropdown
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -773,7 +774,17 @@ export default function LabTesting() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {paginatedSamples.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="11" className="py-8">
+                    <DataLoader
+                      text="Loading QA & Lab Testing Batches..."
+                      subtext="Syncing QC inspection parameters and CoA reports..."
+                      size="md"
+                    />
+                  </td>
+                </tr>
+              ) : paginatedSamples.length === 0 ? (
                 <tr>
                   <td colSpan="11" className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center max-w-sm mx-auto">

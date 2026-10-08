@@ -24,6 +24,7 @@ import {
   RefreshCw,
   Loader2,
 } from 'lucide-react'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Accessible Select Dropdown
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -825,9 +826,12 @@ export default function CurrentStock() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan="10" className="py-16 text-center text-slate-400">
-                    <Loader2 className="w-8 h-8 mx-auto text-indigo-600 animate-spin mb-2" />
-                    <p className="font-semibold text-slate-600">Loading inventory from MongoDB...</p>
+                  <td colSpan="10" className="py-8">
+                    <DataLoader
+                      text="Loading Live Inventory & Stock Ledger..."
+                      subtext="Syncing SKUs, shade balances, and batch quantities..."
+                      size="md"
+                    />
                   </td>
                 </tr>
               ) : paginatedStock.length === 0 ? (

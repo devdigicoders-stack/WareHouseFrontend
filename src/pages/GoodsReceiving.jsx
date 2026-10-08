@@ -24,6 +24,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Select Component to prevent black dropdown flicker
 function CustomSelect({ label, value, onChange, options, required, zIndexClass = 'z-20' }) {
@@ -802,8 +803,12 @@ export default function GoodsReceiving() {
             <tbody className="divide-y divide-slate-100 bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan="10" className="py-10 text-center text-slate-400 text-sm">
-                    Loading GRN records from server...
+                  <td colSpan="10" className="py-8">
+                    <DataLoader
+                      text="Loading Goods Receiving (GRN) Records..."
+                      subtext="Syncing received materials and batch lot numbers..."
+                      size="md"
+                    />
                   </td>
                 </tr>
               ) : filteredGrn.length === 0 ? (

@@ -5,6 +5,7 @@ import {
   CheckCircle2, AlertTriangle, ChevronDown, Check, X, ArrowUpRight,
   Eye, RefreshCw, Box, MapPin
 } from 'lucide-react'
+import DataLoader from '../components/common/DataLoader'
 
 const API = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '')
 
@@ -321,7 +322,11 @@ export default function RackManagement() {
 
         <div className="overflow-x-auto w-full">
           {loading ? (
-            <div className="py-16 text-center text-slate-400 text-sm">Loading rack hierarchy...</div>
+            <DataLoader
+              text="Loading Storage Racks & Zone Architecture..."
+              subtext="Fetching rack dimensions, cell counts, and shade allocations..."
+              size="md"
+            />
           ) : filteredRacks.length === 0 ? (
             <div className="py-16 text-center text-slate-400 text-sm">
               {racks.length === 0 ? 'No racks configured yet. Click "Add Rack" to create one.' : 'No racks match your filter.'}

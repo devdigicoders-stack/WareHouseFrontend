@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   ArrowRight,
 } from 'lucide-react'
+import DataLoader from '../components/common/DataLoader'
 
 export default function GatePass() {
   const [activeTab, setActiveTab] = useState('create') // 'create' | 'register'
@@ -1105,9 +1106,12 @@ export default function GatePass() {
               <tbody className="divide-y divide-slate-100 bg-white">
                 {loading ? (
                   <tr>
-                    <td colSpan="9" className="py-12 text-center text-slate-400 text-sm">
-                      <Loader2 className="w-6 h-6 mx-auto text-indigo-600 animate-spin mb-2" />
-                      <span>Loading gate passes from MongoDB...</span>
+                    <td colSpan="9" className="py-8">
+                      <DataLoader
+                        text="Loading Registered Gate Passes..."
+                        subtext="Fetching live inward entries and vehicle pass records..."
+                        size="md"
+                      />
                     </td>
                   </tr>
                 ) : filteredPasses.length === 0 ? (

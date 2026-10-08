@@ -14,6 +14,7 @@ import {
 } from '../services/api'
 import { exportToExcel, exportToCSV, printOrExportPDF } from '../utils/exportHelper'
 import { PRODUCT_MASTER } from '../data/productMaster'
+import DataLoader from '../components/common/DataLoader'
 import {
   FileSpreadsheet,
   BarChart3,
@@ -1025,28 +1026,35 @@ export default function Reports() {
 
         {/* Reports Table */}
         <div className="overflow-x-auto no-scrollbar">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50/75 border-b border-slate-200/80 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">
-                <th className="py-3 px-4 w-12 text-center">#</th>
-                <th className="py-3 px-4 min-w-[220px]">Report Name &amp; Code</th>
-                <th className="py-3 px-4 min-w-[150px]">Operational Module</th>
-                <th className="py-3 px-4 min-w-[140px]">Frequency &amp; Shade</th>
-                <th className="py-3 px-4 min-w-[120px] text-right">Records Count</th>
-                <th className="py-3 px-4 min-w-[140px]">Last Generated</th>
-                <th className="py-3 px-4 min-w-[120px] text-center">Formats</th>
-                <th className="py-3 px-4 min-w-[140px] text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {paginatedReports.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
-                    <FileSpreadsheet className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                    No reports match the selected filters.
-                  </td>
+          {isLoading ? (
+            <DataLoader
+              text="Loading Live Warehouse Reports & Ledger Records..."
+              subtext="Synchronizing inventory balances, GRN logs, dispatches, and gate passes..."
+              size="md"
+            />
+          ) : (
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50/75 border-b border-slate-200/80 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">
+                  <th className="py-3 px-4 w-12 text-center">#</th>
+                  <th className="py-3 px-4 min-w-[220px]">Report Name &amp; Code</th>
+                  <th className="py-3 px-4 min-w-[150px]">Operational Module</th>
+                  <th className="py-3 px-4 min-w-[140px]">Frequency &amp; Shade</th>
+                  <th className="py-3 px-4 min-w-[120px] text-right">Records Count</th>
+                  <th className="py-3 px-4 min-w-[140px]">Last Generated</th>
+                  <th className="py-3 px-4 min-w-[120px] text-center">Formats</th>
+                  <th className="py-3 px-4 min-w-[140px] text-center">Actions</th>
                 </tr>
-              ) : (
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {paginatedReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-12 text-center text-slate-400">
+                      <FileSpreadsheet className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                      No reports match the selected filters.
+                    </td>
+                  </tr>
+                ) : (
                 paginatedReports.map((row, idx) => {
                   const globalIdx = (currentPage - 1) * perPage + idx + 1
                   return (
@@ -1153,6 +1161,7 @@ export default function Reports() {
               )}
             </tbody>
           </table>
+          )}
         </div>
 
         {/* Table Pagination Footer */}

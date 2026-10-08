@@ -37,6 +37,7 @@ import {
 } from '../services/api'
 import { exportToExcel, exportToCSV, printOrExportPDF } from '../utils/exportHelper'
 import { PRODUCT_MASTER } from '../data/productMaster'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Accessible Select Dropdown
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -476,8 +477,16 @@ export default function ExportReports() {
         </div>
       </div>
 
-      {/* 4 Dynamic KPI Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      {isLoading ? (
+        <DataLoader
+          text="Loading Export Studio Data..."
+          subtext="Preparing live dataset extracts and warehouse records for export..."
+          size="full"
+        />
+      ) : (
+        <>
+          {/* 4 Dynamic KPI Stat Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 min-w-0 hover:shadow-md transition">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
             <Layers className="w-5 h-5" />
@@ -886,6 +895,8 @@ export default function ExportReports() {
           </table>
         </div>
       </div>
+        </>
+      )}
     </div>
   )
 }

@@ -32,6 +32,7 @@ import {
   CheckCheck,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Accessible Select Dropdown to eliminate black flicker
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -595,8 +596,16 @@ export default function LabelGeneration() {
         </div>
       </div>
 
-      {/* 4 Dynamic KPI Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      {loading ? (
+        <DataLoader
+          text="Loading Product Catalog & QR Label Designer..."
+          subtext="Fetching registered SKUs, barcodes, and warehouse locations..."
+          size="full"
+        />
+      ) : (
+        <>
+          {/* 4 Dynamic KPI Stat Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
             <Tag className="w-5 h-5" />
@@ -1350,6 +1359,8 @@ export default function LabelGeneration() {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   )
 }

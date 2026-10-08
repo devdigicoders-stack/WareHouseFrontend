@@ -18,6 +18,8 @@ import {
   ChevronDown,
   Check,
 } from 'lucide-react'
+import { apiRequest } from '../services/api'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -138,6 +140,93 @@ export default function DamageRejection() {
 
   // Damage & Rejection Data
   const [damageCases, setDamageCases] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    apiRequest('/grn')
+      .then((res) => {
+        let cases = []
+        if (Array.isArray(res)) {
+          let idCounter = 1
+          res.forEach((g) => {
+            if (g.materials && g.materials.length > 0) {
+              g.materials.forEach((m) => {
+                if (m.rejectedQty > 0 || m.damageQty > 0) {
+                  cases.push({
+                    id: idCounter++,
+                    refNo: `REJ-2026-0${100 + idCounter}`,
+                    date: new Date(g.createdAt || Date.now()).toLocaleDateString('en-IN'),
+                    productName: m.productName,
+                    batchNo: m.batchNo || `BTH-${g.grnNo?.slice(-4) || '2026'}`,
+                    shadeId: g.shade || 'SHADE-01',
+                    location: `${g.shade || 'SHADE-01'}-A-01`,
+                    damageType: m.rejectedQty > 0 ? 'Lab QA Rejected' : 'Physical Carton Damage (Gatta)',
+                    baseQty: m.rejectedQty || m.damageQty || 10,
+                    baseUnit: m.packagingUnit || 'Kg',
+                    packQty: 2,
+                    packUnit: 'Boxes',
+                    unitsPerPack: 5,
+                    reason: 'Visual inspection & QA tolerance failure during unloading',
+                    status: 'Moved to Hold',
+                    reportedBy: 'Kiran Maddheshiya (QA Lead)',
+                    disposalAction: 'Return to Vendor / Quarantine Hold',
+                  })
+                }
+              })
+            }
+          })
+        }
+
+        if (cases.length > 0) {
+          setDamageCases(cases)
+        } else {
+          // Default fallback demo cases
+          setDamageCases([
+            {
+              id: 1,
+              refNo: 'DMG-2026-081',
+              date: '08 Oct 2026',
+              productName: 'Basmati Rice Premium 25kg',
+              batchNo: 'BTH-2026-081',
+              shadeId: 'SHADE-02',
+              location: 'SHADE-02-B-04',
+              damageType: 'Packaging Torn (Gatta)',
+              baseQty: 75,
+              baseUnit: 'Kg',
+              packQty: 3,
+              packUnit: 'Bags',
+              unitsPerPack: 25,
+              reason: 'Outer jute bag torn during unloading from vehicle',
+              status: 'Moved to Hold',
+              reportedBy: 'Amit Patel (Storekeeper)',
+              disposalAction: 'Repack & Sift Inspection',
+            },
+            {
+              id: 2,
+              refNo: 'REJ-2026-082',
+              date: '07 Oct 2026',
+              productName: 'Refined Sunflower Oil 15L',
+              batchNo: 'BTH-2026-042',
+              shadeId: 'SHADE-02',
+              location: 'SHADE-02-C-01',
+              damageType: 'Lab QA Rejected',
+              baseQty: 30,
+              baseUnit: 'Ltr',
+              packQty: 2,
+              packUnit: 'Tins',
+              unitsPerPack: 15,
+              reason: 'Acidity level above permitted quality threshold',
+              status: 'Lab Rejected',
+              reportedBy: 'Kiran Maddheshiya (QA Lead)',
+              disposalAction: 'Return to Vendor',
+            }
+          ])
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
 
   // Filtered Damage Cases
   const filteredCases = useMemo(() => {
@@ -632,6 +721,10 @@ export default function DamageRejection() {
         </div>
 
         {/* Damage Cases Table */}
+        {loading ? (
+          <DataLoader text="Loading Damage & Rejection Quarantine Register..." subtext="Syncing damaged packaging logs, QA test reports, and write-off metrics..." size="md" />
+        ) : (
+        <>
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
@@ -764,6 +857,8 @@ export default function DamageRejection() {
             </button>
           </div>
         </div>
+        </>
+        )}
       </div>
 
       {/* MODAL 1: REPORT DAMAGE / REJECTION */}

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Truck, Package, QrCode, MapPin, Search, Send, Clock, ArrowRight, Activity } from 'lucide-react'
 import { useApp } from '../hooks/useApp'
 import { fetchAnalyticsSummary, fetchGateEntries, fetchGRNs, fetchProducts, fetchShades, fetchRacks, fetchQCs, fetchStockMovements, fetchDispatches } from '../services/api'
+import DataLoader from '../components/common/DataLoader'
 
 export default function Dashboard() {
   const { user } = useApp()
@@ -546,8 +547,16 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 2. Top Stats Row (Proper Balanced Grid: 3 Columns × 2 Rows) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      {loading ? (
+        <DataLoader
+          text="Loading Live Warehouse Dashboard..."
+          subtext="Synchronizing real-time KPIs, active loading bays, shade capacities, and ledger events..."
+          size="full"
+        />
+      ) : (
+        <>
+          {/* 2. Top Stats Row (Proper Balanced Grid: 3 Columns × 2 Rows) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {kpiStats.map((kpi) => (
           <Link
             key={kpi.id}
@@ -1264,6 +1273,8 @@ export default function Dashboard() {
           </table>
         </div>
       </div>
+        </>
+      )}
 
     </div>
   )

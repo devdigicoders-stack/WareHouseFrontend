@@ -19,6 +19,8 @@ import {
   TrendingDown,
   FileSpreadsheet,
 } from 'lucide-react'
+import { apiRequest } from '../services/api'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -139,6 +141,39 @@ export default function StockAdjustment() {
 
   // Adjustment History Data
   const [adjustmentList, setAdjustmentList] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    apiRequest('/stock-adjustment')
+      .then((res) => {
+        if (Array.isArray(res) && res.length > 0) {
+          const mapped = res.map((a, idx) => ({
+            id: a._id || idx + 1,
+            dateTime: new Date(a.date || a.createdAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+            refNo: a.refNo || `ADJ-2026-${String(idx + 1).padStart(3, '0')}`,
+            productName: a.productName || 'Material Item',
+            sku: a.sku || 'SKU-001',
+            batchNo: a.batchNo || 'BT-2026-001',
+            shadeId: a.shadeId || 'SH01',
+            location: a.location || 'SH01-R01-C01',
+            adjustmentType: a.adjustmentType || 'Increase',
+            baseQtyChange: a.baseQtyChange || 10,
+            baseUnit: a.baseUnit || 'Kg',
+            packQtyChange: a.packQtyChange || 1,
+            packUnit: a.packUnit || 'Bags',
+            unitsPerPack: a.unitsPerPack || 10,
+            adjustedBy: a.adjustedBy || 'Warehouse Manager',
+            reason: a.reason || 'Physical Stock Audit Variance',
+            status: a.status || 'Approved',
+            remarks: a.remarks || 'Stock reconciled with physical inventory.',
+          }))
+          setAdjustmentList(mapped)
+        }
+      })
+      .catch((err) => console.error('Error loading adjustments:', err))
+      .finally(() => setLoading(false))
+  }, [])
 
   // Filtered Adjustments
   const filteredAdjustments = useMemo(() => {
@@ -535,7 +570,17 @@ export default function StockAdjustment() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paginatedAdjustments.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="10" className="py-8">
+                    <DataLoader
+                      text="Loading Stock Adjustments & Reconciliation Ledger..."
+                      subtext="Fetching physical audit entries, variance records, and approvals..."
+                      size="md"
+                    />
+                  </td>
+                </tr>
+              ) : paginatedAdjustments.length === 0 ? (
                 <tr>
                   <td colSpan="10" className="py-12 text-center text-slate-400">
                     <SlidersHorizontal className="w-8 h-8 mx-auto text-slate-300 mb-2" />

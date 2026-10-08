@@ -19,6 +19,7 @@ import {
   QrCode,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Select Component to eliminate native OS dropdown black-frame flicker
 function CustomSelect({ label, value, onChange, options, required, zIndexClass = 'z-20' }) {
@@ -126,8 +127,10 @@ export default function BatchManagement() {
   // Real-time Commercial Warehouse Batch Registry (FEFO Tracking)
   const [batches, setBatches] = useState([])
   const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    setLoading(true)
     Promise.allSettled([
       apiRequest('/grn'),
       apiRequest('/product'),
@@ -199,6 +202,7 @@ export default function BatchManagement() {
         setProducts(prodRes.value)
       }
     }).catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
   // New Batch Form State
@@ -585,8 +589,11 @@ export default function BatchManagement() {
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-left text-sm min-w-[1100px]">
+        {loading ? (
+          <DataLoader text="Loading Batch Registry & FEFO Lifecycle..." subtext="Auditing active lots, manufacturing dates, and shelf-life metrics..." size="md" />
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left text-sm min-w-[1100px]">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-bold">
                 <th className="py-3.5 px-3 w-10 text-center">#</th>
@@ -697,6 +704,7 @@ export default function BatchManagement() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* ========================================================= */}

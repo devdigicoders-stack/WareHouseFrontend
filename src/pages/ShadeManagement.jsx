@@ -5,6 +5,7 @@ import {
   CheckCircle2, X, ArrowUpRight, Plus, RotateCcw, Check,
   ChevronDown, ShieldCheck, Trash2, AlertTriangle,
 } from 'lucide-react'
+import DataLoader from '../components/common/DataLoader'
 
 const API = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '')
 
@@ -264,7 +265,11 @@ export default function ShadeManagement() {
 
         <div className="overflow-x-auto w-full">
           {loading ? (
-            <div className="py-16 text-center text-slate-400 text-sm">Loading shades...</div>
+            <DataLoader
+              text="Loading Warehouse Shades..."
+              subtext="Fetching storage zones, capacities, and active managers..."
+              size="md"
+            />
           ) : filteredShades.length === 0 ? (
             <div className="py-16 text-center text-slate-400 text-sm">
               {shades.length === 0 ? 'No shades yet. Click "Add Shade" to create one.' : 'No shades match your filter.'}

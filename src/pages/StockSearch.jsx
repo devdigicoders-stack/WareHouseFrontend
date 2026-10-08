@@ -20,6 +20,7 @@ import {
   Check,
   ScanLine,
 } from 'lucide-react'
+import DataLoader from '../components/common/DataLoader'
 
 // Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -124,8 +125,10 @@ export default function StockSearch() {
 
   // Dynamic Stock Items Database
   const [stockItems, setStockItems] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    setLoading(true)
     apiRequest('/product')
       .then((res) => {
         if (Array.isArray(res) && res.length > 0) {
@@ -154,6 +157,7 @@ export default function StockSearch() {
         }
       })
       .catch((err) => console.error('Failed to load stock search items:', err))
+      .finally(() => setLoading(false))
   }, [])
 
   // Filtered Stock Results
@@ -595,7 +599,17 @@ export default function StockSearch() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paginatedStock.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="10" className="py-8">
+                    <DataLoader
+                      text="Searching Warehouse SKU & Inventory Index..."
+                      subtext="Scanning bin locations, batch lots, and current balances..."
+                      size="md"
+                    />
+                  </td>
+                </tr>
+              ) : paginatedStock.length === 0 ? (
                 <tr>
                   <td colSpan="10" className="py-12 text-center text-slate-400">
                     <Search className="w-8 h-8 mx-auto text-slate-300 mb-2" />

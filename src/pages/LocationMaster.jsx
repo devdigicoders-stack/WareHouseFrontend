@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 
 import { apiRequest } from '../services/api'
+import DataLoader from '../components/common/DataLoader'
 
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
   const [isOpen, setIsOpen] = useState(false)
@@ -548,7 +549,11 @@ export default function LocationMaster() {
 
         {/* Render Racks inside Selected Shade */}
         {loading ? (
-          <div className="py-16 text-center text-slate-400 text-sm">Loading real Mongo location cells...</div>
+          <DataLoader
+            text="Loading Warehouse Shade & Rack Grid..."
+            subtext="Calculating real-time bin capacities and slot allocations..."
+            size="md"
+          />
         ) : activeShadeRacks.length === 0 ? (
           <div className="py-16 text-center text-slate-400 text-sm space-y-3">
             <p>No Racks configured for this Shade in MongoDB yet.</p>
@@ -712,7 +717,11 @@ export default function LocationMaster() {
 
         <div className="overflow-x-auto w-full">
           {loading ? (
-            <div className="py-16 text-center text-slate-400 text-sm">Loading cell inventory...</div>
+            <DataLoader
+              text="Loading Location Cells & Inventory Allocations..."
+              subtext="Fetching mapped products, batch balances, and bin coordinates..."
+              size="md"
+            />
           ) : filteredCells.length === 0 ? (
             <div className="py-16 text-center text-slate-400 text-sm">No cells match your filter.</div>
           ) : (

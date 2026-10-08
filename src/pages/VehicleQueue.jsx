@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Loader2,
 } from 'lucide-react'
+import DataLoader from '../components/common/DataLoader'
 import {
   fetchGateEntries,
   createGateEntry,
@@ -876,10 +877,11 @@ export default function VehicleQueue() {
         </div>
 
         {loading ? (
-          <div className="py-16 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-            <p className="text-sm font-semibold text-slate-600">Loading terminal vehicles from database...</p>
-          </div>
+          <DataLoader
+            text="Loading Live Vehicle Logistics & Dock Queue..."
+            subtext="Syncing active gate entries and bay allocations..."
+            size="md"
+          />
         ) : (
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-left text-sm min-w-[1050px]">

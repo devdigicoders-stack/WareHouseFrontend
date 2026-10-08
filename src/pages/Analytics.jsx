@@ -44,6 +44,7 @@ import {
 } from '../services/api'
 import { exportToExcel, exportToCSV, printOrExportPDF } from '../utils/exportHelper'
 import { PRODUCT_MASTER } from '../data/productMaster'
+import DataLoader from '../components/common/DataLoader'
 
 // 6 Dedicated Warehouse Shades Definition
 const DEFAULT_SHADES = [
@@ -632,8 +633,16 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* Date Filter Active Banner */}
-      <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+      {isLoading ? (
+        <DataLoader
+          text="Loading Live Warehouse Analytics..."
+          subtext="Calculating real-time fill rates, SKU velocity, and dispatch trends..."
+          size="full"
+        />
+      ) : (
+        <>
+          {/* Date Filter Active Banner */}
+          <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2 text-slate-600">
           <Filter className="w-3.5 h-3.5 text-blue-600 shrink-0" />
           <span>
@@ -900,6 +909,8 @@ export default function Analytics() {
           </table>
         </div>
       </div>
+        </>
+      )}
 
       {/* MODAL 1: CUSTOM DATE RANGE PICKER */}
       {showDatePickerModal && (

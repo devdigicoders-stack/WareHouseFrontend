@@ -11,6 +11,7 @@ import {
   ArrowUpRight, Lock, Unlock, AlertTriangle, Calendar, Filter, RotateCcw,
   Download, FileSpreadsheet
 } from 'lucide-react'
+import DataLoader from '../components/common/DataLoader'
 
 const fmt = (iso) => {
   if (!iso) return '-'
@@ -157,28 +158,29 @@ export default function GateEntry() {
     setTimeout(() => setToast(null), 3800)
   }
 
-  const fetchEntries = () => {
-    apiRequest('/gate-entry')
-      .then((data) => {
-        if (Array.isArray(data)) setAllEntries(data)
-      })
-      .catch(() => triggerToast('Failed to load gate entries', 'error'))
+  const [isFetchingData, setIsFetchingData] = useState(true)
 
-    apiRequest('/grn')
-      .then((data) => {
-        if (Array.isArray(data)) setGrns(data)
-      })
-      .catch(() => {})
+  const fetchEntries = () => {
+    setIsFetchingData(true)
+    Promise.allSettled([
+      apiRequest('/gate-entry'),
+      apiRequest('/grn'),
+      apiRequest('/product'),
+      apiRequest('/shade'),
+    ]).then(([geRes, grnRes, prodRes, shadeRes]) => {
+      if (geRes.status === 'fulfilled' && Array.isArray(geRes.value)) setAllEntries(geRes.value)
+      if (grnRes.status === 'fulfilled' && Array.isArray(grnRes.value)) setGrns(grnRes.value)
+      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) setProducts(prodRes.value)
+      if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value) && shadeRes.value.length > 0) setBackendShades(shadeRes.value)
+    }).catch(() => {
+      triggerToast('Failed to load gate entries', 'error')
+    }).finally(() => {
+      setIsFetchingData(false)
+    })
   }
 
   useEffect(() => {
     fetchEntries()
-    apiRequest('/product').then((data) => {
-      if (Array.isArray(data)) setProducts(data)
-    }).catch(() => {})
-    apiRequest('/shade').then((data) => {
-      if (Array.isArray(data) && data.length > 0) setBackendShades(data)
-    }).catch(() => {})
   }, [])
 
   // Helper: Live Inward verification pipeline status (GRN -> Put-Away -> Clearance)
@@ -956,7 +958,13 @@ export default function GateEntry() {
               {activeVehicles.length} Vehicles Inside
             </span>
           </div>
-          {activeVehicles.length === 0 ? (
+          {isFetchingData ? (
+            <DataLoader
+              text="Loading Active Vehicles Inside Warehouse..."
+              subtext="Synchronizing real-time bay status, driver passes, and inward clearance..."
+              size="md"
+            />
+          ) : activeVehicles.length === 0 ? (
             <div className="py-16 text-center">
               <Truck className="w-12 h-12 mx-auto mb-3 text-slate-300" />
               <p className="text-slate-500 font-semibold">No vehicles inside premises</p>
@@ -1351,29 +1359,36 @@ export default function GateEntry() {
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-slate-100">
-            <table className="w-full text-left text-sm min-w-[1100px]">
-              <thead>
-                <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-bold">
-                  <th className="py-4 px-4">Pass No.</th>
-                  <th className="py-4 px-4">Vehicle</th>
-                  <th className="py-4 px-4">Driver</th>
-                  <th className="py-4 px-4">Supplier / Challan</th>
-                  <th className="py-4 px-4">Main Commodity (Max Qty)</th>
-                  <th className="py-4 px-4">Officer Inward Remark</th>
-                  <th className="py-4 px-4">In Time</th>
-                  <th className="py-4 px-4">Out Time &amp; Officer</th>
-                  <th className="py-4 px-4 text-center">Status</th>
-                  <th className="py-4 px-4 text-right">Gate Pass</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredLog.length === 0 ? (
-                  <tr>
-                    <td colSpan="10" className="py-10 text-center text-slate-400">
-                      No records found
-                    </td>
+            {isFetchingData ? (
+              <DataLoader
+                text="Loading Gate Register Ledger Records..."
+                subtext="Fetching vehicle logs, gate in/out timestamps, and clearances..."
+                size="md"
+              />
+            ) : (
+              <table className="w-full text-left text-sm min-w-[1100px]">
+                <thead>
+                  <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-bold">
+                    <th className="py-4 px-4">Pass No.</th>
+                    <th className="py-4 px-4">Vehicle</th>
+                    <th className="py-4 px-4">Driver</th>
+                    <th className="py-4 px-4">Supplier / Challan</th>
+                    <th className="py-4 px-4">Main Commodity (Max Qty)</th>
+                    <th className="py-4 px-4">Officer Inward Remark</th>
+                    <th className="py-4 px-4">In Time</th>
+                    <th className="py-4 px-4">Out Time &amp; Officer</th>
+                    <th className="py-4 px-4 text-center">Status</th>
+                    <th className="py-4 px-4 text-right">Gate Pass</th>
                   </tr>
-                ) : (
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {filteredLog.length === 0 ? (
+                    <tr>
+                      <td colSpan="10" className="py-10 text-center text-slate-400">
+                        No records found
+                      </td>
+                    </tr>
+                  ) : (
                   filteredLog.map((e) => (
                     <tr key={e._id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-4 px-4 font-mono font-bold text-indigo-700">{e.passNumber}</td>
@@ -1464,6 +1479,7 @@ export default function GateEntry() {
                 )}
               </tbody>
             </table>
+            )}
           </div>
         </div>
       )}
