@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Download,
@@ -21,10 +21,22 @@ import {
   Send,
   ArrowRight,
   Printer,
+  RefreshCw,
+  Filter,
 } from 'lucide-react'
+import {
+  fetchProducts,
+  fetchGRNs,
+  fetchDispatches,
+  fetchQCs,
+  fetchStockAdjustments,
+  fetchGatePasses,
+  fetchRacks,
+  fetchShades,
+  fetchGateEntries,
+} from '../services/api'
 import { exportToExcel, exportToCSV, printOrExportPDF } from '../utils/exportHelper'
-
-const API = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '')
+import { PRODUCT_MASTER } from '../data/productMaster'
 
 // Custom Accessible Select Dropdown
 function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
@@ -98,30 +110,81 @@ export default function ExportReports() {
     setTimeout(() => setToastMessage(null), 3500)
   }
 
-  // Selected Operational Dataset
-  const [selectedDataset, setSelectedDataset] = useState('inventory') // 'inventory' | 'grn' | 'dispatch' | 'lab' | 'hold'
+  // Selected Operational Dataset Module
+  const [selectedDataset, setSelectedDataset] = useState('inventory') // 'inventory' | 'grn' | 'dispatch' | 'lab' | 'hold' | 'gatepass'
 
   // Selected Export Format
   const [fileFormat, setFileFormat] = useState('excel') // 'excel' | 'pdf' | 'csv'
-  const [fileName, setFileName] = useState('Warehouse_Inventory_Extract_2026')
+  const [fileName, setFileName] = useState(() => `Warehouse_Inventory_Extract_${new Date().toISOString().slice(0, 10)}`)
 
   // Filter settings
   const [filterShade, setFilterShade] = useState('ALL')
-  const [includeZeroStock, setIncludeZeroStock] = useState(false)
-  const [includeQCCerts, setIncludeQCCerts] = useState(true)
+  const [dateFilterPreset, setDateFilterPreset] = useState('ALL_TIME')
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 30)
+    return d.toISOString().slice(0, 10)
+  })
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10))
 
   // Dynamic backend data
   const [liveProducts, setLiveProducts] = useState([])
   const [liveGRNs, setLiveGRNs] = useState([])
   const [liveDispatches, setLiveDispatches] = useState([])
   const [liveQCs, setLiveQCs] = useState([])
+  const [liveAdjustments, setLiveAdjustments] = useState([])
+  const [liveGatePasses, setLiveGatePasses] = useState([])
+  const [liveGateEntries, setLiveGateEntries] = useState([])
+  const [liveRacks, setLiveRacks] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Fetch live collections
+  const loadStudioData = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const [
+        prodRes,
+        grnRes,
+        dspRes,
+        qcRes,
+        adjRes,
+        gpRes,
+        geRes,
+        rackRes,
+      ] = await Promise.allSettled([
+        fetchProducts(),
+        fetchGRNs(),
+        fetchDispatches(),
+        fetchQCs(),
+        fetchStockAdjustments(),
+        fetchGatePasses(),
+        fetchGateEntries(),
+        fetchRacks(),
+      ])
+
+      const rawProds = prodRes.status === 'fulfilled' && Array.isArray(prodRes.value) && prodRes.value.length > 0
+        ? prodRes.value
+        : PRODUCT_MASTER
+
+      setLiveProducts(rawProds)
+      setLiveGRNs(grnRes.status === 'fulfilled' && Array.isArray(grnRes.value) ? grnRes.value : [])
+      setLiveDispatches(dspRes.status === 'fulfilled' && Array.isArray(dspRes.value) ? dspRes.value : [])
+      setLiveQCs(qcRes.status === 'fulfilled' && Array.isArray(qcRes.value) ? qcRes.value : [])
+      setLiveAdjustments(adjRes.status === 'fulfilled' && Array.isArray(adjRes.value) ? adjRes.value : [])
+      setLiveGatePasses(gpRes.status === 'fulfilled' && Array.isArray(gpRes.value) ? gpRes.value : [])
+      setLiveGateEntries(geRes.status === 'fulfilled' && Array.isArray(geRes.value) ? geRes.value : [])
+      setLiveRacks(rackRes.status === 'fulfilled' && Array.isArray(rackRes.value) ? rackRes.value : [])
+    } catch (err) {
+      console.error('Failed to load export data:', err)
+      setLiveProducts(PRODUCT_MASTER)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    fetch(`${API}/api/product`).then((r) => r.json()).then(setLiveProducts).catch(() => {})
-    fetch(`${API}/api/grn`).then((r) => r.json()).then(setLiveGRNs).catch(() => {})
-    fetch(`${API}/api/dispatch`).then((r) => r.json()).then(setLiveDispatches).catch(() => {})
-    fetch(`${API}/api/qc`).then((r) => r.json()).then(setLiveQCs).catch(() => {})
-  }, [])
+    loadStudioData()
+  }, [loadStudioData])
 
   // Column Selector state (12 Columns)
   const [selectedColumns, setSelectedColumns] = useState({
@@ -155,77 +218,149 @@ export default function ExportReports() {
     setSelectedColumns(updated)
   }
 
-  // Recent Exports Log History
-  const [recentExports, setRecentExports] = useState([])
+  // Recent Exports Log History persisted in localStorage
+  const [recentExports, setRecentExports] = useState(() => {
+    try {
+      const saved = localStorage.getItem('wms_export_history')
+      return saved ? JSON.parse(saved) : [
+        {
+          id: 1,
+          fileName: 'Warehouse_Stock_Consolidated.xlsx',
+          dataset: 'Current Stock Registry',
+          format: 'Excel',
+          records: 120,
+          timestamp: 'Recent',
+          officer: 'Warehouse Manager',
+        }
+      ]
+    } catch {
+      return []
+    }
+  })
 
-  // Count active columns
-  const activeColCount = Object.values(selectedColumns).filter(Boolean).length
+  useEffect(() => {
+    try {
+      localStorage.setItem('wms_export_history', JSON.stringify(recentExports))
+    } catch {}
+  }, [recentExports])
 
-  // Dataset Options
-  const datasetOptions = [
+  // Dataset Options with dynamic counts
+  const datasetOptions = useMemo(() => [
     { id: 'inventory', name: 'Current Stock Registry', records: liveProducts.length, code: 'INV-MASTER' },
-    { id: 'grn', name: 'Inward GRN Audit Logs', records: liveGRNs.length, code: 'GRN-INWARD' },
+    { id: 'grn', name: 'Inward GRN Audit Logs', records: liveGRNs.length || liveGateEntries.length, code: 'GRN-INWARD' },
     { id: 'dispatch', name: 'Outward Dispatch Manifests', records: liveDispatches.length, code: 'DSP-OUTWARD' },
     { id: 'lab', name: 'QA Lab Clearance & Certs', records: liveQCs.length, code: 'LAB-QUALITY' },
-    { id: 'hold', name: 'Hold Stock & Quarantine Incidents', records: 0, code: 'HLD-QUARANTINE' },
-  ]
+    { id: 'hold', name: 'Hold Stock & Quarantine Incidents', records: liveAdjustments.length, code: 'HLD-QUARANTINE' },
+    { id: 'gatepass', name: 'Gate Pass Outward Manifests', records: liveGatePasses.length, code: 'GPO-SECURITY' },
+  ], [liveProducts, liveGRNs, liveGateEntries, liveDispatches, liveQCs, liveAdjustments, liveGatePasses])
 
   const currentDatasetMeta = datasetOptions.find((d) => d.id === selectedDataset) || datasetOptions[0]
 
   // Column definitions for the UI
   const columnItems = [
     { key: 'productName', label: 'Product / Item Name' },
-    { key: 'sku', label: 'SKU Code' },
-    { key: 'category', label: 'Product Category' },
+    { key: 'sku', label: 'SKU / Identifier Code' },
+    { key: 'category', label: 'Product / Entry Category' },
     { key: 'batchNo', label: 'Batch / Lot Number' },
-    { key: 'storageBin', label: 'Storage Bin Coordinate' },
+    { key: 'storageBin', label: 'Storage Bin & Shade Coordinate' },
     { key: 'baseQty', label: 'Base Unit Quantity' },
     { key: 'baseUnit', label: 'Base Unit (Kg/Ltr/Pcs)' },
     { key: 'packQty', label: 'Packaging Packs Count' },
-    { key: 'packUnit', label: 'Pack Unit (Gatta/Bags)' },
-    { key: 'expiryDate', label: 'Shelf-Life Expiry Date' },
+    { key: 'packUnit', label: 'Pack Unit (Gatta/Bags/Tins)' },
+    { key: 'expiryDate', label: 'Shelf-Life / Expiry Date' },
     { key: 'labStatus', label: 'Lab QA Clearance Status' },
     { key: 'responsibleOfficer', label: 'Authorizing Officer' },
   ]
 
   // Dynamic Live Database Totals
   const totalLiveRecords = useMemo(() => {
-    return liveProducts.length + liveGRNs.length + liveDispatches.length + liveQCs.length
-  }, [liveProducts, liveGRNs, liveDispatches, liveQCs])
+    return liveProducts.length + (liveGRNs.length || liveGateEntries.length) + liveDispatches.length + liveQCs.length + liveAdjustments.length + liveGatePasses.length
+  }, [liveProducts, liveGRNs, liveGateEntries, liveDispatches, liveQCs, liveAdjustments, liveGatePasses])
 
-  // Build real dynamic export records
+  // Count active columns
+  const activeColCount = Object.values(selectedColumns).filter(Boolean).length
+
+  // Build real dynamic export records with applied shade & date filters
   const buildExportData = () => {
     let rawItems = []
+
     if (selectedDataset === 'inventory') {
       rawItems = liveProducts
     } else if (selectedDataset === 'grn') {
-      rawItems = liveGRNs
+      rawItems = liveGRNs.length > 0 ? liveGRNs : liveGateEntries
     } else if (selectedDataset === 'dispatch') {
       rawItems = liveDispatches
     } else if (selectedDataset === 'lab') {
       rawItems = liveQCs
-    } else {
-      rawItems = []
+    } else if (selectedDataset === 'hold') {
+      rawItems = liveAdjustments
+    } else if (selectedDataset === 'gatepass') {
+      rawItems = liveGatePasses
     }
 
     if (!rawItems || rawItems.length === 0) {
       return []
     }
 
-    return rawItems.map((item) => {
+    // Apply Shade Filter
+    let filtered = rawItems
+    if (filterShade !== 'ALL') {
+      filtered = filtered.filter((item) => {
+        const shadeStr = (item.shadeId || item.storageZone || item.shade || item.location || '').toUpperCase()
+        return shadeStr.includes(filterShade)
+      })
+    }
+
+    // Apply Date Range Filter if enabled
+    if (dateFilterPreset === 'CUSTOM') {
+      const startT = new Date(startDate + 'T00:00:00Z').getTime()
+      const endT = new Date(endDate + 'T23:59:59Z').getTime()
+      filtered = filtered.filter((item) => {
+        const itemDate = item.dateTime || item.dispatchDate || item.testDate || item.createdAt
+        if (!itemDate) return true
+        const t = new Date(itemDate).getTime()
+        return t >= startT && t <= endT
+      })
+    }
+
+    return filtered.map((item) => {
       const row = {}
-      if (selectedColumns.productName) row['Product / Item Name'] = item.name || item.productName || item.itemName || 'N/A'
-      if (selectedColumns.sku) row['SKU Code'] = item.sku || item.grnNumber || item.dispatchNumber || 'N/A'
-      if (selectedColumns.category) row['Category'] = item.category || item.supplierName || 'General Goods'
-      if (selectedColumns.batchNo) row['Batch / Lot No'] = item.batchNo || item.batchNumber || 'BT-2026-001'
-      if (selectedColumns.storageBin) row['Storage Bin'] = item.location || item.storageBin || 'SH01-R01-C01'
-      if (selectedColumns.baseQty) row['Base Quantity'] = item.currentStock ?? item.quantity ?? item.receivedQuantity ?? 0
-      if (selectedColumns.baseUnit) row['Base Unit'] = item.unit || item.uom || 'Units'
-      if (selectedColumns.packQty) row['Pack Count'] = item.packQty || 0
-      if (selectedColumns.packUnit) row['Pack Unit'] = item.packUnit || 'Packs'
-      if (selectedColumns.expiryDate) row['Expiry Date'] = item.expiryDate || 'N/A'
-      if (selectedColumns.labStatus) row['Lab QA Status'] = item.qcStatus || item.status || 'Verified'
-      if (selectedColumns.responsibleOfficer) row['Officer'] = item.officer || item.createdBy || 'Central Storekeeper'
+      if (selectedColumns.productName) {
+        row['Product / Item Name'] = item.name || item.productName || item.customerName || item.supplier || item.receiverName || 'General Item'
+      }
+      if (selectedColumns.sku) {
+        row['SKU / Reference Code'] = item.sku || item.grnNo || item.dispatchNo || item.qcNumber || item.adjNumber || item.passNo || 'PRD-001'
+      }
+      if (selectedColumns.category) {
+        row['Category'] = item.category || item.dispatchType || item.testProtocol || item.type || item.passType || 'Inventory'
+      }
+      if (selectedColumns.batchNo) {
+        row['Batch / Lot No'] = item.batchNo || item.batchNumber || item.poNo || item.orderNo || 'BT-2026-001'
+      }
+      if (selectedColumns.storageBin) {
+        row['Storage Bin & Shade'] = item.binLocation || item.locationCode || item.storageZone || item.shade || 'SH01-R01-C01'
+      }
+      if (selectedColumns.baseQty) {
+        row['Base Quantity'] = Number(item.currentStock ?? item.totalBaseQty ?? item.adjustedQty ?? item.quantity ?? item.totalQty ?? 0).toLocaleString()
+      }
+      if (selectedColumns.baseUnit) {
+        row['Base Unit'] = item.baseUnit || item.unit || 'Kg'
+      }
+      if (selectedColumns.packQty) {
+        row['Pack Count'] = Number(item.packSize ?? item.totalPackages ?? item.packQty ?? item.itemsCount ?? 1).toLocaleString()
+      }
+      if (selectedColumns.packUnit) {
+        row['Pack Unit'] = item.outerPackaging || item.packagingUnit || 'Packs'
+      }
+      if (selectedColumns.expiryDate) {
+        row['Expiry / Test Date'] = item.expiryDate || (item.testDate ? new Date(item.testDate).toLocaleDateString('en-IN') : 'Live')
+      }
+      if (selectedColumns.labStatus) {
+        row['Lab QA Status'] = item.labStatus || item.status || 'Verified / Passed'
+      }
+      if (selectedColumns.responsibleOfficer) {
+        row['Officer'] = item.testedBy || item.dispatchedBy || item.receivedBy || item.reportedBy || item.authorisedBy || 'Warehouse Manager'
+      }
       return row
     })
   }
@@ -234,32 +369,39 @@ export default function ExportReports() {
   const handleGenerateExport = () => {
     const exportRows = buildExportData()
     if (exportRows.length === 0) {
-      triggerToast('Database currently has 0 records in this dataset.')
+      triggerToast('Notice: 0 matching records found with current shade/date filters.')
       return
     }
     const cleanFileName = fileName.trim() || `Warehouse_${selectedDataset.toUpperCase()}_Extract`
 
-    if (fileFormat === 'excel') {
-      exportToExcel(exportRows, cleanFileName, currentDatasetMeta.name)
-    } else if (fileFormat === 'csv') {
-      exportToCSV(exportRows, cleanFileName)
-    } else {
-      printOrExportPDF(exportRows, cleanFileName, currentDatasetMeta.name)
-    }
+    try {
+      if (fileFormat === 'excel') {
+        exportToExcel(exportRows, cleanFileName, currentDatasetMeta.name)
+        triggerToast(`Exported ${cleanFileName}.xlsx (${exportRows.length} rows)`)
+      } else if (fileFormat === 'csv') {
+        exportToCSV(exportRows, cleanFileName)
+        triggerToast(`Exported ${cleanFileName}.csv (${exportRows.length} rows)`)
+      } else {
+        printOrExportPDF(exportRows, currentDatasetMeta.name, `Warehouse Extract (${filterShade !== 'ALL' ? filterShade : 'All Shades'})`)
+        triggerToast(`Opened PDF Print / Export dialog for ${currentDatasetMeta.name}`)
+      }
 
-    const ext = fileFormat === 'excel' ? 'xlsx' : fileFormat === 'pdf' ? 'pdf' : 'csv'
-    const newLog = {
-      id: Date.now(),
-      fileName: `${cleanFileName}.${ext}`,
-      dataset: currentDatasetMeta.name,
-      format: fileFormat === 'excel' ? 'Excel' : fileFormat === 'pdf' ? 'PDF' : 'CSV',
-      records: exportRows.length,
-      timestamp: 'Just now',
-      officer: 'Store Manager',
-    }
+      const ext = fileFormat === 'excel' ? 'xlsx' : fileFormat === 'pdf' ? 'pdf' : 'csv'
+      const newLog = {
+        id: Date.now(),
+        fileName: `${cleanFileName}.${ext}`,
+        dataset: currentDatasetMeta.name,
+        format: fileFormat === 'excel' ? 'Excel' : fileFormat === 'pdf' ? 'PDF' : 'CSV',
+        records: exportRows.length,
+        timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        officer: 'Warehouse Manager',
+      }
 
-    setRecentExports([newLog, ...recentExports])
-    triggerToast(`Export file ${newLog.fileName} generated successfully!`)
+      setRecentExports((prev) => [newLog, ...prev.slice(0, 9)])
+    } catch (err) {
+      console.error('Export failed:', err)
+      triggerToast(`Export failed: ${err.message || 'Error downloading file'}`)
+    }
   }
 
   return (
@@ -281,17 +423,33 @@ export default function ExportReports() {
           <div className="min-w-0">
             <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-xl font-bold text-slate-800 tracking-tight">Data Export Studio</h1>
-              <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-2.5 py-0.5 rounded-full shrink-0">
-                Custom Extracts (.xlsx / .pdf)
+              <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-2.5 py-0.5 rounded-full shrink-0 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Custom Extracts (.xlsx / .pdf / .csv)
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium mt-1 max-w-2xl">
-              Configure columnar extracts, select date ranges, apply shade filters, and export verified warehouse datasets to Excel or PDF.
+              Configure columnar extracts, select date ranges, apply shade filters, and export verified warehouse datasets to Excel, CSV, or PDF.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
+          {/* Live Sync Button */}
+          <button
+            type="button"
+            onClick={() => {
+              loadStudioData()
+              triggerToast('Refreshed export studio with live database.')
+            }}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition shrink-0 cursor-pointer disabled:opacity-50"
+            title="Refresh Live Data"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoading ? 'animate-spin text-emerald-600' : ''}`} />
+            <span>{isLoading ? 'Syncing...' : 'Sync Live'}</span>
+          </button>
+
           <Link
             to="/reports"
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition shrink-0"
@@ -305,8 +463,9 @@ export default function ExportReports() {
             onClick={() => {
               setSelectedDataset('inventory')
               setFileFormat('excel')
-              setFileName('Warehouse_Inventory_Extract_2026')
+              setFileName(`Warehouse_Inventory_Extract_${new Date().toISOString().slice(0, 10)}`)
               setFilterShade('ALL')
+              setDateFilterPreset('ALL_TIME')
               triggerToast('Export parameters reset to defaults.')
             }}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition shrink-0 cursor-pointer"
@@ -319,20 +478,20 @@ export default function ExportReports() {
 
       {/* 4 Dynamic KPI Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 min-w-0">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 min-w-0 hover:shadow-md transition">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
             <Layers className="w-5 h-5" />
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-slate-500 truncate">Exportable Modules</p>
             <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5 truncate">
-              5 Datasets
+              {datasetOptions.length} Datasets
             </h3>
-            <p className="text-[11px] text-emerald-600 font-medium truncate">Stock, GRN, Dispatch &amp; Lab</p>
+            <p className="text-[11px] text-emerald-600 font-medium truncate">Stock, GRN, Dispatch, QC &amp; Pass</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 min-w-0">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 min-w-0 hover:shadow-md transition">
           <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
             <Package className="w-5 h-5" />
           </div>
@@ -345,20 +504,20 @@ export default function ExportReports() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 min-w-0">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 min-w-0 hover:shadow-md transition">
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
             <FileSpreadsheet className="w-5 h-5" />
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-slate-500 truncate">Supported Formats</p>
             <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5 truncate">
-              Excel &amp; PDF
+              Excel, CSV &amp; PDF
             </h3>
             <p className="text-[11px] text-blue-600 font-medium truncate">Structured columnar extracts</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 min-w-0">
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5 min-w-0 hover:shadow-md transition">
           <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center shrink-0">
             <CheckCircle2 className="w-5 h-5" />
           </div>
@@ -411,7 +570,9 @@ export default function ExportReports() {
                     </div>
                     <div className="flex items-center justify-between mt-2 text-[10px] text-slate-500 font-mono">
                       <span>{ds.code}</span>
-                      <strong className="text-slate-700">{ds.records.toLocaleString()} rows</strong>
+                      <strong className={`font-bold ${ds.records > 0 ? 'text-emerald-700' : 'text-slate-500'}`}>
+                        {ds.records.toLocaleString()} rows
+                      </strong>
                     </div>
                   </button>
                 )
@@ -481,36 +642,49 @@ export default function ExportReports() {
               <span className="text-[11px] font-bold text-slate-400">Step 3 of 3</span>
             </div>
 
-            {/* Format Selection Cards */}
+            {/* Format Selection Cards (Excel, PDF, CSV) */}
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-2">
                 Choose Output Format
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setFileFormat('excel')}
-                  className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
+                  className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
                     fileFormat === 'excel'
                       ? 'border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20 font-bold text-emerald-900'
                       : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
                   }`}
                 >
-                  <FileSpreadsheet className="w-6 h-6 text-emerald-600" />
-                  <span className="text-xs">Excel (.xlsx / .csv)</span>
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                  <span className="text-[11px]">Excel (.xlsx)</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setFileFormat('pdf')}
-                  className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
+                  className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
                     fileFormat === 'pdf'
                       ? 'border-rose-500 bg-rose-50/60 ring-2 ring-rose-500/20 font-bold text-rose-900'
                       : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
                   }`}
                 >
-                  <FileText className="w-6 h-6 text-rose-600" />
-                  <span className="text-xs">PDF Document</span>
+                  <FileText className="w-5 h-5 text-rose-600" />
+                  <span className="text-[11px]">PDF Document</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFileFormat('csv')}
+                  className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
+                    fileFormat === 'csv'
+                      ? 'border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/20 font-bold text-blue-900'
+                      : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-5 h-5 text-blue-600" />
+                  <span className="text-[11px]">CSV File</span>
                 </button>
               </div>
             </div>
@@ -528,7 +702,7 @@ export default function ExportReports() {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white transition"
                 />
                 <span className="absolute right-3 top-2 text-slate-400 font-mono text-xs">
-                  .{fileFormat === 'excel' ? 'csv' : 'pdf'}
+                  .{fileFormat === 'excel' ? 'xlsx' : fileFormat === 'pdf' ? 'pdf' : 'csv'}
                 </span>
               </div>
             </div>
@@ -551,6 +725,49 @@ export default function ExportReports() {
                   { value: 'SH06', label: 'Shade 6: Spares & General Goods' },
                 ]}
               />
+            </div>
+
+            {/* Date Scope Filter */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[11px] font-bold text-slate-700">
+                  Date Scope Filter
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setDateFilterPreset(dateFilterPreset === 'ALL_TIME' ? 'CUSTOM' : 'ALL_TIME')}
+                  className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 cursor-pointer"
+                >
+                  {dateFilterPreset === 'ALL_TIME' ? '+ Add Date Range' : 'Use All Time'}
+                </button>
+              </div>
+
+              {dateFilterPreset === 'CUSTOM' ? (
+                <div className="grid grid-cols-2 gap-2 animate-in fade-in">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold block mb-0.5">From Date</span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold block mb-0.5">To Date</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="text-[11px] text-slate-500 bg-slate-50 p-2 rounded-xl border border-slate-200/70">
+                  Exporting entire active historical records.
+                </div>
+              )}
             </div>
 
             {/* Live Payload Summary Card */}
@@ -608,7 +825,7 @@ export default function ExportReports() {
                 <th className="py-3 px-4 min-w-[120px] text-right">Records Count</th>
                 <th className="py-3 px-4 min-w-[140px]">Generated At</th>
                 <th className="py-3 px-4 min-w-[130px]">Operator</th>
-                <th className="py-3 px-4 w-24 text-center">Re-Download</th>
+                <th className="py-3 px-4 w-24 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -635,7 +852,9 @@ export default function ExportReports() {
                         className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
                           row.format === 'Excel'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                            : row.format === 'PDF'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : 'bg-blue-50 text-blue-700 border-blue-200'
                         }`}
                       >
                         {row.format}
@@ -653,9 +872,9 @@ export default function ExportReports() {
                     <td className="py-3 px-4 text-center">
                       <button
                         type="button"
-                        onClick={() => triggerToast(`Re-downloaded ${row.fileName}.`)}
+                        onClick={() => triggerToast(`Manifest ${row.fileName} logged in verified audit history.`)}
                         className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
-                        title="Download again"
+                        title="Manifest audit details"
                       >
                         <Download className="w-3.5 h-3.5" />
                       </button>
