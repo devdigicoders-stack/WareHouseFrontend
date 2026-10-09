@@ -145,30 +145,74 @@ export default function StockAdjustment() {
 
   useEffect(() => {
     setLoading(true)
-    apiRequest('/stock-adjustment')
+    apiRequest('/stock-adjust')
       .then((res) => {
         if (Array.isArray(res) && res.length > 0) {
           const mapped = res.map((a, idx) => ({
             id: a._id || idx + 1,
             dateTime: new Date(a.date || a.createdAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-            refNo: a.refNo || `ADJ-2026-${String(idx + 1).padStart(3, '0')}`,
+            refNo: a.adjNumber || a.refNo || `ADJ-2026-${String(idx + 1).padStart(3, '0')}`,
             productName: a.productName || 'Material Item',
             sku: a.sku || 'SKU-001',
             batchNo: a.batchNo || 'BT-2026-001',
-            shadeId: a.shadeId || 'SH01',
-            location: a.location || 'SH01-R01-C01',
-            adjustmentType: a.adjustmentType || 'Increase',
-            baseQtyChange: a.baseQtyChange || 10,
-            baseUnit: a.baseUnit || 'Kg',
-            packQtyChange: a.packQtyChange || 1,
-            packUnit: a.packUnit || 'Bags',
-            unitsPerPack: a.unitsPerPack || 10,
-            adjustedBy: a.adjustedBy || 'Warehouse Manager',
+            shadeId: a.shadeId || (a.locationCode ? a.locationCode.split('-')[0] : 'SH01'),
+            location: a.locationCode || a.location || 'SH01-R01-C01',
+            adjustmentType: a.variance >= 0 ? 'Increase' : 'Decrease',
+            baseQtyChange: a.variance !== undefined ? (a.variance >= 0 ? `+${a.variance}` : `${a.variance}`) : `+${a.adjustedQty || 10}`,
+            baseUnit: a.unit || a.baseUnit || 'Kg',
+            packQtyChange: '+1',
+            packUnit: 'Bags',
+            unitsPerPack: 10,
+            adjustedBy: a.reportedBy || a.adjustedBy || 'Warehouse Manager',
             reason: a.reason || 'Physical Stock Audit Variance',
-            status: a.status || 'Approved',
-            remarks: a.remarks || 'Stock reconciled with physical inventory.',
+            status: a.status === 'Approved / Executed' ? 'Approved' : (a.status || 'Approved'),
+            remarks: a.notes || a.remarks || 'Stock reconciled with physical inventory.',
           }))
           setAdjustmentList(mapped)
+        } else {
+          // Fallback initial demo records if db is fresh
+          setAdjustmentList([
+            {
+              id: 1,
+              dateTime: '08 Oct 2026',
+              refNo: 'ADJ-2026-001',
+              productName: 'Basmati Rice Premium 25kg',
+              sku: 'PRD-RIC-001',
+              batchNo: 'BTH-2026-081',
+              shadeId: 'SHADE-02',
+              location: 'SHADE-02-B-01',
+              adjustmentType: 'Increase',
+              baseQtyChange: '+50',
+              baseUnit: 'Kg',
+              packQtyChange: '+2 Bags',
+              packsChange: '+2 Bags',
+              unitsPerPack: 25,
+              adjustedBy: 'Kiran Maddheshiya (Store Manager)',
+              reason: 'Cycle Count Audit Variance',
+              status: 'Approved',
+              remarks: 'Extra 2 bags discovered during physical counting reconciled to book stock.',
+            },
+            {
+              id: 2,
+              dateTime: '07 Oct 2026',
+              refNo: 'ADJ-2026-002',
+              productName: 'Refined Sunflower Oil 15L',
+              sku: 'PRD-OIL-002',
+              batchNo: 'BTH-2026-042',
+              shadeId: 'SHADE-02',
+              location: 'SHADE-02-C-04',
+              adjustmentType: 'Decrease',
+              baseQtyChange: '-15',
+              baseUnit: 'Ltr',
+              packQtyChange: '-1 Tin',
+              packsChange: '-1 Tin',
+              unitsPerPack: 15,
+              adjustedBy: 'Amit Patel (Storekeeper)',
+              reason: 'Damaged / Leaked Goods Write-off',
+              status: 'Approved',
+              remarks: '1 Tin written off due to carton drop damage during internal forklift transit.',
+            }
+          ])
         }
       })
       .catch((err) => console.error('Error loading adjustments:', err))
@@ -212,7 +256,7 @@ export default function StockAdjustment() {
   }, [adjustmentList])
 
   // Handle Save New Adjustment
-  const handleSaveAdjustment = (e) => {
+  const handleSaveAdjustment = async (e) => {
     e.preventDefault()
     const computedBase = (Number(newAdjustment.packsCount) || 0) * (Number(newAdjustment.unitsPerPack) || 1)
     const deltaSign = newAdjustment.adjustmentType === 'Increase' ? '+' : '-'
@@ -243,6 +287,28 @@ export default function StockAdjustment() {
     setAdjustmentList([newRecord, ...adjustmentList])
     setShowNewModal(false)
     triggerToast(`Adjustment ${refCode} logged: ${deltaSign}${computedBase} ${newRecord.baseUnit}.`)
+
+    try {
+      await apiRequest('/stock-adjust', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: newAdjustment.reason.includes('Cycle') ? 'Cycle Count Adjustment' : 'Internal Transfer',
+          productName: newAdjustment.productName,
+          sku: newAdjustment.sku,
+          batchNo: newAdjustment.batchNo,
+          locationCode: locCode,
+          adjustedQty: computedBase,
+          variance: newAdjustment.adjustmentType === 'Increase' ? computedBase : -computedBase,
+          unit: newAdjustment.baseUnit,
+          reason: newAdjustment.reason,
+          reportedBy: newAdjustment.adjustedBy,
+          notes: newAdjustment.remarks,
+          status: 'Approved / Executed'
+        })
+      })
+    } catch (err) {
+      console.error('Error saving adjustment to backend:', err)
+    }
   }
 
   // Export CSV
