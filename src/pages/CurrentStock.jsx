@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import QRCode from 'qrcode'
 import { printSpecificElement } from '../utils/printHelper'
 
 const API = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '')
@@ -131,6 +132,30 @@ export default function CurrentStock() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(null)
   const [showQrModal, setShowQrModal] = useState(null)
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('')
+
+  // Generate dynamic 2D QR Code data URL when QR sticker modal opens
+  useEffect(() => {
+    if (showQrModal) {
+      const payload = JSON.stringify({
+        product: showQrModal.productName,
+        sku: showQrModal.sku,
+        batchNo: showQrModal.batchNo,
+        location: showQrModal.location,
+        quantity: showQrModal.packsCount || 1,
+        packUnit: showQrModal.packUnit || 'Bag',
+        expiryDate: showQrModal.expiryDate,
+        baseQty: showQrModal.availableQty,
+        baseUnit: showQrModal.baseUnit || 'Kg',
+        status: showQrModal.labStatus || 'Passed',
+      })
+      QRCode.toDataURL(payload, { width: 240, margin: 1, errorCorrectionLevel: 'M' })
+        .then((url) => setQrCodeDataUrl(url))
+        .catch(() => setQrCodeDataUrl(''))
+    } else {
+      setQrCodeDataUrl('')
+    }
+  }, [showQrModal])
 
   // Add Stock Form State
   const [newStock, setNewStock] = useState({
@@ -1336,7 +1361,11 @@ export default function CurrentStock() {
                 </p>
               </div>
               <div className="w-28 h-28 bg-white p-2 mx-auto rounded-xl border border-slate-200 flex items-center justify-center shadow-xs">
-                <QrCode className="w-full h-full text-slate-800" />
+                {qrCodeDataUrl ? (
+                  <img src={qrCodeDataUrl} alt="Bin QR Code" className="w-full h-full object-contain" />
+                ) : (
+                  <QrCode className="w-full h-full text-slate-800 animate-pulse" />
+                )}
               </div>
               <div className="text-[11px] text-slate-700 font-semibold pt-1 border-t border-slate-200">
                 Stock: {showQrModal.availableQty.toLocaleString()} {showQrModal.baseUnit} ({showQrModal.packsCount} {showQrModal.packUnit})
