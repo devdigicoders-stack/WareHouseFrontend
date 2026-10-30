@@ -141,35 +141,42 @@ export default function StockAdjustment() {
 
   // Adjustment History Data
   const [adjustmentList, setAdjustmentList] = useState([])
+  const [productsList, setProductsList] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    apiRequest('/stock-adjust')
-      .then((res) => {
-        if (Array.isArray(res) && res.length > 0) {
-          const mapped = res.map((a, idx) => ({
-            id: a._id || idx + 1,
-            dateTime: new Date(a.date || a.createdAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-            refNo: a.adjNumber || a.refNo || `ADJ-2026-${String(idx + 1).padStart(3, '0')}`,
-            productName: a.productName || 'Material Item',
-            sku: a.sku || 'SKU-001',
-            batchNo: a.batchNo || 'BT-2026-001',
-            shadeId: a.shadeId || (a.locationCode ? a.locationCode.split('-')[0] : 'SH01'),
-            location: a.locationCode || a.location || 'SH01-R01-C01',
-            adjustmentType: a.variance >= 0 ? 'Increase' : 'Decrease',
-            baseQtyChange: a.variance !== undefined ? (a.variance >= 0 ? `+${a.variance}` : `${a.variance}`) : `+${a.adjustedQty || 10}`,
-            baseUnit: a.unit || a.baseUnit || 'Kg',
-            packQtyChange: '+1',
-            packUnit: 'Bags',
-            unitsPerPack: 10,
-            adjustedBy: a.reportedBy || a.adjustedBy || 'Warehouse Manager',
-            reason: a.reason || 'Physical Stock Audit Variance',
-            status: a.status === 'Approved / Executed' ? 'Approved' : (a.status || 'Approved'),
-            remarks: a.notes || a.remarks || 'Stock reconciled with physical inventory.',
-          }))
-          setAdjustmentList(mapped)
-        } else {
+    Promise.allSettled([
+      apiRequest('/stock-adjust'),
+      apiRequest('/product'),
+    ]).then(([adjRes, prodRes]) => {
+      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
+        setProductsList(prodRes.value)
+      }
+
+      if (adjRes.status === 'fulfilled' && Array.isArray(adjRes.value) && adjRes.value.length > 0) {
+        const mapped = adjRes.value.map((a, idx) => ({
+          id: a._id || idx + 1,
+          dateTime: new Date(a.date || a.createdAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+          refNo: a.adjNumber || a.refNo || `ADJ-2026-${String(idx + 1).padStart(3, '0')}`,
+          productName: a.productName || 'Material Item',
+          sku: a.sku || 'SKU-001',
+          batchNo: a.batchNo || 'BT-2026-001',
+          shadeId: a.shadeId || (a.locationCode ? a.locationCode.split('-')[0] : 'SH01'),
+          location: a.locationCode || a.location || 'SH01-R01-C01',
+          adjustmentType: a.variance >= 0 ? 'Increase' : 'Decrease',
+          baseQtyChange: a.variance !== undefined ? (a.variance >= 0 ? `+${a.variance}` : `${a.variance}`) : `+${a.adjustedQty || 10}`,
+          baseUnit: a.unit || a.baseUnit || 'Kg',
+          packQtyChange: '+1',
+          packUnit: 'Bags',
+          unitsPerPack: 10,
+          adjustedBy: a.reportedBy || a.adjustedBy || 'Warehouse Manager',
+          reason: a.reason || 'Physical Stock Audit Variance',
+          status: a.status === 'Approved / Executed' ? 'Approved' : (a.status || 'Approved'),
+          remarks: a.notes || a.remarks || 'Stock reconciled with physical inventory.',
+        }))
+        setAdjustmentList(mapped)
+      } else {
           // Fallback initial demo records if db is fresh
           setAdjustmentList([
             {
@@ -263,6 +270,23 @@ export default function StockAdjustment() {
     const refCode = `ADJ-2026-0${147 + adjustmentList.length}`
     const locCode = `${newAdjustment.shadeId}-${newAdjustment.row}-${newAdjustment.col}`
 
+    const matchedProd = productsList.find(
+      (p) => p.name === newAdjustment.productName || p.sku === newAdjustment.sku
+    )
+
+    // PHYSICAL INVENTORY BOUNDARY CHECK
+    if (newAdjustment.adjustmentType === 'Decrease' && matchedProd) {
+      const availStock = Number(matchedProd.currentStock) || 0
+      if (availStock <= 0) {
+        triggerToast(`Cannot deduct stock: "${matchedProd.name}" is already Out of Stock (0 ${matchedProd.baseUnit || 'Kg'}).`, 'error')
+        return
+      }
+      if (computedBase > availStock) {
+        triggerToast(`Cannot deduct ${computedBase} ${newAdjustment.baseUnit}. Available stock is only ${availStock} ${matchedProd.baseUnit || 'Kg'}.`, 'error')
+        return
+      }
+    }
+
     const newRecord = {
       id: Date.now(),
       dateTime: 'Today, Just now',
@@ -293,6 +317,7 @@ export default function StockAdjustment() {
         method: 'POST',
         body: JSON.stringify({
           type: newAdjustment.reason.includes('Cycle') ? 'Cycle Count Adjustment' : 'Internal Transfer',
+          productId: matchedProd?._id || null,
           productName: newAdjustment.productName,
           sku: newAdjustment.sku,
           batchNo: newAdjustment.batchNo,
@@ -781,6 +806,47 @@ export default function StockAdjustment() {
             </div>
 
             <form onSubmit={handleSaveAdjustment} className="space-y-3.5 text-xs">
+              {/* Quick Select from Registered Products */}
+              {productsList.length > 0 && (
+                <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-indigo-950">
+                    <span>QUICK-SELECT REGISTERED PRODUCT:</span>
+                    <span className="text-[10px] text-indigo-600 font-semibold">Auto-fills SKU, unit & location</span>
+                  </div>
+                  <select
+                    className="w-full bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    defaultValue=""
+                    onChange={(e) => {
+                      const p = productsList.find((x) => x._id === e.target.value)
+                      if (p) {
+                        const rowCode = p.row || (p.binLocation ? p.binLocation.split('-')[1] : 'R01')
+                        const colCode = p.col || (p.binLocation ? p.binLocation.split('-')[2] : 'C01')
+                        setNewAdjustment({
+                          ...newAdjustment,
+                          productName: p.name,
+                          sku: p.sku || '',
+                          batchNo: p.batchNo || 'BT-2026-001',
+                          shadeId: p.shadeId || 'SH01',
+                          row: rowCode,
+                          col: colCode,
+                          baseUnit: p.baseUnit || p.unit || 'Kg',
+                          packUnit: p.outerPackaging || 'Bags',
+                          unitsPerPack: Number(p.packSize) || 25,
+                        })
+                        triggerToast(`Loaded "${p.name}" with stock: ${p.currentStock || 0} ${p.baseUnit || 'Kg'}`)
+                      }
+                    }}
+                  >
+                    <option value="" disabled>-- Select Product from Inventory --</option>
+                    {productsList.map((p) => (
+                      <option key={p._id} value={p._id}>
+                        {p.name} (SKU: {p.sku || 'N/A'}) — Stock: {p.currentStock || 0} {p.baseUnit || p.unit || 'Kg'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">Adjustment Type *</label>

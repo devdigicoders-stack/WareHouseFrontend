@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { apiRequest } from '../services/api'
 import { printSpecificElement } from '../utils/printHelper'
@@ -23,6 +23,8 @@ import {
   Award,
   ShieldCheck,
   FileCheck,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react'
 import DataLoader from '../components/common/DataLoader'
 
@@ -122,39 +124,46 @@ export default function LabReports() {
   // Master Lab Reports Data
   const [reportsData, setReportsData] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const loadReports = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await apiRequest('/qc')
+      if (Array.isArray(res) && res.length > 0) {
+        const mapped = res.map((q, idx) => ({
+          id: q._id || idx + 1,
+          reportNo: q.certificateNo || `LR-2026-${String(idx + 1).padStart(3, '0')}`,
+          sampleId: q.qcNumber || `LBT-2026-${String(idx + 1).padStart(3, '0')}`,
+          productName: q.productName || 'Material Item',
+          sku: q.sku || 'PRD-001',
+          batchNo: q.batchNo || 'BT-2026-001',
+          testType: q.testProtocol || q.parameters?.[0]?.name || 'Physical & Lab Analysis',
+          testedOn: new Date(q.testDate || q.createdAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+          result: q.status === 'Passed' ? 'Pass' : q.status === 'Failed / Rejected' ? 'Fail' : 'Conditional',
+          approvedBy: q.testedBy || 'QA Inspector',
+          parameters: Array.isArray(q.parameters) && q.parameters.length > 0
+            ? q.parameters.map((p) => ({
+                param: p.name || 'Quality Metric',
+                standard: p.standard || 'Standard Spec',
+                observation: p.value || 'Observed Value',
+                status: p.status || 'Pass',
+              }))
+            : [{ param: 'Standard Inspection', standard: 'Quality Metric Pass', observation: '100% Passed', status: 'Pass' }],
+          remarks: q.remarks || 'Standard certified warehouse testing report.',
+        }))
+        setReportsData(mapped)
+      }
+    } catch (err) {
+      console.error('Failed to load lab reports:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    setLoading(true)
-    apiRequest('/qc')
-      .then((res) => {
-        if (Array.isArray(res) && res.length > 0) {
-          const mapped = res.map((q, idx) => ({
-            id: q._id || idx + 1,
-            reportNo: `LR-2026-${String(idx + 1).padStart(3, '0')}`,
-            sampleId: q.qcNumber || `LBT-2026-${String(idx + 1).padStart(3, '0')}`,
-            productName: q.productName || 'Material Item',
-            sku: q.sku || 'PRD-001',
-            batchNo: q.batchNo || 'BT-2026-001',
-            testType: q.parameters?.[0]?.name || 'Physical & Lab Analysis',
-            testedOn: new Date(q.testDate || q.createdAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-            result: q.status === 'Passed' ? 'Pass' : q.status === 'Failed / Rejected' ? 'Fail' : 'Conditional',
-            approvedBy: q.testedBy || 'QA Inspector',
-            parameters: Array.isArray(q.parameters) && q.parameters.length > 0
-              ? q.parameters.map((p) => ({
-                  param: p.name || 'Quality Metric',
-                  standard: p.standard || 'Standard Spec',
-                  observation: p.value || 'Observed Value',
-                  status: p.status || 'Pass',
-                }))
-              : [{ param: 'Standard Inspection', standard: 'Quality Metric Pass', observation: '100% Passed', status: 'Pass' }],
-            remarks: q.remarks || 'Standard certified warehouse testing report.',
-          }))
-          setReportsData(mapped)
-        }
-      })
-      .catch((err) => console.error('Failed to load lab reports:', err))
-      .finally(() => setLoading(false))
-  }, [])
+    loadReports()
+  }, [loadReports])
 
   // Dynamic KPI Stats calculated live from state
   const stats = useMemo(() => {
@@ -210,33 +219,50 @@ export default function LabReports() {
     triggerToast('All lab report filters reset.')
   }
 
-  // Generate Report Handler
-  const handleGenerateReport = (e) => {
+  // Generate Report Handler — 100% PERSISTED IN MONGODB
+  const handleGenerateReport = async (e) => {
     e.preventDefault()
-    const newId = reportsData.length + 1
-    const repNo = `LR-2026-${String(newId).padStart(3, '0')}`
+    if (isSubmitting) return
 
-    const newRecord = {
-      id: newId,
-      reportNo: repNo,
-      sampleId: newReport.sampleId,
-      productName: newReport.productName,
-      sku: `PRD-${newReport.batchNo.slice(3, 6)}-0${newId}`,
-      batchNo: newReport.batchNo,
-      testType: newReport.testType,
-      testedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      result: newReport.result,
-      approvedBy: newReport.approvedBy,
-      parameters: [
-        { param: 'Visual & Physical Appearance', standard: 'Uniform / Standard Compliant', observation: 'Verified Normal', status: 'Pass' },
-        { param: 'Specification Verification', standard: 'Quality Baseline Passed', observation: 'Standard Compliant', status: newReport.result },
-      ],
-      remarks: newReport.remarks || 'Formal laboratory clearance report generated and archived.',
+    if (!newReport.productName || !newReport.batchNo) {
+      triggerToast('Product Name and Batch Number are required', 'error')
+      return
     }
 
-    setReportsData([newRecord, ...reportsData])
-    setShowGenerateModal(false)
-    triggerToast(`Quality Report ${repNo} generated and digitally signed!`)
+    setIsSubmitting(true)
+    const newId = reportsData.length + 1
+    const repNo = `LR-2026-${String(newId).padStart(3, '0')}`
+    const qcNum = (newReport.sampleId && newReport.sampleId.trim()) || `QC-2026-${String(newId).padStart(4, '0')}`
+
+    try {
+      await apiRequest('/qc', {
+        method: 'POST',
+        body: JSON.stringify({
+          qcNumber: qcNum,
+          certificateNo: repNo,
+          grnNo: 'GRN-INWARD',
+          productName: newReport.productName,
+          batchNo: newReport.batchNo.trim().toUpperCase(),
+          sku: `PRD-${newReport.batchNo.slice(0, 3)}-0${newId}`,
+          testProtocol: newReport.testType,
+          testedBy: newReport.approvedBy,
+          status: newReport.result === 'Pass' ? 'Passed' : newReport.result === 'Fail' ? 'Failed / Rejected' : 'Quarantine / Under Test',
+          remarks: newReport.remarks || 'Formal laboratory clearance report generated and archived.',
+          parameters: [
+            { name: newReport.testType, standard: 'Standard Specification', observed: 'Measurement Complete', pass: newReport.result === 'Pass' },
+            { name: 'Sensory & Physical Integrity', standard: 'Clean & Specimen Compliant', observed: 'Verified Inward', pass: true },
+          ],
+        }),
+      })
+
+      setShowGenerateModal(false)
+      triggerToast(`Quality Report ${repNo} generated & saved in MongoDB Atlas!`)
+      await loadReports()
+    } catch (err) {
+      triggerToast(err.message || 'Failed to save QA report in database', 'error')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Export CSV
@@ -335,6 +361,15 @@ export default function LabReports() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={loadReports}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
+            <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
           <button
             type="button"
             onClick={() => setShowQRModal(true)}
@@ -787,9 +822,11 @@ export default function LabReports() {
                 </button>
                 <button
                   type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition"
+                  disabled={isSubmitting}
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white px-5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer"
                 >
-                  Issue Quality Report
+                  {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{isSubmitting ? 'Saving to Database...' : 'Issue Quality Report'}</span>
                 </button>
               </div>
             </form>

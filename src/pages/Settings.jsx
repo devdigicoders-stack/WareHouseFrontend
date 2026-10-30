@@ -1,6 +1,7 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { X, Check, Save } from 'lucide-react'
+import { X, Check, Save, Loader2 } from 'lucide-react'
+import { apiRequest } from '../services/api'
 
 export default function Settings() {
   // Toast notifications state
@@ -79,43 +80,41 @@ export default function Settings() {
   // Backup State
   const [lastBackupDate, setLastBackupDate] = useState('15 Sep 2026, 11:30 PM')
   const [isBackingUp, setIsBackingUp] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [showBackupModal, setShowBackupModal] = useState(false)
 
-  // Backup ledger history
-  const [backupLedger] = useState([
-    {
-      id: 'BKP-20260915-01',
-      date: '15 Sep 2026, 11:30 PM',
-      size: '48.6 MB',
-      type: 'Automated Daily',
-      status: 'Success',
-      checksum: 'SHA256:7f8e...3b1a',
-    },
-    {
-      id: 'BKP-20260914-01',
-      date: '14 Sep 2026, 11:30 PM',
-      size: '48.1 MB',
-      type: 'Automated Daily',
-      status: 'Success',
-      checksum: 'SHA256:4d2c...89ef',
-    },
-    {
-      id: 'BKP-20260913-01',
-      date: '13 Sep 2026, 11:30 PM',
-      size: '47.8 MB',
-      type: 'Manual Snapshot',
-      status: 'Success',
-      checksum: 'SHA256:1a9c...772d',
-    },
-    {
-      id: 'BKP-20260912-01',
-      date: '12 Sep 2026, 11:30 PM',
-      size: '47.2 MB',
-      type: 'Automated Daily',
-      status: 'Success',
-      checksum: 'SHA256:9e4b...55bc',
-    },
-  ])
+  // Backup ledger history loaded dynamically from MongoDB
+  const [backupLedger, setBackupLedger] = useState([])
+
+  // Fetch live system settings on component mount
+  useEffect(() => {
+    apiRequest('/settings')
+      .then((data) => {
+        if (data) {
+          if (data.systemName) {
+            setGeneralSettings({
+              systemName: data.systemName || 'Warehouse Management System',
+              organization: data.organization || 'Central Warehouse Logistics & Supply Chain',
+              timezone: data.timezone || 'Asia/Kolkata (GMT +05:30)',
+              dateFormat: data.dateFormat || 'DD MMM YYYY (16 Sep 2026)',
+              timeFormat: data.timeFormat || '12 Hour (AM/PM)',
+              defaultLanguage: data.defaultLanguage || 'English',
+            })
+          }
+          if (data.logoUrl) setLogoPreview(data.logoUrl)
+          if (data.twoFactorAuth !== undefined) setTwoFactorAuth(data.twoFactorAuth)
+          if (data.sessionTimeout) setSessionTimeout(data.sessionTimeout)
+          if (data.passwordExpiry) setPasswordExpiry(data.passwordExpiry)
+          if (data.loginAttemptLimit) setLoginAttemptLimit(data.loginAttemptLimit)
+          if (data.notifications) setNotifications((prev) => ({ ...prev, ...data.notifications }))
+          if (data.preferences) setPreferences((prev) => ({ ...prev, ...data.preferences }))
+          if (data.themeMode) setThemeMode(data.themeMode)
+          if (data.lastBackupDate) setLastBackupDate(data.lastBackupDate)
+          if (Array.isArray(data.backupLedger)) setBackupLedger(data.backupLedger)
+        }
+      })
+      .catch((err) => console.error('Failed to load settings:', err))
+  }, [])
 
   // Navigation Items (13 items matching screenshot)
   const navItems = [
@@ -240,21 +239,57 @@ export default function Settings() {
     },
   ]
 
-  // Handle Save Changes
-  const handleSaveChanges = () => {
-    triggerToast('All system settings and security policies saved successfully.')
+  // Handle Save Changes — 100% PERSISTED IN MONGODB
+  const handleSaveChanges = async () => {
+    if (isSaving) return
+    setIsSaving(true)
+    try {
+      await apiRequest('/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...generalSettings,
+          logoUrl: logoPreview,
+          twoFactorAuth,
+          sessionTimeout,
+          passwordExpiry,
+          loginAttemptLimit,
+          notifications,
+          preferences,
+          themeMode,
+        }),
+      })
+      triggerToast('All system settings and security policies saved in MongoDB!')
+    } catch (err) {
+      triggerToast(err.message || 'Failed to save settings to database', 'error')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  // Handle Backup Trigger
-  const handleTriggerBackup = () => {
+  // Handle Backup Trigger — REAL MONGODB SNAPSHOT ARCHIVE
+  const handleTriggerBackup = async () => {
+    if (isBackingUp) return
     setIsBackingUp(true)
-    triggerToast('Initiating encrypted database snapshot...')
-    setTimeout(() => {
+    triggerToast('Initiating encrypted database snapshot across collections...')
+    try {
+      const res = await apiRequest('/settings/backup', {
+        method: 'POST',
+        body: JSON.stringify({ type: 'Manual User Snapshot' }),
+      })
+      if (res && res.backup) {
+        setLastBackupDate(res.lastBackupDate || res.backup.date)
+        if (Array.isArray(res.backupLedger)) {
+          setBackupLedger(res.backupLedger)
+        } else {
+          setBackupLedger((prev) => [res.backup, ...prev])
+        }
+        triggerToast(`Database snapshot ${res.backup.id} completed & archived! (${res.statistics?.totalRecords || 0} records)`)
+      }
+    } catch (err) {
+      triggerToast(err.message || 'Failed to perform database backup', 'error')
+    } finally {
       setIsBackingUp(false)
-      const now = new Date()
-      setLastBackupDate(`${now.getDate()} Sep 2026, 05:25 PM`)
-      triggerToast('Database snapshot completed successfully. Archived to secure cloud backup.')
-    }, 1500)
+    }
   }
 
   return (
@@ -337,12 +372,17 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={handleSaveChanges}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1E3A1E] hover:bg-[#2a4e2a] text-white text-xs font-semibold shadow-xs transition-colors"
+                disabled={isSaving}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1E3A1E] hover:bg-[#2a4e2a] disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               >
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                </svg>
-                <span>Save Changes</span>
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-white shrink-0" />
+                ) : (
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                )}
+                <span>{isSaving ? 'Saving to Database...' : 'Save Changes'}</span>
               </button>
             </div>
           </div>

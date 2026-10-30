@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   X,
@@ -17,6 +17,8 @@ import {
   RotateCcw,
   ChevronDown,
   Check,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
 import DataLoader from '../components/common/DataLoader'
@@ -119,114 +121,184 @@ export default function DamageRejection() {
     { id: 'SH06', name: 'Shade 6: Spares & General Goods' },
   ]
 
+  // Default Fallback Demo Cases if MongoDB collection is fresh/empty
+  const FALLBACK_CASES = [
+    {
+      id: 'demo-1',
+      refNo: 'DMG-2026-081',
+      date: '08 Oct 2026',
+      productName: 'Basmati Rice Premium 25kg',
+      sku: 'PRD-RIC-001',
+      batchNo: 'BTH-2026-081',
+      shadeId: 'SH02',
+      location: 'SH02-B-04',
+      damageType: 'Packaging Torn (Gatta)',
+      baseQty: 75,
+      baseUnit: 'Kg',
+      packQty: 3,
+      packUnit: 'Bags',
+      unitsPerPack: 25,
+      reason: 'Outer jute bag torn during unloading from vehicle',
+      status: 'Moved to Hold',
+      reportedBy: 'Amit Patel (Storekeeper)',
+      disposalAction: 'Repack & Sift Inspection',
+    },
+    {
+      id: 'demo-2',
+      refNo: 'REJ-2026-082',
+      date: '07 Oct 2026',
+      productName: 'Refined Sunflower Oil 15L',
+      sku: 'PRD-OIL-002',
+      batchNo: 'BTH-2026-042',
+      shadeId: 'SH02',
+      location: 'SH02-C-01',
+      damageType: 'Lab QA Rejected',
+      baseQty: 30,
+      baseUnit: 'Ltr',
+      packQty: 2,
+      packUnit: 'Tins',
+      unitsPerPack: 15,
+      reason: 'Acidity level above permitted quality threshold',
+      status: 'Lab Rejected',
+      reportedBy: 'Kiran Maddheshiya (QA Lead)',
+      disposalAction: 'Return to Vendor',
+    },
+  ]
+
   // Report Form State
   const [newCase, setNewCase] = useState({
-    productName: 'Parle-G Glucose Biscuits (50g)',
-    batchNo: 'BT-2026-FMCG-01',
-    shadeId: 'SH03',
-    row: 'R02',
-    col: 'C04',
+    productId: '',
+    productName: '',
+    sku: '',
+    batchNo: '',
+    shadeId: 'SH01',
+    row: 'R01',
+    col: 'C01',
     damageType: 'Crushed Gatta Packaging',
-    baseUnit: 'Pieces',
-    packUnit: 'Gatta',
-    unitsPerPack: 6,
-    packsCount: 2,
-    baseQty: 12,
-    reason: 'Cartons crushed during forklift pallet stacking',
+    baseUnit: 'Kg',
+    packUnit: 'Bags',
+    unitsPerPack: 25,
+    packsCount: 1,
+    baseQty: 25,
+    reason: '',
     status: 'Moved to Hold',
     reportedBy: 'Amit Patel (Storekeeper)',
-    disposalAction: 'Segregate to Quarantine / Return to Vendor',
+    disposalAction: 'Quarantine Hold / Return to Vendor',
   })
 
   // Damage & Rejection Data
   const [damageCases, setDamageCases] = useState([])
+  const [productsList, setProductsList] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Fetch real data from MongoDB (/stock-adjust, /grn, /product)
+  const loadDamageData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
+    try {
+      const [adjRes, grnRes, prodRes] = await Promise.allSettled([
+        apiRequest('/stock-adjust'),
+        apiRequest('/grn'),
+        apiRequest('/product'),
+      ])
+
+      let prods = []
+      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
+        prods = prodRes.value
+        setProductsList(prods)
+      }
+
+      let cases = []
+
+      // 1. Load Real Damage Cases from MongoDB /api/stock-adjust
+      if (adjRes.status === 'fulfilled' && Array.isArray(adjRes.value)) {
+        adjRes.value
+          .filter((a) => a.type === 'Damage / Rejection')
+          .forEach((a, idx) => {
+            cases.push({
+              id: a._id || `ADJ-${idx + 1}`,
+              _id: a._id,
+              refNo: a.adjNumber || `DMG-2026-${String(idx + 1).padStart(4, '0')}`,
+              date: new Date(a.createdAt || Date.now()).toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              }),
+              productName: a.productName,
+              sku: a.sku || '',
+              batchNo: a.batchNo || '—',
+              shadeId: a.locationCode ? a.locationCode.split('-')[0] : 'SH01',
+              location: a.locationCode || 'SH01-R01-C01',
+              damageType: a.notes?.includes('—')
+                ? a.notes.split('—')[0]?.trim()
+                : 'Packaging Torn / Damage',
+              baseQty: Number(a.adjustedQty) || Math.abs(Number(a.variance)) || 0,
+              baseUnit: a.unit || 'Kg',
+              packQty: Math.max(1, Math.round((Number(a.adjustedQty) || 1) / 10)),
+              packUnit: 'Packs',
+              unitsPerPack: 1,
+              reason: a.reason,
+              status: a.notes?.includes('—')
+                ? a.notes.split('—')[1]?.split('.')[0]?.trim() || 'Moved to Hold'
+                : 'Moved to Hold',
+              reportedBy: a.reportedBy || 'Amit Patel (Storekeeper)',
+              disposalAction: a.notes || 'Quarantine Hold & Return to Vendor',
+            })
+          })
+      }
+
+      // 2. Load Inward Damage/Rejection line items from GRN
+      if (grnRes.status === 'fulfilled' && Array.isArray(grnRes.value)) {
+        let grnCounter = 1
+        grnRes.value.forEach((g) => {
+          if (g.materials && g.materials.length > 0) {
+            g.materials.forEach((m) => {
+              if (m.rejectedQty > 0 || m.damageQty > 0) {
+                cases.push({
+                  id: `GRN-${g._id}-${grnCounter++}`,
+                  refNo: `REJ-2026-0${100 + grnCounter}`,
+                  date: new Date(g.createdAt || Date.now()).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  }),
+                  productName: m.productName,
+                  sku: m.sku || '',
+                  batchNo: m.batchNo || `BTH-${g.grnNo?.slice(-4) || '2026'}`,
+                  shadeId: g.shade || 'SH01',
+                  location: `${g.shade || 'SH01'}-R01-C01`,
+                  damageType: m.rejectedQty > 0 ? 'Lab QA Rejected' : 'Physical Carton Damage (Gatta)',
+                  baseQty: m.rejectedQty || m.damageQty || 10,
+                  baseUnit: m.packagingUnit || 'Kg',
+                  packQty: 2,
+                  packUnit: 'Boxes',
+                  unitsPerPack: 5,
+                  reason: 'Visual inspection & QA tolerance failure during unloading',
+                  status: 'Moved to Hold',
+                  reportedBy: 'Kiran Maddheshiya (QA Lead)',
+                  disposalAction: 'Return to Vendor / Quarantine Hold',
+                })
+              }
+            })
+          }
+        })
+      }
+
+      if (cases.length > 0) {
+        setDamageCases(cases)
+      } else {
+        setDamageCases(FALLBACK_CASES)
+      }
+    } catch {
+      triggerToast('Error loading damage records from database')
+    } finally {
+      if (!silent) setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    setLoading(true)
-    apiRequest('/grn')
-      .then((res) => {
-        let cases = []
-        if (Array.isArray(res)) {
-          let idCounter = 1
-          res.forEach((g) => {
-            if (g.materials && g.materials.length > 0) {
-              g.materials.forEach((m) => {
-                if (m.rejectedQty > 0 || m.damageQty > 0) {
-                  cases.push({
-                    id: idCounter++,
-                    refNo: `REJ-2026-0${100 + idCounter}`,
-                    date: new Date(g.createdAt || Date.now()).toLocaleDateString('en-IN'),
-                    productName: m.productName,
-                    batchNo: m.batchNo || `BTH-${g.grnNo?.slice(-4) || '2026'}`,
-                    shadeId: g.shade || 'SHADE-01',
-                    location: `${g.shade || 'SHADE-01'}-A-01`,
-                    damageType: m.rejectedQty > 0 ? 'Lab QA Rejected' : 'Physical Carton Damage (Gatta)',
-                    baseQty: m.rejectedQty || m.damageQty || 10,
-                    baseUnit: m.packagingUnit || 'Kg',
-                    packQty: 2,
-                    packUnit: 'Boxes',
-                    unitsPerPack: 5,
-                    reason: 'Visual inspection & QA tolerance failure during unloading',
-                    status: 'Moved to Hold',
-                    reportedBy: 'Kiran Maddheshiya (QA Lead)',
-                    disposalAction: 'Return to Vendor / Quarantine Hold',
-                  })
-                }
-              })
-            }
-          })
-        }
-
-        if (cases.length > 0) {
-          setDamageCases(cases)
-        } else {
-          // Default fallback demo cases
-          setDamageCases([
-            {
-              id: 1,
-              refNo: 'DMG-2026-081',
-              date: '08 Oct 2026',
-              productName: 'Basmati Rice Premium 25kg',
-              batchNo: 'BTH-2026-081',
-              shadeId: 'SHADE-02',
-              location: 'SHADE-02-B-04',
-              damageType: 'Packaging Torn (Gatta)',
-              baseQty: 75,
-              baseUnit: 'Kg',
-              packQty: 3,
-              packUnit: 'Bags',
-              unitsPerPack: 25,
-              reason: 'Outer jute bag torn during unloading from vehicle',
-              status: 'Moved to Hold',
-              reportedBy: 'Amit Patel (Storekeeper)',
-              disposalAction: 'Repack & Sift Inspection',
-            },
-            {
-              id: 2,
-              refNo: 'REJ-2026-082',
-              date: '07 Oct 2026',
-              productName: 'Refined Sunflower Oil 15L',
-              batchNo: 'BTH-2026-042',
-              shadeId: 'SHADE-02',
-              location: 'SHADE-02-C-01',
-              damageType: 'Lab QA Rejected',
-              baseQty: 30,
-              baseUnit: 'Ltr',
-              packQty: 2,
-              packUnit: 'Tins',
-              unitsPerPack: 15,
-              reason: 'Acidity level above permitted quality threshold',
-              status: 'Lab Rejected',
-              reportedBy: 'Kiran Maddheshiya (QA Lead)',
-              disposalAction: 'Return to Vendor',
-            }
-          ])
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+    loadDamageData()
+  }, [loadDamageData])
 
   // Filtered Damage Cases
   const filteredCases = useMemo(() => {
@@ -268,12 +340,19 @@ export default function DamageRejection() {
     return { total, labRejections, packagingDamage, onHold }
   }, [damageCases])
 
-  // Handle Save New Damage Case
-  const handleSaveCase = (e) => {
+  // Handle Save New Damage Case — 100% PERSISTED IN MONGODB & DEDUCTS STOCK
+  const handleSaveCase = async (e) => {
     e.preventDefault()
+    if (isSubmitting) return
+
     const packs = Math.max(1, Number(newCase.packsCount) || 1)
     const units = Math.max(1, Number(newCase.unitsPerPack) || 1)
     const computedBase = packs * units
+
+    if (!newCase.productName || !newCase.productName.trim()) {
+      triggerToast('Product Name is required.', 'error')
+      return
+    }
 
     if (!newCase.reason || !newCase.reason.trim()) {
       triggerToast('Root Cause / Investigation Notes are mandatory.', 'error')
@@ -285,33 +364,81 @@ export default function DamageRejection() {
       return
     }
 
-    const refCode = newCase.damageType.includes('Lab QA')
-      ? `REJ-2026-0${87 + damageCases.length}`
-      : `DMG-2026-0${87 + damageCases.length}`
     const locCode = `${newCase.shadeId}-${newCase.row}-${newCase.col}`
+    const matchedProd = productsList.find(
+      (p) => p._id === newCase.productId || p.name === newCase.productName || p.sku === newCase.sku
+    )
 
-    const newRecord = {
-      id: Date.now(),
-      refNo: refCode,
-      date: 'Today, Just now',
-      productName: newCase.productName,
-      batchNo: newCase.batchNo,
-      shadeId: newCase.shadeId,
-      location: locCode,
-      damageType: newCase.damageType,
-      baseQty: computedBase,
-      baseUnit: newCase.baseUnit,
-      packQty: packs,
-      packUnit: newCase.packUnit,
-      unitsPerPack: units,
-      reason: newCase.reason.trim(),
-      status: newCase.status,
-      reportedBy: newCase.reportedBy,
+    // PHYSICAL INVENTORY BOUNDARY CHECK
+    if (matchedProd) {
+      const availStock = Number(matchedProd.currentStock) || 0
+      if (availStock <= 0) {
+        triggerToast(`Cannot report damage: "${matchedProd.name}" is currently Out of Stock (0 ${matchedProd.baseUnit || 'Kg'}).`, 'error')
+        return
+      }
+      if (computedBase > availStock) {
+        triggerToast(`Cannot report ${computedBase} ${newCase.baseUnit} damage. Maximum physically available stock is only ${availStock} ${matchedProd.baseUnit || 'Kg'}.`, 'error')
+        return
+      }
     }
 
-    setDamageCases([newRecord, ...damageCases])
-    setShowReportModal(false)
-    triggerToast(`Logged case ${refCode} and quarantined ${computedBase} ${newRecord.baseUnit}.`)
+    setIsSubmitting(true)
+
+    try {
+      const res = await apiRequest('/stock-adjust', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'Damage / Rejection',
+          productId: matchedProd?._id || newCase.productId || null,
+          productName: newCase.productName.trim(),
+          sku: newCase.sku || matchedProd?.sku || '',
+          batchNo: newCase.batchNo.trim() || matchedProd?.batchNo || 'BT-2026-DMG',
+          locationCode: locCode,
+          previousQty: matchedProd?.currentStock || 0,
+          adjustedQty: computedBase,
+          variance: -computedBase,
+          unit: newCase.baseUnit,
+          reason: newCase.reason.trim(),
+          reportedBy: newCase.reportedBy || 'Amit Patel (Storekeeper)',
+          notes: `${newCase.damageType} — ${newCase.status}. Action: ${newCase.disposalAction}. ${newCase.reason.trim()}`,
+          status: 'Approved / Executed',
+        }),
+      })
+
+      const refCode = res.adjNumber || `DMG-2026-0${87 + damageCases.length}`
+      const newRecord = {
+        id: res._id || Date.now(),
+        _id: res._id,
+        refNo: refCode,
+        date: 'Today, Just now',
+        productName: newCase.productName,
+        sku: newCase.sku || matchedProd?.sku || '',
+        batchNo: newCase.batchNo || matchedProd?.batchNo || '—',
+        shadeId: newCase.shadeId,
+        location: locCode,
+        damageType: newCase.damageType,
+        baseQty: computedBase,
+        baseUnit: newCase.baseUnit,
+        packQty: packs,
+        packUnit: newCase.packUnit,
+        unitsPerPack: units,
+        reason: newCase.reason.trim(),
+        status: newCase.status,
+        reportedBy: newCase.reportedBy,
+        disposalAction: newCase.disposalAction,
+      }
+
+      setDamageCases((prev) => [newRecord, ...prev.filter((c) => c.refNo !== refCode)])
+      setShowReportModal(false)
+      triggerToast(`Damage Case ${refCode} logged & ${computedBase} ${newCase.baseUnit} deducted from live stock!`)
+
+      // Silently refresh data to keep stock counts synchronized
+      loadDamageData(true)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to submit damage report to backend', 'error')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Export CSV
@@ -407,6 +534,17 @@ export default function DamageRejection() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
+          <button
+            type="button"
+            onClick={() => loadDamageData(false)}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition shrink-0 cursor-pointer disabled:opacity-50"
+            title="Refresh from Database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin text-rose-600' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+
           <Link
             to="/hold-stock"
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition shrink-0"
@@ -885,6 +1023,86 @@ export default function DamageRejection() {
             </div>
 
             <form onSubmit={handleSaveCase} className="space-y-3.5 text-xs">
+              {productsList.length > 0 && (
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                      Quick-Select Registered Product from Warehouse:
+                    </label>
+                    <span className="text-[10px] font-semibold text-indigo-600">Auto-fills SKU, unit & location</span>
+                  </div>
+                  <select
+                    value={newCase.productId || ''}
+                    onChange={(e) => {
+                      const prodId = e.target.value
+                      const p = productsList.find((x) => x._id === prodId)
+                      if (p) {
+                        const sId = p.shadeId || (p.storageZone?.includes('SH') ? p.storageZone.slice(0, 4) : 'SH01')
+                        setNewCase((prev) => ({
+                          ...prev,
+                          productId: p._id,
+                          productName: p.name,
+                          sku: p.sku || '',
+                          batchNo: p.batchNo || 'BT-2026-001',
+                          shadeId: sId,
+                          row: p.row || 'R01',
+                          col: p.col || 'C01',
+                          baseUnit: p.baseUnit || 'Kg',
+                          packUnit: p.outerPackaging || 'Bags',
+                          unitsPerPack: Number(p.packSize) || 1,
+                        }))
+                      }
+                    }}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  >
+                    <option value="">-- Choose registered warehouse product (or enter manually below) --</option>
+                    {productsList.map((p) => (
+                      <option key={p._id} value={p._id}>
+                        {p.name} (SKU: {p.sku} | Live Stock: {p.currentStock || 0} {p.baseUnit || 'Kg'})
+                      </option>
+                    ))}
+                  </select>
+                  {newCase.productId && (() => {
+                    const selProd = productsList.find((x) => x._id === newCase.productId)
+                    const avail = Number(selProd?.currentStock) || 0
+                    const reqQty = (Number(newCase.packsCount) || 1) * (Number(newCase.unitsPerPack) || 1)
+                    const isZero = avail <= 0
+                    const isExcess = reqQty > avail
+
+                    if (isZero) {
+                      return (
+                        <div className="text-[11px] font-bold text-rose-700 bg-rose-50 px-3 py-2 rounded-lg border border-rose-200/90 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                            <span>Out of Stock: Cannot report damage on 0 quantity inventory.</span>
+                          </span>
+                          <span className="font-mono bg-rose-100 text-rose-800 px-2 py-0.5 rounded font-black">0 {newCase.baseUnit}</span>
+                        </div>
+                      )
+                    }
+
+                    if (isExcess) {
+                      return (
+                        <div className="text-[11px] font-bold text-amber-800 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200/90 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span>Insufficient Stock: Quarantining {reqQty} {newCase.baseUnit} exceeds available stock ({avail} {newCase.baseUnit}).</span>
+                          </span>
+                          <span className="font-mono bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-black">Max: {avail} {newCase.baseUnit}</span>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-md border border-emerald-200/80 flex items-center justify-between">
+                        <span>Live Stock Available in Warehouse:</span>
+                        <span className="font-mono">{avail.toLocaleString()} {newCase.baseUnit}</span>
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">Product Name *</label>
@@ -1039,12 +1257,29 @@ export default function DamageRejection() {
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-sm transition cursor-pointer"
-                >
-                  Quarantine Stock
-                </button>
+                {(() => {
+                  const selProd = productsList.find((x) => x._id === newCase.productId)
+                  const avail = selProd ? (Number(selProd.currentStock) || 0) : Infinity
+                  const reqQty = (Number(newCase.packsCount) || 1) * (Number(newCase.unitsPerPack) || 1)
+                  const isBlocked = selProd && (avail <= 0 || reqQty > avail)
+
+                  return (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || isBlocked}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-300 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      <span>
+                        {isSubmitting
+                          ? 'Quarantining & Deducting...'
+                          : isBlocked
+                          ? (avail <= 0 ? 'Out of Stock (Blocked)' : 'Insufficient Stock (Blocked)')
+                          : 'Quarantine Stock'}
+                      </span>
+                    </button>
+                  )
+                })()}
               </div>
             </form>
           </div>

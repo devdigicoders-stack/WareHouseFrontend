@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import QRCode from 'qrcode'
 import {
@@ -25,6 +25,7 @@ import {
   Flame,
   Archive,
   RefreshCw,
+  Loader2,
 } from 'lucide-react'
 import { printSpecificElement } from '../utils/printHelper'
 import { apiRequest } from '../services/api'
@@ -144,102 +145,140 @@ export default function ExpiryManagement() {
   const [formApprovedBy, setFormApprovedBy] = useState('Kiran Maddheshiya (Store Manager)')
   const [formDisposalLocation, setFormDisposalLocation] = useState('Hazardous Waste Yard - Section D')
 
-  // Commercial Warehouse Stock Expiry Registry
+  // Loading & Submission states
   const [expiryList, setExpiryList] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isDisposing, setIsDisposing] = useState(false)
+  const [isTogglingQuarantine, setIsTogglingQuarantine] = useState(false)
 
-  useEffect(() => {
-    setLoading(true)
-    Promise.allSettled([
-      apiRequest('/grn'),
-      apiRequest('/product'),
-    ]).then(([grnRes, prodRes]) => {
+  // Load Expiry Registry strictly synchronized with MongoDB
+  const loadExpiryData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
+    try {
+      const [grnRes, prodRes] = await Promise.allSettled([
+        apiRequest('/grn'),
+        apiRequest('/product'),
+      ])
+
+      let prods = []
+      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
+        prods = prodRes.value
+      }
+
       let items = []
+      let idCounter = 1
+
+      // 1. Incorporate products from MongoDB Product catalog
+      prods.forEach((p) => {
+        const expDateStr = p.expiryDate || '2027-12-31'
+        const expTime = new Date(expDateStr).getTime()
+        const nowTime = new Date().getTime()
+        const daysRemaining = Math.round((expTime - nowTime) / (1000 * 3600 * 24))
+        const isExpired = daysRemaining <= 0
+        const isCritical = daysRemaining > 0 && daysRemaining <= 30
+        const isNear60 = daysRemaining > 30 && daysRemaining <= 60
+        const isNear90 = daysRemaining > 60 && daysRemaining <= 90
+
+        let status = 'HEALTHY'
+        if (isExpired) status = 'EXPIRED'
+        else if (isCritical) status = 'CRITICAL_30'
+        else if (isNear60) status = 'NEAR_60'
+        else if (isNear90) status = 'MONITOR_90'
+
+        const isQuarantined =
+          p.labStatus === 'Quarantine' ||
+          p.labStatus === 'On Hold' ||
+          (Number(p.reservedQty) > 0 && Number(p.reservedQty) >= Number(p.currentStock))
+
+        items.push({
+          id: idCounter++,
+          _id: p._id,
+          productId: p._id,
+          batchNo: p.batchNo || `BTH-${p.sku?.slice(-4) || '2026'}`,
+          sku: p.sku || 'SKU-GEN',
+          productName: p.name,
+          category: p.category || 'Warehouse Stock',
+          shade: p.storageZone || 'Shade 1 (General Stores)',
+          location: p.binLocation || p.storageZone || 'Bay A',
+          mfgDate: p.mfgDate || new Date(p.createdAt || Date.now()).toISOString().split('T')[0],
+          expDate: expDateStr,
+          daysRemaining: isNaN(daysRemaining) ? 180 : daysRemaining,
+          status,
+          stockQty: p.currentStock || 0,
+          reservedQty: p.reservedQty || 0,
+          unit: p.baseUnit || 'Kg',
+          packQty: Math.max(1, Math.round((p.currentStock || 1) / (p.packSize || 1))),
+          packUnit: p.outerPackaging || 'Packs',
+          supplier: 'Registered Warehouse Stock',
+          quarantined: isQuarantined,
+          rawProduct: p,
+        })
+      })
+
+      // 2. Also check GRN materials that may have unique inward lots
       if (grnRes.status === 'fulfilled' && Array.isArray(grnRes.value)) {
-        let idCounter = 1
         grnRes.value.forEach((g) => {
           if (g.materials && g.materials.length > 0) {
             g.materials.forEach((m) => {
-              const expDateStr = m.expiryDate || '2027-06-30'
-              const expTime = new Date(expDateStr).getTime()
-              const nowTime = new Date().getTime()
-              const daysRemaining = Math.round((expTime - nowTime) / (1000 * 3600 * 24))
-              const isExpired = daysRemaining <= 0
-              const isCritical = daysRemaining > 0 && daysRemaining <= 30
-              const isNear60 = daysRemaining > 30 && daysRemaining <= 60
-              const isNear90 = daysRemaining > 60 && daysRemaining <= 90
+              const alreadyExists = items.some((it) => it.sku === m.sku && it.batchNo === m.batchNo)
+              if (!alreadyExists && m.batchNo) {
+                const expDateStr = m.expiryDate || '2027-06-30'
+                const expTime = new Date(expDateStr).getTime()
+                const nowTime = new Date().getTime()
+                const daysRemaining = Math.round((expTime - nowTime) / (1000 * 3600 * 24))
+                const isExpired = daysRemaining <= 0
+                const isCritical = daysRemaining > 0 && daysRemaining <= 30
+                const isNear60 = daysRemaining > 30 && daysRemaining <= 60
+                const isNear90 = daysRemaining > 60 && daysRemaining <= 90
 
-              let status = 'HEALTHY'
-              if (isExpired) status = 'EXPIRED'
-              else if (isCritical) status = 'CRITICAL_30'
-              else if (isNear60) status = 'NEAR_60'
-              else if (isNear90) status = 'MONITOR_90'
+                let status = 'HEALTHY'
+                if (isExpired) status = 'EXPIRED'
+                else if (isCritical) status = 'CRITICAL_30'
+                else if (isNear60) status = 'NEAR_60'
+                else if (isNear90) status = 'MONITOR_90'
 
-              items.push({
-                id: idCounter++,
-                batchNo: m.batchNo || `BTH-${g.grnNo?.slice(-4) || '2026'}`,
-                sku: m.sku || 'SKU-GEN-01',
-                productName: m.productName,
-                category: 'Warehouse Stock',
-                shade: g.shade || 'Main Yard',
-                location: g.shade || 'Bay A',
-                mfgDate: m.mfgDate || new Date(g.createdAt || Date.now()).toISOString().split('T')[0],
-                expDate: expDateStr,
-                daysRemaining: isNaN(daysRemaining) ? 180 : daysRemaining,
-                status,
-                stockQty: m.packageQty || 100,
-                unit: m.packagingUnit || 'Units',
-                supplier: g.supplierName || 'General Supplier',
-                quarantined: isExpired,
-              })
+                const matchedP = prods.find((p) => p.sku === m.sku || p.name === m.productName)
+
+                items.push({
+                  id: idCounter++,
+                  _id: matchedP?._id || null,
+                  productId: matchedP?._id || null,
+                  batchNo: m.batchNo || `BTH-${g.grnNo?.slice(-4) || '2026'}`,
+                  sku: m.sku || 'SKU-GEN-01',
+                  productName: m.productName,
+                  category: matchedP?.category || 'Warehouse Stock',
+                  shade: g.shade || 'Main Yard',
+                  location: m.location || g.shade || 'Bay A',
+                  mfgDate: m.mfgDate || new Date(g.createdAt || Date.now()).toISOString().split('T')[0],
+                  expDate: expDateStr,
+                  daysRemaining: isNaN(daysRemaining) ? 180 : daysRemaining,
+                  status,
+                  stockQty: matchedP ? matchedP.currentStock : (m.packageQty || 100),
+                  reservedQty: matchedP?.reservedQty || 0,
+                  unit: m.packagingUnit || matchedP?.baseUnit || 'Units',
+                  packQty: m.packageQty || 10,
+                  packUnit: m.packagingUnit || 'Packs',
+                  supplier: g.supplierName || 'Inward Consignment',
+                  quarantined: isExpired || matchedP?.labStatus === 'Quarantine' || matchedP?.labStatus === 'On Hold',
+                  rawProduct: matchedP,
+                })
+              }
             })
           }
         })
       }
 
-      if (items.length > 0) {
-        setExpiryList(items)
-      } else {
-        setExpiryList([
-          {
-            id: 1,
-            batchNo: 'BTH-2024-899',
-            sku: 'PRD-RIC-001',
-            productName: 'Basmati Rice Premium 25kg',
-            category: 'Food Grains',
-            shade: 'Shade 2 (Grains)',
-            location: 'Rack 02 - Shelf B',
-            mfgDate: '2024-03-10',
-            expDate: '2026-03-10',
-            daysRemaining: -15,
-            status: 'EXPIRED',
-            stockQty: 80,
-            unit: 'Bags',
-            supplier: 'Agro Traders Ltd',
-            quarantined: true,
-          },
-          {
-            id: 2,
-            batchNo: 'BTH-2025-102',
-            sku: 'PRD-OIL-002',
-            productName: 'Refined Sunflower Oil 15L',
-            category: 'Edible Oils',
-            shade: 'Shade 2 (Grains)',
-            location: 'Rack 04 - Shelf A',
-            mfgDate: '2025-05-15',
-            expDate: '2026-10-25',
-            daysRemaining: 16,
-            status: 'CRITICAL_30',
-            stockQty: 140,
-            unit: 'Tins',
-            supplier: 'Pure Oils Corp',
-            quarantined: false,
-          }
-        ])
-      }
-    }).catch(() => {})
-      .finally(() => setLoading(false))
+      setExpiryList(items)
+    } catch {
+      triggerToast('Error loading expiry registry from database')
+    } finally {
+      if (!silent) setLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    loadExpiryData()
+  }, [loadExpiryData])
 
   // Summary Metrics calculations
   const stats = useMemo(() => {
@@ -303,40 +342,103 @@ export default function ExpiryManagement() {
     })
   }, [expiryList, activeTab, filterCategory, filterAction, filterDateFrom, filterDateTo, searchQuery])
 
-  // Quarantining toggle
-  const handleToggleQuarantine = (id) => {
-    setExpiryList((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const nextState = !item.quarantined
-          triggerToast(
-            nextState
-              ? `Batch ${item.batchNo} is now LOCKED in Quarantine!`
-              : `Batch ${item.batchNo} moved back to active stock.`
-          )
-          return { ...item, quarantined: nextState }
-        }
-        return item
+  // Quarantining toggle — Persisted in MongoDB Atlas
+  const handleToggleQuarantine = async (item) => {
+    if (isTogglingQuarantine) return
+    setIsTogglingQuarantine(true)
+    const nextState = !item.quarantined
+
+    try {
+      const res = await apiRequest('/stock-adjust/toggle-quarantine', {
+        method: 'POST',
+        body: JSON.stringify({
+          productId: item.productId || item._id,
+          sku: item.sku,
+          productName: item.productName,
+          batchNo: item.batchNo,
+          quarantined: nextState,
+          quantity: item.stockQty,
+          reason: nextState ? 'Expired or Near-Expiry lot locked in Quarantine' : 'Batch released from Quarantine',
+        }),
       })
-    )
+
+      setExpiryList((prev) =>
+        prev.map((x) => (x.id === item.id ? { ...x, quarantined: nextState } : x))
+      )
+      triggerToast(
+        res.message ||
+          (nextState
+            ? `Batch ${item.batchNo} is now LOCKED in Quarantine!`
+            : `Batch ${item.batchNo} moved back to active stock.`)
+      )
+      loadExpiryData(true)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to update quarantine status in database', 'error')
+    } finally {
+      setIsTogglingQuarantine(false)
+    }
   }
 
-  // Handle Disposal Write-off Submission
-  const handleDisposeSubmit = (e) => {
+  // Handle Disposal Write-off Submission — Persisted in MongoDB & Deducts Stock
+  const handleDisposeSubmit = async (e) => {
     e.preventDefault()
+    if (isDisposing) return
+
     if (!formBatchId) {
-      triggerToast('Please select a batch for write-off / disposal.')
+      triggerToast('Please select a batch for write-off / disposal.', 'error')
       return
     }
 
     const selectedItem = expiryList.find((x) => x.id === parseInt(formBatchId))
-    if (!selectedItem) return
+    if (!selectedItem) {
+      triggerToast('Selected batch not found in registry.', 'error')
+      return
+    }
 
-    setExpiryList((prev) => prev.filter((x) => x.id !== parseInt(formBatchId)))
-    setShowLogDisposalModal(false)
-    setFormBatchId('')
-    setFormReason('')
-    triggerToast(`Write-Off complete: Batch ${selectedItem.batchNo} (${selectedItem.productName}) marked for disposal.`)
+    if (!selectedItem.stockQty || selectedItem.stockQty <= 0) {
+      triggerToast(`Cannot write-off expired stock: "${selectedItem.productName}" is currently Out of Stock (0 ${selectedItem.unit}).`, 'error')
+      return
+    }
+
+    if (!formReason || !formReason.trim()) {
+      triggerToast('Disposal reason and regulatory justification are mandatory.', 'error')
+      return
+    }
+
+    setIsDisposing(true)
+    try {
+      const res = await apiRequest('/stock-adjust', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'Expiry Write-Off',
+          productId: selectedItem.productId || selectedItem._id || null,
+          productName: selectedItem.productName,
+          sku: selectedItem.sku,
+          batchNo: selectedItem.batchNo,
+          locationCode: selectedItem.location,
+          previousQty: selectedItem.stockQty,
+          adjustedQty: selectedItem.stockQty,
+          variance: -selectedItem.stockQty,
+          unit: selectedItem.unit,
+          reason: formReason.trim(),
+          reportedBy: formApprovedBy,
+          notes: `Expired Stock Disposal — ${formActionType}. Location: ${formDisposalLocation}. Justification: ${formReason.trim()}`,
+          status: 'Approved / Executed',
+        }),
+      })
+
+      const voucher = res.adjNumber || 'ADJ-2026-EXP'
+      setExpiryList((prev) => prev.filter((x) => x.id !== parseInt(formBatchId)))
+      setShowLogDisposalModal(false)
+      setFormBatchId('')
+      setFormReason('')
+      triggerToast(`Disposal complete! ${selectedItem.stockQty} ${selectedItem.unit} written off (Ledger: ${voucher}).`)
+      loadExpiryData(true)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to record disposal write-off in database', 'error')
+    } finally {
+      setIsDisposing(false)
+    }
   }
 
   // Export CSV
@@ -445,6 +547,17 @@ export default function ExpiryManagement() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => loadExpiryData(false)}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-50"
+            title="Refresh Expiry Registry from MongoDB"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin text-rose-600' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+
           <button
             type="button"
             onClick={handleExportCSV}
@@ -800,12 +913,14 @@ export default function ExpiryManagement() {
                       <td className="py-3.5 px-4 text-center">
                         <button
                           type="button"
-                          onClick={() => handleToggleQuarantine(row.id)}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer inline-flex items-center gap-1 ${
+                          onClick={() => handleToggleQuarantine(row)}
+                          disabled={isTogglingQuarantine}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer inline-flex items-center gap-1 disabled:opacity-50 ${
                             row.quarantined
                               ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
                               : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
                           }`}
+                          title={row.quarantined ? 'Click to Unlock from Quarantine' : 'Click to Lock in Quarantine'}
                         >
                           <ShieldAlert className="w-3 h-3" />
                           <span>{row.quarantined ? 'LOCKED' : 'Active'}</span>
@@ -1032,10 +1147,35 @@ export default function ExpiryManagement() {
                   <option value="">-- Choose Batch to Scrap / Write Off --</option>
                   {expiryList.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.batchNo} • {item.productName} ({item.stockQty} {item.unit}) • {item.status}
+                      {item.batchNo} • {item.productName} (In Stock: {item.stockQty} {item.unit}) • {item.status}
                     </option>
                   ))}
                 </select>
+
+                {formBatchId && (() => {
+                  const sel = expiryList.find((x) => x.id === parseInt(formBatchId))
+                  if (!sel) return null
+                  const isZero = !sel.stockQty || sel.stockQty <= 0
+
+                  if (isZero) {
+                    return (
+                      <div className="mt-2 text-[11px] font-bold text-rose-700 bg-rose-50 p-2.5 rounded-lg border border-rose-200 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          <span>Out of Stock: Cannot write off 0 stock.</span>
+                        </span>
+                        <span className="font-mono bg-rose-100 text-rose-800 px-2 py-0.5 rounded font-black">0 {sel.unit}</span>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div className="mt-2 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-md border border-emerald-200/80 flex items-center justify-between">
+                      <span>Available Physical Inventory to Write Off:</span>
+                      <span className="font-mono">{sel.stockQty?.toLocaleString()} {sel.unit}</span>
+                    </div>
+                  )
+                })()}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1090,16 +1230,32 @@ export default function ExpiryManagement() {
                 <button
                   type="button"
                   onClick={() => setShowLogDisposalModal(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  disabled={isDisposing}
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
-                >
-                  Confirm &amp; Write Off
-                </button>
+                {(() => {
+                  const sel = expiryList.find((x) => x.id === parseInt(formBatchId))
+                  const isBlocked = !sel || !sel.stockQty || sel.stockQty <= 0
+
+                  return (
+                    <button
+                      type="submit"
+                      disabled={isDisposing || isBlocked}
+                      className="inline-flex items-center gap-1.5 px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-300 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+                    >
+                      {isDisposing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      <span>
+                        {isDisposing
+                          ? 'Writing Off & Deducting...'
+                          : isBlocked && formBatchId
+                          ? 'Out of Stock (Blocked)'
+                          : 'Confirm & Write Off'}
+                      </span>
+                    </button>
+                  )
+                })()}
               </div>
             </form>
           </div>

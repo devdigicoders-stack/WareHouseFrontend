@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Calendar,
@@ -17,6 +17,8 @@ import {
   ShieldAlert,
   Boxes,
   QrCode,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
 import DataLoader from '../components/common/DataLoader'
@@ -128,87 +130,40 @@ export default function BatchManagement() {
   const [batches, setBatches] = useState([])
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  useEffect(() => {
-    setLoading(true)
-    Promise.allSettled([
-      apiRequest('/grn'),
-      apiRequest('/product'),
-    ]).then(([grnRes, prodRes]) => {
-      let loadedBatches = []
-      if (grnRes.status === 'fulfilled' && Array.isArray(grnRes.value)) {
-        grnRes.value.forEach((g) => {
-          if (g.materials && g.materials.length > 0) {
-            g.materials.forEach((m) => {
-              const expDateStr = m.expiryDate || '2028-12-31'
-              const expTime = new Date(expDateStr).getTime()
-              const nowTime = new Date().getTime()
-              const daysRemaining = Math.round((expTime - nowTime) / (1000 * 3600 * 24))
-              const status = daysRemaining < 0 ? 'Expired' : daysRemaining <= 60 ? 'Expiring Soon' : 'Active'
+  // Load batches strictly synchronized with MongoDB Atlas
+  const loadBatches = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
+    try {
+      const [batchRes, prodRes] = await Promise.allSettled([
+        apiRequest('/batch'),
+        apiRequest('/product'),
+      ])
 
-              loadedBatches.push({
-                id: g._id || Math.random(),
-                batchNo: m.batchNo || `BTH-${g.grnNo?.slice(-4) || '2026'}`,
-                productName: m.productName,
-                sku: m.sku || 'SKU-GEN-01',
-                mfgDate: m.mfgDate || new Date(g.createdAt || Date.now()).toLocaleDateString('en-IN'),
-                expiryDate: expDateStr,
-                daysLeft: isNaN(daysRemaining) ? 365 : daysRemaining,
-                qty: m.packageQty || 100,
-                unit: m.packagingUnit || 'Units',
-                location: g.shade || 'General Shade',
-                status,
-              })
-            })
-          }
-        })
-      }
-
-      if (loadedBatches.length > 0) {
-        setBatches(loadedBatches)
-      } else {
-        // Default initial items
-        setBatches([
-          {
-            id: 1,
-            batchNo: 'BTH-2026-081',
-            productName: 'Basmati Rice (Grade 1 Special 25kg)',
-            sku: 'PRD-RIC-001',
-            mfgDate: '15 Jan 2026',
-            expiryDate: '15 Jan 2028',
-            daysLeft: 480,
-            qty: 1200,
-            unit: 'Bags',
-            location: 'Shade 2 (Food & Grains)',
-            status: 'Active',
-          },
-          {
-            id: 2,
-            batchNo: 'BTH-2026-084',
-            productName: 'Refined Mustard Oil (15L Tin)',
-            sku: 'PRD-OIL-002',
-            mfgDate: '10 Feb 2026',
-            expiryDate: '10 Nov 2026',
-            daysLeft: 50,
-            qty: 450,
-            unit: 'Tins',
-            location: 'Shade 2 (Food & Grains)',
-            status: 'Expiring Soon',
-          },
-        ])
+      if (batchRes.status === 'fulfilled' && Array.isArray(batchRes.value)) {
+        setBatches(batchRes.value)
       }
 
       if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
         setProducts(prodRes.value)
       }
-    }).catch(() => {})
-      .finally(() => setLoading(false))
+    } catch {
+      triggerToast('Error loading batch registry from database')
+    } finally {
+      if (!silent) setLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    loadBatches()
+  }, [loadBatches])
 
   // New Batch Form State
   const initialNewBatch = {
     batchNo: '',
     productName: 'Basmati Rice (Grade 1 Special)',
+    sku: '',
     mfgDate: '2026-09-01',
     expiryDate: '2028-08-31',
     qty: '100',
@@ -216,15 +171,31 @@ export default function BatchManagement() {
     location: 'Shade 2 • Bay B • Rack 01',
     status: 'Active',
   }
+  const [newBatch, setNewBatch] = useState(initialNewBatch)
   // Edit Batch State
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingBatch, setEditingBatch] = useState(null)
 
   // Toast trigger
-  const triggerToast = (msg) => {
+  const triggerToast = (msg, type = 'success') => {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(null), 3500)
   }
+
+  // Dynamic Product Options from MongoDB
+  const dynamicProductOptions = useMemo(() => {
+    if (products.length > 0) {
+      return products.map((p) => ({
+        value: p.name,
+        label: `${p.name} (SKU: ${p.sku})`,
+        sku: p.sku,
+        unit: p.baseUnit || 'Bags',
+        location: p.storageZone || 'Shade 1 (General Stores)',
+        productId: p._id,
+      }))
+    }
+    return PRODUCT_OPTIONS
+  }, [products])
 
   // Filtered Batches
   const filteredBatches = useMemo(() => {
@@ -234,47 +205,58 @@ export default function BatchManagement() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
         return (
-          b.batchNo.toLowerCase().includes(q) ||
-          b.productName.toLowerCase().includes(q) ||
-          b.sku.toLowerCase().includes(q) ||
-          b.location.toLowerCase().includes(q)
+          (b.batchNo && b.batchNo.toLowerCase().includes(q)) ||
+          (b.productName && b.productName.toLowerCase().includes(q)) ||
+          (b.sku && b.sku.toLowerCase().includes(q)) ||
+          (b.location && b.location.toLowerCase().includes(q))
         )
       }
       return true
     })
   }, [batches, activeTab, searchQuery])
 
-  // Create Batch
-  const handleCreateBatch = (e) => {
+  // Create Batch — 100% PERSISTED IN MONGODB
+  const handleCreateBatch = async (e) => {
     e.preventDefault()
-    const nextNum = batches.length + 101
-    const batchStr = newBatch.batchNo.trim().toUpperCase() || `BTH-2026-${nextNum}`
+    if (isSubmitting) return
 
-    const mfg = new Date(newBatch.mfgDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-    const exp = new Date(newBatch.expiryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-
-    const expTime = new Date(newBatch.expiryDate).getTime()
-    const nowTime = new Date().getTime()
-    const daysRemaining = Math.round((expTime - nowTime) / (1000 * 3600 * 24))
-
-    const newObj = {
-      id: Date.now(),
-      batchNo: batchStr,
-      productName: newBatch.productName,
-      sku: `PRD-${Math.floor(100 + Math.random() * 900)}`,
-      mfgDate: mfg,
-      expiryDate: exp,
-      daysLeft: daysRemaining,
-      qty: Number(newBatch.qty) || 100,
-      unit: newBatch.unit,
-      location: newBatch.location,
-      status: newBatch.status,
+    if (!newBatch.productName || !newBatch.productName.trim()) {
+      triggerToast('Please specify a Product Name.', 'error')
+      return
     }
 
-    setBatches([newObj, ...batches])
-    setShowAddModal(false)
-    setNewBatch(initialNewBatch)
-    triggerToast(`Batch ${batchStr} registered successfully!`)
+    const nextNum = batches.length + 101
+    const batchStr = (newBatch.batchNo || `BTH-2026-${nextNum}`).trim().toUpperCase()
+    const matchedProd = products.find((p) => p.name === newBatch.productName || p.sku === newBatch.sku)
+
+    setIsSubmitting(true)
+    try {
+      const created = await apiRequest('/batch', {
+        method: 'POST',
+        body: JSON.stringify({
+          batchNo: batchStr,
+          productId: matchedProd?._id || null,
+          productName: newBatch.productName.trim(),
+          sku: matchedProd?.sku || newBatch.sku || `SKU-${Date.now().toString().slice(-4)}`,
+          mfgDate: newBatch.mfgDate,
+          expiryDate: newBatch.expiryDate,
+          qty: Math.max(1, Number(newBatch.qty) || 100),
+          unit: newBatch.unit || matchedProd?.baseUnit || 'Bags',
+          location: newBatch.location,
+          status: newBatch.status,
+        }),
+      })
+
+      setBatches((prev) => [created, ...prev.filter((b) => (b._id !== created._id && b.batchNo !== created.batchNo))])
+      setShowAddModal(false)
+      setNewBatch(initialNewBatch)
+      triggerToast(`Batch ${batchStr} registered & saved in MongoDB!`)
+      loadBatches(true)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to create batch in database', 'error')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Open Edit Modal
@@ -287,45 +269,63 @@ export default function BatchManagement() {
     setShowEditModal(true)
   }
 
-  // Save Batch Edit
-  const handleUpdateBatch = (e) => {
+  // Save Batch Edit — 100% PERSISTED IN MONGODB
+  const handleUpdateBatch = async (e) => {
     e.preventDefault()
-    if (!editingBatch) return
+    if (!editingBatch || isSubmitting) return
 
-    const expTime = new Date(editingBatch.expiryDate).getTime()
-    const nowTime = new Date().getTime()
-    const daysRemaining = !isNaN(expTime) ? Math.round((expTime - nowTime) / (1000 * 3600 * 24)) : editingBatch.daysLeft
+    setIsSubmitting(true)
+    const targetId = editingBatch._id || editingBatch.id
 
-    setBatches((prev) =>
-      prev.map((b) =>
-        b.id === editingBatch.id
-          ? {
-              ...b,
-              batchNo: editingBatch.batchNo.trim().toUpperCase(),
-              productName: editingBatch.productName,
-              mfgDate: editingBatch.mfgDate,
-              expiryDate: editingBatch.expiryDate,
-              daysLeft: daysRemaining,
-              qty: Math.max(1, Number(editingBatch.qty) || 1),
-              unit: editingBatch.unit,
-              location: editingBatch.location,
-              status: editingBatch.status,
-            }
-          : b
+    try {
+      const updated = await apiRequest(`/batch/${targetId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          batchNo: editingBatch.batchNo?.trim().toUpperCase(),
+          productName: editingBatch.productName,
+          mfgDate: editingBatch.mfgDate,
+          expiryDate: editingBatch.expiryDate,
+          qty: Math.max(1, Number(editingBatch.qty) || 1),
+          unit: editingBatch.unit,
+          location: editingBatch.location,
+          status: editingBatch.status,
+        }),
+      })
+
+      setBatches((prev) =>
+        prev.map((b) =>
+          (b._id === targetId || b.id === targetId) ? updated : b
+        )
       )
-    )
 
-    setShowEditModal(false)
-    setEditingBatch(null)
-    triggerToast(`Batch ${editingBatch.batchNo} updated successfully!`)
+      setShowEditModal(false)
+      setEditingBatch(null)
+      triggerToast(`Batch ${editingBatch.batchNo} updated successfully in MongoDB!`)
+      loadBatches(true)
+    } catch (err) {
+      triggerToast(err.message || 'Failed to update batch in database', 'error')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  // Status Update
-  const handleStatusUpdate = (id, newStatus) => {
-    setBatches(
-      batches.map((b) => (b.id === id ? { ...b, status: newStatus } : b))
-    )
-    triggerToast(`Batch status updated to ${newStatus}`)
+  // Status Update — PERSISTED IN MONGODB
+  const handleStatusUpdate = async (item, newStatus) => {
+    const targetId = item._id || item.id
+    try {
+      if (targetId && typeof targetId === 'string' && targetId.length > 10) {
+        await apiRequest(`/batch/${targetId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: newStatus }),
+        })
+      }
+      setBatches((prev) =>
+        prev.map((b) => ((b._id === targetId || b.id === targetId) ? { ...b, status: newStatus } : b))
+      )
+      triggerToast(`Batch ${item.batchNo} status updated to ${newStatus}`)
+    } catch (err) {
+      triggerToast(err.message || 'Error updating batch status', 'error')
+    }
   }
 
   // Export CSV
@@ -418,6 +418,16 @@ export default function BatchManagement() {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => loadBatches(false)}
+            disabled={loading}
+            className="flex-1 sm:flex-none justify-center px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer shadow-2xs"
+          >
+            <RefreshCw className={`w-4 h-4 text-slate-500 shrink-0 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
+            <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
+
           <button
             type="button"
             onClick={handleExportCSV}
@@ -738,7 +748,7 @@ export default function BatchManagement() {
                 label="Target Product"
                 value={newBatch.productName}
                 onChange={(val) => setNewBatch({ ...newBatch, productName: val })}
-                options={PRODUCT_OPTIONS}
+                options={dynamicProductOptions.length > 0 ? dynamicProductOptions : PRODUCT_OPTIONS}
                 zIndexClass="z-30"
               />
 
@@ -842,9 +852,11 @@ export default function BatchManagement() {
                 </button>
                 <button
                   type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-xs cursor-pointer transition"
+                  disabled={isSubmitting}
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl font-bold shadow-xs cursor-pointer transition flex items-center gap-2"
                 >
-                  Record Batch
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
+                  <span>{isSubmitting ? 'Recording Batch...' : 'Record Batch'}</span>
                 </button>
               </div>
             </form>
@@ -998,9 +1010,11 @@ export default function BatchManagement() {
                 </button>
                 <button
                   type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-xs cursor-pointer transition"
+                  disabled={isSubmitting}
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl font-bold shadow-xs cursor-pointer transition flex items-center gap-2"
                 >
-                  Save Changes
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
+                  <span>{isSubmitting ? 'Saving Changes...' : 'Save Changes'}</span>
                 </button>
               </div>
             </form>
