@@ -48,76 +48,7 @@ const DEFAULT_BAY_OPTIONS = [
   { value: 'Dock 1 (Dispatch Outward)', label: 'Dock 1 (Dispatch Outward)' },
   { value: 'Dock 2 (Dispatch Outward)', label: 'Dock 2 (Dispatch Outward)' },
 ]
-
-// Pure React Custom Select to eliminate OS native dropdown flicker
-function CustomSelect({ label, value, onChange, options, required, zIndexClass = 'z-20' }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const containerRef = useRef(null)
-
-  useEffect(() => {
-    function handleOutside(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleOutside)
-    return () => document.removeEventListener('mousedown', handleOutside)
-  }, [])
-
-  const selectedOption = options.find((opt) => opt.value === value) || options[0]
-
-  return (
-    <div className={`relative ${zIndexClass}`} ref={containerRef}>
-      {label && (
-        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-          {label} {required && <span className="text-rose-500">*</span>}
-        </label>
-      )}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full bg-white border rounded-xl px-3.5 py-2.5 text-xs text-left flex items-center justify-between transition-all cursor-pointer shadow-2xs ${
-          isOpen
-            ? 'border-indigo-600 ring-2 ring-indigo-500/20 text-slate-900'
-            : 'border-slate-300 text-slate-800 hover:border-slate-400'
-        }`}
-      >
-        <span className="truncate font-medium">{selectedOption?.label || value}</span>
-        <ChevronDown
-          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ml-2 ${
-            isOpen ? 'rotate-180 text-indigo-600' : ''
-          }`}
-        />
-      </button>
-
-      {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl py-1 max-h-56 overflow-y-auto z-50">
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setIsOpen(false)
-                }}
-                className={`w-full px-3.5 py-2 text-xs text-left flex items-center justify-between transition-colors cursor-pointer ${
-                  isSelected
-                    ? 'bg-indigo-50 text-indigo-700 font-bold'
-                    : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <span className="truncate">{opt.label}</span>
-                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+import CustomSelect from '../components/common/SearchableSelect'
 
 // Helpers for wait time calculation
 function getWaitInfo(inTime) {

@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import { printSpecificElement } from '../utils/printHelper'
 import { apiRequest } from '../services/api'
 import { exportToExcel, exportToCSV, printOrExportPDF } from '../utils/exportHelper'
+import { getEslInfo, formatDisplayDate } from '../utils/eslHelper'
 import {
   Truck, FileText, ClipboardList, Package, Trash2, Check,
   Printer, ChevronDown, Search, ArrowRight, QrCode, LogOut, Clock,
@@ -12,6 +13,7 @@ import {
   Download, FileSpreadsheet
 } from 'lucide-react'
 import DataLoader from '../components/common/DataLoader'
+import SearchableSelect from '../components/common/SearchableSelect'
 
 const fmt = (iso) => {
   if (!iso) return '-'
@@ -25,13 +27,23 @@ const EMPTY_ITEM = () => ({
   id: Date.now() + Math.random(),
   productSku: '',
   packageQty: '1',
+  looseQty: '0',
   baseUnitEstimate: '',
   remarks: '',
 })
 
-const calcEstimate = (prod, qty) => {
-  if (!prod || !qty) return ''
-  return `${Number(qty) * (prod.packSize || 1)} ${prod.baseUnit || 'Units'}`
+const calcEstimate = (prod, qty, loose = 0) => {
+  if (!prod) return ''
+  const packs = Number(qty) || 0
+  const l = Number(loose) || 0
+  const ratio = prod.packSize || prod.conversionRatio || 1
+  const totalBase = (packs * ratio) + l
+  const maxU = prod.maxUnit || prod.outerPackaging || 'Carton'
+  const minU = prod.minUnit || prod.baseUnit || 'Packet'
+  if (l > 0) {
+    return `${totalBase} ${minU} (${packs} ${maxU} + ${l} ${minU})`
+  }
+  return `${totalBase} ${minU} (${packs} ${maxU})`
 }
 
 // Extract main product with highest quantity during gate entry
@@ -59,13 +71,20 @@ const getMainMaterialProduct = (entry) => {
 
   const mainItem = sorted[0]
   const otherCount = items.length - 1
+  const esl = getEslInfo({
+    productName: mainItem.product,
+    sku: mainItem.sku,
+  })
 
   return {
     name: mainItem.product || mainItem.sku || 'Material Item',
     sku: mainItem.sku || '',
-    qty: Number(mainItem.packageQty) || 1,
+    qty: Number(mainItem.packageQty) || 0,
+    looseQty: Number(mainItem.looseQty) || 0,
     unit: mainItem.packagingUnit || 'Packs',
     estimate: mainItem.baseUnitEstimate || '',
+    expiryFormatted: esl.expiryFormatted,
+    eslText: esl.eslText,
     totalItemsCount: items.length,
     otherCount: Math.max(0, otherCount),
   }
@@ -152,6 +171,29 @@ export default function GateEntry() {
 
     return filtered.length > 0 ? filtered : products
   }, [assignedBay, products])
+
+  const gateProductOptions = useMemo(() => {
+    return [
+      { value: '', label: `-- Select Product (${filteredProductsForBay.length} for this Bay) --` },
+      ...filteredProductsForBay.map((p) => ({
+        value: p.sku,
+        label: `${p.name} (${p.sku})`,
+        sublabel: `${p.storageZone || 'Shed'} • Stock: ${p.currentStock || 0} ${p.baseUnit || ''}`,
+      })),
+    ]
+  }, [filteredProductsForBay])
+
+  const baySelectOptions = useMemo(() => {
+    return bayOptions.map((b) => ({ value: b, label: b }))
+  }, [bayOptions])
+
+  const VEHICLE_TYPE_OPTIONS = [
+    { value: 'Heavy Commercial Truck', label: 'Heavy Commercial Truck' },
+    { value: 'Covered Container', label: 'Covered Container' },
+    { value: 'Light Cargo Vehicle (LCV)', label: 'Light Cargo Vehicle (LCV)' },
+    { value: 'Mini Truck / Pickup', label: 'Mini Truck / Pickup' },
+    { value: 'Trailer (Multi-Axle)', label: 'Trailer (Multi-Axle)' },
+  ]
 
   const triggerToast = (msg, type = 'success') => {
     setToast({ msg, type })
@@ -389,7 +431,9 @@ export default function GateEntry() {
         'Challan No': e.challanNo || '—',
         'PO Number': e.poNumber || '—',
         'Main Product (Max Qty)': main ? main.name : '—',
-        'Main Product Qty': main && main.qty > 0 ? `${main.qty} ${main.unit}` : '—',
+        'Main Product Qty': main && (main.qty > 0 || main.looseQty > 0) ? `${main.qty} ${main.unit}${main.looseQty > 0 ? ` + ${main.looseQty} Loose` : ''}` : '—',
+        'Shelf-Life / ESL': main?.eslText || '—',
+        'Expiry Date': main?.expiryFormatted || '—',
         'Total Items Count': main ? main.totalItemsCount : 0,
         'Assigned Bay': e.assignedBay || '—',
         'In Time': e.inTime ? fmt(e.inTime) : '—',
@@ -429,15 +473,16 @@ export default function GateEntry() {
         if (item.id !== id) return item
         // Prevent negative quantities
         let finalVal = val
-        if (field === 'packageQty') {
-          const num = Math.max(1, parseInt(val) || 1)
+        if (field === 'packageQty' || field === 'looseQty') {
+          const num = Math.max(0, parseInt(val) || 0)
           finalVal = String(num)
         }
         const updated = { ...item, [field]: finalVal }
         const sku = field === 'productSku' ? finalVal : item.productSku
         const qty = field === 'packageQty' ? finalVal : item.packageQty
+        const loose = field === 'looseQty' ? finalVal : (item.looseQty || 0)
         const prod = products.find((p) => p.sku === sku)
-        updated.baseUnitEstimate = calcEstimate(prod, qty)
+        updated.baseUnitEstimate = calcEstimate(prod, qty, loose)
         return updated
       })
     )
@@ -510,11 +555,24 @@ export default function GateEntry() {
           remarks: officerRemark.trim(),
           materialItems: materialItems.map(({ id, productSku, ...rest }) => {
             const prod = products.find((p) => p.sku === productSku)
+            const packs = Number(rest.packageQty) || 0
+            const loose = Number(rest.looseQty) || 0
+            const ratio = prod?.conversionRatio || prod?.packSize || 1
+            const totalBase = (packs * ratio) + loose
+            const maxU = prod ? (prod.maxUnit || prod.outerPackaging || 'Carton') : 'Carton'
+            const minU = prod ? (prod.minUnit || prod.baseUnit || 'Packet') : 'Packet'
             return {
               ...rest,
               product: prod?.name || productSku || 'General Material',
               sku: productSku,
-              packagingUnit: prod ? `${prod.outerPackaging || 'Bags'}` : 'Bags',
+              packageQty: packs,
+              looseQty: loose,
+              packagingUnit: maxU,
+              maxUnit: maxU,
+              minUnit: minU,
+              packSize: ratio,
+              totalBaseQty: totalBase,
+              baseUnit: minU,
             }
           }),
           status: 'Waiting at Gate',
@@ -686,20 +744,13 @@ export default function GateEntry() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Vehicle Type</label>
-                <div className="relative">
-                  <select
-                    value={vehicleType}
-                    onChange={(e) => setVehicleType(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none pr-8"
-                  >
-                    <option>Heavy Commercial Truck</option>
-                    <option>Covered Container</option>
-                    <option>Light Cargo Vehicle (LCV)</option>
-                    <option>Mini Truck / Pickup</option>
-                    <option>Trailer (Multi-Axle)</option>
-                  </select>
-                  <ChevronDown className="w-4 h-4 absolute right-2.5 top-3 pointer-events-none text-slate-400" />
-                </div>
+                <SearchableSelect
+                  value={vehicleType}
+                  onChange={(val) => setVehicleType(val)}
+                  options={VEHICLE_TYPE_OPTIONS}
+                  placeholder="Select Vehicle Type..."
+                  zIndexClass="z-30"
+                />
               </div>
 
               <div>
@@ -787,20 +838,13 @@ export default function GateEntry() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Assigned Unloading Bay</label>
-                <div className="relative">
-                  <select
-                    value={assignedBay}
-                    onChange={(e) => setAssignedBay(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none pr-8 cursor-pointer"
-                  >
-                    {bayOptions.map((bay) => (
-                      <option key={bay} value={bay}>
-                        {bay}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-4 h-4 absolute right-2.5 top-3 pointer-events-none text-slate-400" />
-                </div>
+                <SearchableSelect
+                  value={assignedBay}
+                  onChange={(val) => setAssignedBay(val)}
+                  options={baySelectOptions}
+                  placeholder="Select Unloading Bay..."
+                  zIndexClass="z-30"
+                />
               </div>
             </div>
           </div>
@@ -825,52 +869,71 @@ export default function GateEntry() {
                   <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 text-xs uppercase tracking-wider font-bold">
                     <th className="py-3 px-3 w-8 text-center">#</th>
                     <th className="py-3 px-3">Product Description</th>
-                    <th className="py-3 px-3 w-32">Packages Qty (Min 1)</th>
+                    <th className="py-3 px-3 w-28">Packs (Max Unit)</th>
+                    <th className="py-3 px-3 w-24">Loose (Khulla)</th>
                     <th className="py-3 px-3 w-44">Packaging Unit</th>
+                    <th className="py-3 px-3 w-36">Expiry / ESL</th>
                     <th className="py-3 px-3 w-40">Base Estimate</th>
-                    <th className="py-3 px-3 w-36">Item Remarks</th>
+                    <th className="py-3 px-3 w-32">Item Remarks</th>
                     <th className="py-3 px-3 w-8"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {materialItems.map((item, idx) => {
                     const selectedProd = products.find((p) => p.sku === item.productSku)
+                    const esl = selectedProd ? getEslInfo(selectedProd) : null
                     return (
                       <tr key={item.id}>
                         <td className="py-3 px-3 text-slate-400 font-mono text-xs text-center">{idx + 1}</td>
-                        <td className="py-3 px-3">
-                          <select
+                        <td className="py-3 px-3 min-w-[260px]">
+                          <SearchableSelect
                             value={item.productSku}
-                            onChange={(e) => handleItemChange(item.id, 'productSku', e.target.value)}
-                            required
-                            className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium cursor-pointer"
-                          >
-                            <option value="">-- Select Product ({filteredProductsForBay.length} for this Bay) --</option>
-                            {filteredProductsForBay.map((p) => (
-                              <option key={p.sku} value={p.sku}>
-                                {p.name} ({p.sku})
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(val) => handleItemChange(item.id, 'productSku', val)}
+                            options={gateProductOptions}
+                            placeholder="Select Product..."
+                            zIndexClass="z-40"
+                          />
                         </td>
                         <td className="py-3 px-3">
                           <input
                             type="number"
-                            min="1"
+                            min="0"
                             max="50000"
                             value={item.packageQty}
                             onChange={(e) => handleItemChange(item.id, 'packageQty', e.target.value)}
-                            placeholder="Qty (Min 1)"
-                            required
+                            placeholder="0"
+                            className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-bold font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </td>
+                        <td className="py-3 px-3">
+                          <input
+                            type="number"
+                            min="0"
+                            max="50000"
+                            value={item.looseQty ?? '0'}
+                            onChange={(e) => handleItemChange(item.id, 'looseQty', e.target.value)}
+                            placeholder="0"
                             className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-bold font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           />
                         </td>
                         <td className="py-3 px-3">
                           <span className="text-xs font-semibold text-slate-700 bg-slate-50 px-2 py-1.5 rounded-md border border-slate-200 block truncate">
                             {selectedProd
-                              ? `${selectedProd.outerPackaging || 'Bags'} (${selectedProd.packSize} ${selectedProd.baseUnit})`
+                              ? `${selectedProd.maxUnit || selectedProd.outerPackaging || 'Carton'} (1=${selectedProd.conversionRatio || selectedProd.packSize || 1} ${selectedProd.minUnit || selectedProd.baseUnit || 'Packet'})`
                               : 'Standard Packaging'}
                           </span>
+                        </td>
+                        <td className="py-3 px-3">
+                          {esl ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[11px] font-mono font-bold text-slate-800">{esl.expiryFormatted}</span>
+                              <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded border w-max ${esl.badgeColor}`}>
+                                {esl.eslText}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-xs">—</span>
+                          )}
                         </td>
                         <td className="py-3 px-3">
                           <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 block truncate font-mono">
@@ -1197,22 +1260,26 @@ export default function GateEntry() {
                 ))}
               </div>
 
-              {/* Time Shift Selector */}
+              {/* Time Shift Selector (Searchable) */}
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1 shrink-0">
                   <Clock className="w-3.5 h-3.5 text-blue-600" />
                   Shift / Time Window:
                 </span>
-                <select
-                  value={timeShift}
-                  onChange={(e) => setTimeShift(e.target.value)}
-                  className="px-2.5 py-1.5 border border-slate-300 rounded-xl text-xs bg-white font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                >
-                  <option value="All">All Shifts (24 Hrs)</option>
-                  <option value="Morning">Morning Shift (06:00 - 14:00)</option>
-                  <option value="Evening">Evening Shift (14:00 - 22:00)</option>
-                  <option value="Night">Night Shift (22:00 - 06:00)</option>
-                </select>
+                <div className="w-56">
+                  <SearchableSelect
+                    value={timeShift}
+                    onChange={(val) => setTimeShift(val)}
+                    options={[
+                      { value: 'All', label: 'All Shifts (24 Hrs)' },
+                      { value: 'Morning', label: 'Morning Shift (06:00 - 14:00)' },
+                      { value: 'Evening', label: 'Evening Shift (14:00 - 22:00)' },
+                      { value: 'Night', label: 'Night Shift (22:00 - 06:00)' },
+                    ]}
+                    placeholder="Select Shift"
+                    zIndexClass="z-30"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1275,14 +1342,16 @@ export default function GateEntry() {
                   <label className="block text-[10px] font-bold text-slate-600 mb-1">
                     Filter Based On Timestamp
                   </label>
-                  <select
+                  <SearchableSelect
                     value={filterTimestampField}
-                    onChange={(e) => setFilterTimestampField(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-semibold focus:outline-none"
-                  >
-                    <option value="inTime">Vehicle Arrival (In Time)</option>
-                    <option value="outTime">Vehicle Exit (Out Time)</option>
-                  </select>
+                    onChange={(val) => setFilterTimestampField(val)}
+                    options={[
+                      { value: 'inTime', label: 'Vehicle Arrival (In Time)' },
+                      { value: 'outTime', label: 'Vehicle Exit (Out Time)' },
+                    ]}
+                    placeholder="Timestamp Field"
+                    zIndexClass="z-30"
+                  />
                 </div>
 
                 <div className="flex items-end">
@@ -1327,16 +1396,20 @@ export default function GateEntry() {
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-slate-500">Status:</span>
-                <select
-                  value={logFilter}
-                  onChange={(e) => setLogFilter(e.target.value)}
-                  className="px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                >
-                  <option value="All">All Statuses ({allEntries.length})</option>
-                  <option value="Inside">Inside Only ({activeVehicles.length})</option>
-                  <option value="Cleared">Cleared (Gate Out)</option>
-                </select>
+                <span className="text-[11px] font-bold text-slate-500 shrink-0">Status:</span>
+                <div className="w-48">
+                  <SearchableSelect
+                    value={logFilter}
+                    onChange={(val) => setLogFilter(val)}
+                    options={[
+                      { value: 'All', label: `All Statuses (${allEntries.length})` },
+                      { value: 'Inside', label: `Inside Only (${activeVehicles.length})` },
+                      { value: 'Cleared', label: 'Cleared (Gate Out)' },
+                    ]}
+                    placeholder="All Statuses"
+                    zIndexClass="z-20"
+                  />
+                </div>
 
                 {(dateFilterPreset !== 'All' || timeShift !== 'All' || logSearch || logFilter !== 'All') && (
                   <button
@@ -1423,10 +1496,16 @@ export default function GateEntry() {
                               </div>
                               <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-mono">
                                 <span className="font-bold text-indigo-700 bg-indigo-50/80 px-2 py-0.5 rounded border border-indigo-100">
-                                  {main.qty} {main.unit}
+                                  {main.qty} {main.unit}{main.looseQty > 0 ? ` + ${main.looseQty} Loose` : ''}
                                 </span>
                                 {main.sku && <span className="text-slate-400 text-[10px]">({main.sku})</span>}
                               </div>
+                              {main.eslText && (
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                  <span className="font-semibold text-slate-700">{main.eslText}</span>
+                                  <span className="text-slate-400"> • Exp: {main.expiryFormatted}</span>
+                                </div>
+                              )}
                             </div>
                           )
                         })()}
@@ -1512,6 +1591,21 @@ export default function GateEntry() {
                 <span className="text-slate-500">Assigned Bay:</span>
                 <span className="font-bold text-slate-800">{registrationSuccessModal.assignedBay}</span>
               </div>
+              {registrationSuccessModal.materialItems?.length > 0 && (
+                <div className="pt-1.5 border-t border-slate-200 space-y-1">
+                  <span className="text-[11px] font-bold text-slate-700 block">Declared Packages &amp; Shelf-Life:</span>
+                  {registrationSuccessModal.materialItems.map((m, i) => {
+                    const prodMatch = products.find((p) => p.sku === m.sku || p.name === m.product)
+                    const esl = getEslInfo(prodMatch || { productName: m.product })
+                    return (
+                      <div key={i} className="flex justify-between items-center text-slate-700 text-[11px]">
+                        <span>• {m.product} <span className="text-slate-400 font-mono">({esl.eslText})</span></span>
+                        <strong className="font-mono">{m.packageQty} {m.packagingUnit}</strong>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
             <div className="flex gap-2.5 pt-2">
               <button
@@ -1787,13 +1881,24 @@ export default function GateEntry() {
               {/* Declared Materials */}
               {activePassModal.materialItems?.length > 0 && (
                 <div className="bg-indigo-50/80 p-2.5 rounded-xl border border-indigo-200 mb-3 text-[11px]">
-                  <span className="text-[10px] font-bold uppercase text-indigo-900 block mb-1">Declared Packages:</span>
-                  {activePassModal.materialItems.map((m, i) => (
-                    <div key={i} className="flex justify-between text-slate-800 font-medium">
-                      <span>• {m.product}</span>
-                      <span className="font-mono font-bold">{m.packageQty} {m.packagingUnit}</span>
-                    </div>
-                  ))}
+                  <span className="text-[10px] font-bold uppercase text-indigo-900 block mb-1">Declared Packages &amp; Shelf-Life:</span>
+                  {activePassModal.materialItems.map((m, i) => {
+                    const prodMatch = products.find((p) => p.sku === m.sku || p.name === m.product)
+                    const esl = getEslInfo(prodMatch || { productName: m.product })
+                    return (
+                      <div key={i} className="flex justify-between items-center text-slate-800 font-medium py-1 border-b border-indigo-100 last:border-b-0">
+                        <div>
+                          <span>• {m.product}</span>
+                          <span className="text-[10px] text-slate-500 font-mono block pl-2">
+                            Exp: {esl.expiryFormatted} ({esl.eslText})
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-slate-900">
+                          {m.packageQty} {m.packagingUnit}{Number(m.looseQty) > 0 ? ` + ${m.looseQty} Loose` : ''}
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
 

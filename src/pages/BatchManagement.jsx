@@ -22,76 +22,8 @@ import {
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
 import DataLoader from '../components/common/DataLoader'
-
-// Custom Select Component to eliminate native OS dropdown black-frame flicker
-function CustomSelect({ label, value, onChange, options, required, zIndexClass = 'z-20' }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const containerRef = useRef(null)
-
-  useEffect(() => {
-    function handleOutside(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleOutside)
-    return () => document.removeEventListener('mousedown', handleOutside)
-  }, [])
-
-  const selectedOption = options.find((opt) => opt.value === value) || options[0]
-
-  return (
-    <div className={`relative ${zIndexClass}`} ref={containerRef}>
-      {label && (
-        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-          {label} {required && <span className="text-rose-500">*</span>}
-        </label>
-      )}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full bg-white border rounded-xl px-3.5 py-2.5 text-xs text-left flex items-center justify-between transition-all cursor-pointer shadow-2xs ${
-          isOpen
-            ? 'border-indigo-600 ring-2 ring-indigo-500/20 text-slate-900'
-            : 'border-slate-300 text-slate-800 hover:border-slate-400'
-        }`}
-      >
-        <span className="truncate font-medium">{selectedOption?.label || value}</span>
-        <ChevronDown
-          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ml-2 ${
-            isOpen ? 'rotate-180 text-indigo-600' : ''
-          }`}
-        />
-      </button>
-
-      {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl py-1 max-h-56 overflow-y-auto z-50">
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setIsOpen(false)
-                }}
-                className={`w-full px-3.5 py-2 text-xs text-left flex items-center justify-between transition-colors cursor-pointer ${
-                  isSelected
-                    ? 'bg-indigo-50 text-indigo-700 font-bold'
-                    : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <span className="truncate">{opt.label}</span>
-                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+import { getEslInfo } from '../utils/eslHelper'
+import CustomSelect from '../components/common/SearchableSelect'
 
 const PRODUCT_OPTIONS = [
   { value: 'Basmati Rice (Grade 1 Special)', label: 'Basmati Rice (Grade 1 Special 25kg) • PRD-RIC-001' },
@@ -610,7 +542,7 @@ export default function BatchManagement() {
                 <th className="py-3.5 px-4 w-36">Batch / Lot No.</th>
                 <th className="py-3.5 px-4 min-w-[240px]">Product Name &amp; SKU</th>
                 <th className="py-3.5 px-4 w-32">Mfg Date</th>
-                <th className="py-3.5 px-4 w-32">Expiry Date</th>
+                <th className="py-3.5 px-4 w-36">Expiry Date / ESL</th>
                 <th className="py-3.5 px-4 w-32">Shelf Life</th>
                 <th className="py-3.5 px-4 w-28 text-right">Available Qty</th>
                 <th className="py-3.5 px-4 min-w-[200px]">Shed Location</th>
@@ -641,8 +573,9 @@ export default function BatchManagement() {
                     <td className="py-3.5 px-4 text-xs text-slate-600 whitespace-nowrap">
                       {b.mfgDate}
                     </td>
-                    <td className="py-3.5 px-4 text-xs font-semibold text-slate-900 whitespace-nowrap">
-                      {b.expiryDate}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <div className="text-xs font-semibold text-slate-900">{getEslInfo(b).expiryFormatted}</div>
+                      <div className="text-[10px] text-indigo-600 font-bold">{getEslInfo(b).eslText}</div>
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       {b.daysLeft < 0 ? (
@@ -781,18 +714,24 @@ export default function BatchManagement() {
                       onChange={(e) => setNewBatch({ ...newBatch, qty: e.target.value })}
                       className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-bold"
                     />
-                    <select
-                      value={newBatch.unit}
-                      onChange={(e) => setNewBatch({ ...newBatch, unit: e.target.value })}
-                      className="bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-800"
-                    >
-                      <option value="Bags">Bags</option>
-                      <option value="Tins">Tins</option>
-                      <option value="Boxes">Boxes</option>
-                      <option value="Drums">Drums</option>
-                      <option value="Bundles">Bundles</option>
-                      <option value="Units">Units</option>
-                    </select>
+                    <div className="w-32">
+                      <CustomSelect
+                        value={newBatch.unit}
+                        onChange={(val) => setNewBatch({ ...newBatch, unit: val })}
+                        options={[
+                          { value: 'Bags', label: 'Bags' },
+                          { value: 'Tins', label: 'Tins' },
+                          { value: 'Boxes', label: 'Boxes' },
+                          { value: 'Cartons', label: 'Cartons' },
+                          { value: 'Drums', label: 'Drums' },
+                          { value: 'Bundles', label: 'Bundles' },
+                          { value: 'Units', label: 'Units' },
+                          { value: 'Packets', label: 'Packets' },
+                        ]}
+                        placeholder="Unit"
+                        zIndexClass="z-20"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -931,18 +870,24 @@ export default function BatchManagement() {
                       onChange={(e) => setEditingBatch({ ...editingBatch, qty: e.target.value })}
                       className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-bold"
                     />
-                    <select
-                      value={editingBatch.unit}
-                      onChange={(e) => setEditingBatch({ ...editingBatch, unit: e.target.value })}
-                      className="bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-800"
-                    >
-                      <option value="Bags">Bags</option>
-                      <option value="Tins">Tins</option>
-                      <option value="Boxes">Boxes</option>
-                      <option value="Drums">Drums</option>
-                      <option value="Bundles">Bundles</option>
-                      <option value="Units">Units</option>
-                    </select>
+                    <div className="w-32">
+                      <CustomSelect
+                        value={editingBatch.unit}
+                        onChange={(val) => setEditingBatch({ ...editingBatch, unit: val })}
+                        options={[
+                          { value: 'Bags', label: 'Bags' },
+                          { value: 'Tins', label: 'Tins' },
+                          { value: 'Boxes', label: 'Boxes' },
+                          { value: 'Cartons', label: 'Cartons' },
+                          { value: 'Drums', label: 'Drums' },
+                          { value: 'Bundles', label: 'Bundles' },
+                          { value: 'Units', label: 'Units' },
+                          { value: 'Packets', label: 'Packets' },
+                        ]}
+                        placeholder="Unit"
+                        zIndexClass="z-20"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -984,16 +929,18 @@ export default function BatchManagement() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Status</label>
-                <select
+                <CustomSelect
                   value={editingBatch.status}
-                  onChange={(e) => setEditingBatch({ ...editingBatch, status: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                >
-                  <option value="Active">Active (Healthy)</option>
-                  <option value="Expiring Soon">Expiring Soon (FEFO Priority)</option>
-                  <option value="On Hold">On Hold (Quarantined)</option>
-                  <option value="Expired">Expired</option>
-                </select>
+                  onChange={(val) => setEditingBatch({ ...editingBatch, status: val })}
+                  options={[
+                    { value: 'Active', label: 'Active (Healthy)' },
+                    { value: 'Expiring Soon', label: 'Expiring Soon (FEFO Priority)' },
+                    { value: 'On Hold', label: 'On Hold (Quarantined)' },
+                    { value: 'Expired', label: 'Expired' },
+                  ]}
+                  placeholder="Select Status"
+                  zIndexClass="z-20"
+                />
               </div>
 
               {/* Action Buttons */}

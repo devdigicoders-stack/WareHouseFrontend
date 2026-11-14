@@ -15,6 +15,7 @@ import {
 import { exportToExcel, exportToCSV, printOrExportPDF } from '../utils/exportHelper'
 import { PRODUCT_MASTER } from '../data/productMaster'
 import DataLoader from '../components/common/DataLoader'
+import { getEslInfo, formatDisplayDate } from '../utils/eslHelper'
 import {
   FileSpreadsheet,
   BarChart3,
@@ -46,70 +47,7 @@ import {
   CheckCircle,
   ExternalLink,
 } from 'lucide-react'
-
-// Custom Accessible Select Dropdown
-function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef(null)
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const selectedOption = options.find((opt) => opt.value === value)
-
-  return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-700 flex items-center justify-between gap-2 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-      >
-        <span className="truncate">
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div className={`absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl py-1 ${zIndexClass} max-h-56 overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-100`}>
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setIsOpen(false)
-                }}
-                className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition cursor-pointer ${
-                  isSelected
-                    ? 'bg-indigo-50 text-indigo-700 font-bold'
-                    : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <div className="truncate">
-                  <div>{opt.label}</div>
-                  {opt.sublabel && (
-                    <div className="text-[10px] text-slate-400 font-normal">{opt.sublabel}</div>
-                  )}
-                </div>
-                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+import CustomSelect from '../components/common/SearchableSelect'
 
 // 6 Dedicated Warehouse Sheds
 const shadeS = [
@@ -283,22 +221,27 @@ export default function Reports() {
   const getReportDataSet = useCallback((reportCode) => {
     switch (reportCode) {
       case 'RPT-STK-001': // Consolidated Warehouse Stock Summary
-        return products.map((p) => ({
-          'SKU Code': p.sku || '—',
-          'Product Name': p.name || '—',
-          'Category': p.category || 'General',
-          'Current Stock': Number(p.currentStock || 0).toLocaleString(),
-          'Base Unit': p.baseUnit || 'Kg',
-          'Outer Packaging': p.outerPackaging || 'Packs',
-          'Pack Size': p.packSize || 1,
-          'Reorder Level': p.reorderLevel || 50,
-          'Storage Zone': p.storageZone || p.shadeId || 'Shed 1',
-          'Bin Location': p.binLocation || '—',
-          'QC Lab Status': p.labStatus || 'PASSED',
-          'Batch No': p.batchNo || '—',
-          'Expiry Date': p.expiryDate || '—',
-          'Catalog Status': p.status || 'Active',
-        }))
+        return products.map((p) => {
+          const esl = getEslInfo(p)
+          return {
+            'SKU Code': p.sku || '—',
+            'Product Name': p.name || '—',
+            'Category': p.category || 'General',
+            'Current Stock': Number(p.currentStock || 0).toLocaleString(),
+            'Base Unit': p.baseUnit || 'Kg',
+            'Outer Packaging': p.outerPackaging || 'Packs',
+            'Pack Size': p.packSize || 1,
+            'Reorder Level': p.reorderLevel || 50,
+            'Storage Zone': p.storageZone || p.shadeId || 'Shed 1',
+            'Bin Location': p.binLocation || '—',
+            'QC Lab Status': p.labStatus || 'PASSED',
+            'Batch No': p.batchNo || '—',
+            'Expiry Date': esl.expiryFormatted,
+            'Estimated Shelf Life (ESL)': esl.eslText,
+            'Days Remaining / FEFO': `${esl.daysRemaining} days (${esl.status})`,
+            'Catalog Status': p.status || 'Active',
+          }
+        })
 
       case 'RPT-GRN-002': // Inward GRN & Gate Inward Audit Log
         if (grns.length === 0) {
@@ -315,18 +258,25 @@ export default function Reports() {
             'Entry Date': g.entryTime ? new Date(g.entryTime).toLocaleDateString('en-IN') : 'Live',
           }))
         }
-        return grns.map((g) => ({
-          'GRN Number': g.grnNo || '—',
-          'PO Indent No': g.poNo || '—',
-          'Supplier / Vendor': g.supplier || '—',
-          'Vehicle Number': g.vehicleNo || '—',
-          'Storage Shed': g.shade || 'General Storage',
-          'Items Received': g.materials?.length || g.itemsCount || 1,
-          'Total Qty': g.totalQty || (g.materials?.reduce((s, m) => s + (Number(m.totalBaseQty) || Number(m.packageQty) || 0), 0) + ' Units'),
-          'Received By': g.receivedBy || 'Store Supervisor',
-          'Status': g.status || 'Completed',
-          'Inward Date': g.dateTime ? new Date(g.dateTime).toLocaleDateString('en-IN') : 'Live',
-        }))
+        return grns.map((g) => {
+          const mat = g.materials?.[0] || {}
+          const esl = getEslInfo(mat)
+          return {
+            'GRN Number': g.grnNo || '—',
+            'PO Indent No': g.poNo || '—',
+            'Supplier / Vendor': g.supplier || '—',
+            'Vehicle Number': g.vehicleNo || '—',
+            'Storage Shed': g.shade || 'General Storage',
+            'Items Received': g.materials?.length || g.itemsCount || 1,
+            'Total Qty': g.totalQty || (g.materials?.reduce((s, m) => s + (Number(m.totalBaseQty) || Number(m.packageQty) || 0), 0) + ' Units'),
+            'Batch / Lot No': mat.batchNo || '—',
+            'Expiry Date': esl.expiryFormatted,
+            'Estimated Shelf Life (ESL)': esl.eslText,
+            'Received By': g.receivedBy || 'Store Supervisor',
+            'Status': g.status || 'Completed',
+            'Inward Date': g.dateTime ? new Date(g.dateTime).toLocaleDateString('en-IN') : 'Live',
+          }
+        })
 
       case 'RPT-DSP-003': // Outward Dispatch & Manifest Summary
         return dispatches.map((d) => ({
@@ -363,19 +313,24 @@ export default function Reports() {
           (a) => a.type?.toLowerCase().includes('hold') || a.type?.toLowerCase().includes('damage') || a.type?.toLowerCase().includes('quarantine')
         )
         const effectiveHold = holdItems.length > 0 ? holdItems : adjustments
-        return effectiveHold.map((h) => ({
-          'Incident / Adj No': h.adjNumber || '—',
-          'Incident Type': h.type || 'Quality Hold',
-          'Product Name': h.productName || '—',
-          'SKU Code': h.sku || '—',
-          'Batch No': h.batchNo || '—',
-          'Location Code': h.locationCode || 'Quarantine Zone',
-          'Quantity Affected': `${h.adjustedQty || h.variance || 0} ${h.unit || 'Kg'}`,
-          'Root Cause / Reason': h.reason || 'Safety inspection',
-          'Reported By': h.reportedBy || 'Safety Officer',
-          'Resolution Status': h.status || 'Approved / Executed',
-          'Logged Date': h.createdAt ? new Date(h.createdAt).toLocaleDateString('en-IN') : 'Live',
-        }))
+        return effectiveHold.map((h) => {
+          const esl = getEslInfo(h)
+          return {
+            'Incident / Adj No': h.adjNumber || '—',
+            'Incident Type': h.type || 'Quality Hold',
+            'Product Name': h.productName || '—',
+            'SKU Code': h.sku || '—',
+            'Batch No': h.batchNo || '—',
+            'Location Code': h.locationCode || 'Quarantine Zone',
+            'Quantity Affected': `${h.adjustedQty || h.variance || 0} ${h.unit || 'Kg'}`,
+            'Expiry Date': esl.expiryFormatted,
+            'Estimated Shelf Life (ESL)': esl.eslText,
+            'Root Cause / Reason': h.reason || 'Safety inspection',
+            'Reported By': h.reportedBy || 'Safety Officer',
+            'Resolution Status': h.status || 'Approved / Executed',
+            'Logged Date': h.createdAt ? new Date(h.createdAt).toLocaleDateString('en-IN') : 'Live',
+          }
+        })
 
       case 'RPT-BIN-006': // Storage Shed & 2D Bin Capacity Utilization
         return racks.map((r) => {
@@ -403,6 +358,7 @@ export default function Reports() {
           const stock = Number(p.currentStock) || 0
           const reorder = Number(p.reorderLevel) || 50
           const deficit = Math.max(0, reorder - stock)
+          const esl = getEslInfo(p)
           return {
             'SKU Code': p.sku || '—',
             'Product Name': p.name || '—',
@@ -413,6 +369,8 @@ export default function Reports() {
             'Base Unit': p.baseUnit || 'Kg',
             'Storage Zone': p.storageZone || p.shadeId || 'Shed 1',
             'Bin Location': p.binLocation || '—',
+            'Expiry Date': esl.expiryFormatted,
+            'Estimated Shelf Life (ESL)': esl.eslText,
             'Urgency Level': stock === 0 ? 'CRITICAL (Out of Stock)' : 'HIGH (Below Safety)',
             'Action Needed': 'Initiate PO Purchase Indent to Vendor',
           }

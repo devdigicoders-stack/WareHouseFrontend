@@ -2,6 +2,8 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { printSpecificElement } from '../utils/printHelper'
+import { getEslInfo } from '../utils/eslHelper'
+import { formatDualUnits } from '../utils/unitHelper'
 
 const API = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '')
 
@@ -26,70 +28,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import DataLoader from '../components/common/DataLoader'
-
-// Custom Accessible Select Dropdown
-function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef(null)
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const selectedOption = options.find((opt) => opt.value === value)
-
-  return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-700 flex items-center justify-between gap-2 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-      >
-        <span className="truncate">
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div className={`absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl py-1 ${zIndexClass} max-h-56 overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-100`}>
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setIsOpen(false)
-                }}
-                className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition cursor-pointer ${
-                  isSelected
-                    ? 'bg-indigo-50 text-indigo-700 font-bold'
-                    : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <div className="truncate">
-                  <div>{opt.label}</div>
-                  {opt.sublabel && (
-                    <div className="text-[10px] text-slate-400 font-normal">{opt.sublabel}</div>
-                  )}
-                </div>
-                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+import CustomSelect from '../components/common/SearchableSelect'
 
 // Fallback shades
 const DEFAULT_shadeS = [
@@ -224,14 +163,19 @@ export default function CurrentStock() {
             const colVal = p.col || 'C01'
             const binLoc = p.binLocation || `${normalizedshade}-${rowVal}-${colVal}`
             const currentStock = Number(p.currentStock) || 0
-            const packSize = Number(p.packSize) || 1
+            const maxU = p.maxUnit || p.outerPackaging || 'Carton'
+            const minU = p.minUnit || p.baseUnit || 'Packet'
+            const packSize = Number(p.conversionRatio) || Number(p.packSize) || 1
             const reorderLevel = Number(p.reorderLevel) || 50
-            const packsCount = Math.ceil(currentStock / packSize)
+            const dual = formatDualUnits(currentStock, packSize, maxU, minU)
+            const packsCount = dual.fullPacks
             const reservedQty = Number(p.reservedQty) || 0
 
             let status = 'In Stock'
             if (currentStock === 0) status = 'Out of Stock'
             else if (currentStock <= reorderLevel) status = 'Low Stock'
+
+            const eslInfo = getEslInfo(p)
 
             return {
               id: p._id || idx + 1,
@@ -245,17 +189,25 @@ export default function CurrentStock() {
               row: rowVal,
               col: colVal,
               location: binLoc,
-              baseUnit: p.baseUnit || 'Kg',
-              packUnit: p.outerPackaging || 'Packs',
+              baseUnit: minU,
+              minUnit: minU,
+              packUnit: maxU,
+              maxUnit: maxU,
               unitsPerPack: packSize,
               packsCount: packsCount,
+              looseCount: dual.looseQty,
+              dualBreakdown: dual.breakdownText,
+              dualSummary: dual.summaryText,
               availableQty: currentStock,
               reservedQty: reservedQty,
               totalQty: currentStock + reservedQty,
               labStatus: p.labStatus || 'Pending QC',
               labCertNo: p.labCertNo || (p.labStatus === 'Passed' ? 'CERTIFIED' : 'Pending QC'),
-              expiryDate: p.expiryDate || '—',
-              mfgDate: p.mfgDate || '—',
+              expiryDate: eslInfo.expiryFormatted,
+              mfgDate: eslInfo.mfgFormatted,
+              eslText: eslInfo.eslText,
+              eslStatus: eslInfo.status,
+              eslBadgeColor: eslInfo.badgeColor,
               status: status,
               reorderLevel: reorderLevel,
               raw: p,
@@ -843,7 +795,7 @@ export default function CurrentStock() {
                 <th className="py-3 px-4 min-w-[130px] text-right">Available Stock</th>
                 <th className="py-3 px-4 min-w-[140px] text-right">Packaging Packs</th>
                 <th className="py-3 px-4 min-w-[120px] text-center">Lab QC Status</th>
-                <th className="py-3 px-4 min-w-[110px]">Expiry Date</th>
+                <th className="py-3 px-4 min-w-[130px]">Expiry Date / ESL</th>
                 <th className="py-3 px-4 min-w-[100px] text-center">Stock Level</th>
                 <th className="py-3 px-4 text-center w-32">Actions</th>
               </tr>
@@ -912,17 +864,22 @@ export default function CurrentStock() {
                       {row.batchNo}
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      <span className="font-mono font-black text-slate-900 text-xs">
-                        {row.availableQty.toLocaleString()}
-                      </span>
-                      <span className="text-[11px] text-slate-500 ml-1">{row.baseUnit}</span>
+                      <div>
+                        <span className="font-mono font-black text-slate-900 text-xs">
+                          {row.availableQty.toLocaleString()}
+                        </span>
+                        <span className="text-[11px] text-slate-500 ml-1">{row.baseUnit}</span>
+                      </div>
+                      <div className="text-[10px] text-indigo-600 font-semibold font-mono mt-0.5">
+                        {row.dualBreakdown}
+                      </div>
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <span className="font-bold text-slate-800">
-                        {row.packsCount} {row.packUnit}
+                        1 {row.maxUnit} = {row.unitsPerPack} {row.minUnit}s
                       </span>
                       <div className="text-[10px] text-slate-400">
-                        @ {row.unitsPerPack} {row.baseUnit}/pack
+                        {row.packsCount} Full {row.maxUnit}s{row.looseCount > 0 ? ` + ${row.looseCount} Loose` : ''}
                       </div>
                     </td>
                     <td className="py-3.5 px-4 text-center">
@@ -936,8 +893,9 @@ export default function CurrentStock() {
                         {row.labStatus === 'Passed' ? '✓ Passed' : row.labStatus}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 font-mono text-[11px] text-slate-600">
-                      {row.expiryDate}
+                    <td className="py-3.5 px-4 font-mono text-[11px]">
+                      <div className="font-bold text-slate-800">{row.expiryDate}</div>
+                      <div className="text-[10px] text-emerald-600 font-semibold">{row.eslText}</div>
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <span
@@ -1357,7 +1315,7 @@ export default function CurrentStock() {
               <div>
                 <h4 className="text-sm font-bold text-slate-900">{showQrModal.productName}</h4>
                 <p className="text-[10px] font-mono text-slate-500 mt-0.5">
-                  BATCH: {showQrModal.batchNo} • EXP: {showQrModal.expiryDate}
+                  BATCH: {showQrModal.batchNo} • EXP: {showQrModal.expiryDate} • {showQrModal.eslText}
                 </p>
               </div>
               <div className="w-28 h-28 bg-white p-2 mx-auto rounded-xl border border-slate-200 flex items-center justify-center shadow-xs">

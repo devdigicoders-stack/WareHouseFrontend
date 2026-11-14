@@ -25,6 +25,7 @@ import {
   SwitchCamera
 } from 'lucide-react'
 import { fetchProducts, createDispatch } from '../services/api'
+import { getEslInfo } from '../utils/eslHelper'
 
 export default function CheckoutQR() {
   const navigate = useNavigate()
@@ -1122,9 +1123,9 @@ export default function CheckoutQR() {
                 </div>
 
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/70">
-                  <span className="text-[10px] text-slate-400 font-medium">Expiry Date</span>
+                  <span className="text-[10px] text-slate-400 font-medium">Expiry Date / ESL</span>
                   <p className={`font-bold mt-0.5 ${scannedItem.isExpired ? 'text-rose-600' : 'text-slate-800'}`}>
-                    {scannedItem.expiryDate}
+                    {scannedItem.expiryDate} <span className="text-[10px] text-indigo-700 font-normal">({getEslInfo(scannedItem).eslText})</span>
                   </p>
                 </div>
               </div>
@@ -1291,7 +1292,13 @@ export default function CheckoutQR() {
                     </td>
 
                     <td className="py-3 px-4 font-mono text-slate-700">
-                      {row.batchNo}
+                      <div>{row.batchNo}</div>
+                      <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+                        EXP: {getEslInfo(row).expiryFormatted}
+                      </div>
+                      <div className="text-[9px] text-indigo-600 font-semibold font-sans">
+                        {getEslInfo(row).eslText}
+                      </div>
                     </td>
 
                     <td className="py-3 px-4 text-right font-bold text-slate-900">

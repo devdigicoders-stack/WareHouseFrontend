@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { apiRequest } from '../services/api'
 import { printSpecificElement } from '../utils/printHelper'
+import { getEslInfo } from '../utils/eslHelper'
 import {
   X,
   Search,
@@ -22,70 +23,7 @@ import {
   ScanLine,
 } from 'lucide-react'
 import DataLoader from '../components/common/DataLoader'
-
-// Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
-function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef(null)
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const selectedOption = options.find((opt) => opt.value === value)
-
-  return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-700 flex items-center justify-between gap-2 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-      >
-        <span className="truncate">
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div className={`absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl py-1 ${zIndexClass} max-h-56 overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-100`}>
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setIsOpen(false)
-                }}
-                className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition cursor-pointer ${
-                  isSelected
-                    ? 'bg-indigo-50 text-indigo-700 font-bold'
-                    : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <div className="truncate">
-                  <div>{opt.label}</div>
-                  {opt.sublabel && (
-                    <div className="text-[10px] text-slate-400 font-normal">{opt.sublabel}</div>
-                  )}
-                </div>
-                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+import CustomSelect from '../components/common/SearchableSelect'
 
 export default function StockSearch() {
   // Toast notifications state
@@ -157,27 +95,31 @@ export default function StockSearch() {
     apiRequest('/product')
       .then((res) => {
         if (Array.isArray(res) && res.length > 0) {
-          const mapped = res.map((p, idx) => ({
-            id: p._id || idx + 1,
-            productName: p.name || 'Product',
-            sku: p.sku || `SKU-${idx + 1}`,
-            batchNo: p.batchNo || '—',
-            category: p.category || 'General Goods',
-            shadeId: p.shadeId || 'SH01',
-            shadeName: p.storageZone || p.shadeName || 'Shed 1: Grains & Bulk Pulses',
-            row: p.row || 'R01',
-            col: p.col || 'C01',
-            location: p.binLocation || `${p.shadeId || 'SH01'}-${p.row || 'R01'}-${p.col || 'C01'}`,
-            baseUnit: p.baseUnit || p.unit || 'Kg',
-            packUnit: p.outerPackaging || 'Bags',
-            unitsPerPack: Number(p.packSize) || 1,
-            packsCount: Math.ceil((Number(p.currentStock) || 0) / (Number(p.packSize) || 1)),
-            availableQty: Number(p.currentStock) || 0,
-            status: (Number(p.currentStock) || 0) === 0 ? 'Out of Stock' : (Number(p.currentStock) || 0) <= (Number(p.reorderLevel) || 50) ? 'Low Stock' : 'In Stock',
-            expiryDate: p.expiryDate || '—',
-            labStatus: p.labStatus || 'Pending QC',
-            labCertNo: p.labCertNo || (p.labStatus === 'Passed' ? 'CERTIFIED' : 'Pending QC'),
-          }))
+          const mapped = res.map((p, idx) => {
+            const esl = getEslInfo(p)
+            return {
+              id: p._id || idx + 1,
+              productName: p.name || 'Product',
+              sku: p.sku || `SKU-${idx + 1}`,
+              batchNo: p.batchNo || '—',
+              category: p.category || 'General Goods',
+              shadeId: p.shadeId || 'SH01',
+              shadeName: p.storageZone || p.shadeName || 'Shed 1: Grains & Bulk Pulses',
+              row: p.row || 'R01',
+              col: p.col || 'C01',
+              location: p.binLocation || `${p.shadeId || 'SH01'}-${p.row || 'R01'}-${p.col || 'C01'}`,
+              baseUnit: p.baseUnit || p.unit || 'Kg',
+              packUnit: p.outerPackaging || 'Bags',
+              unitsPerPack: Number(p.packSize) || 1,
+              packsCount: Math.ceil((Number(p.currentStock) || 0) / (Number(p.packSize) || 1)),
+              availableQty: Number(p.currentStock) || 0,
+              status: (Number(p.currentStock) || 0) === 0 ? 'Out of Stock' : (Number(p.currentStock) || 0) <= (Number(p.reorderLevel) || 50) ? 'Low Stock' : 'In Stock',
+              expiryDate: esl.expiryFormatted,
+              eslText: esl.eslText,
+              labStatus: p.labStatus || 'Pending QC',
+              labCertNo: p.labCertNo || (p.labStatus === 'Passed' ? 'CERTIFIED' : 'Pending QC'),
+            }
+          })
           setStockItems(mapped)
         }
       })
@@ -618,7 +560,7 @@ export default function StockSearch() {
                 <th className="py-3 px-4 min-w-[130px] text-right">Base Unit Stock</th>
                 <th className="py-3 px-4 min-w-[140px] text-right">Packaging Packs</th>
                 <th className="py-3 px-4 min-w-[120px] text-center">Lab Clearance</th>
-                <th className="py-3 px-4 min-w-[110px]">Expiry Date</th>
+                <th className="py-3 px-4 min-w-[130px]">Expiry Date / ESL</th>
                 <th className="py-3 px-4 min-w-[100px] text-center">Availability</th>
                 <th className="py-3 px-4 text-center w-24">Actions</th>
               </tr>
@@ -697,8 +639,9 @@ export default function StockSearch() {
                           {row.labStatus === 'Passed' ? '✓ Passed' : row.labStatus}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 font-mono text-[11px] text-slate-600">
-                        {row.expiryDate}
+                      <td className="py-3.5 px-4 font-mono text-[11px]">
+                        <div className="font-bold text-slate-800">{row.expiryDate}</div>
+                        <div className="text-[10px] text-emerald-600 font-semibold">{row.eslText}</div>
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <span

@@ -38,70 +38,8 @@ import {
 import { exportToExcel, exportToCSV, printOrExportPDF } from '../utils/exportHelper'
 import { PRODUCT_MASTER } from '../data/productMaster'
 import DataLoader from '../components/common/DataLoader'
-
-// Custom Accessible Select Dropdown
-function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef(null)
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const selectedOption = options.find((opt) => opt.value === value)
-
-  return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-700 flex items-center justify-between gap-2 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-      >
-        <span className="truncate">
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div className={`absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl py-1 ${zIndexClass} max-h-56 overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-100`}>
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setIsOpen(false)
-                }}
-                className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition cursor-pointer ${
-                  isSelected
-                    ? 'bg-emerald-50 text-emerald-700 font-bold'
-                    : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <div className="truncate">
-                  <div>{opt.label}</div>
-                  {opt.sublabel && (
-                    <div className="text-[10px] text-slate-400 font-normal">{opt.sublabel}</div>
-                  )}
-                </div>
-                {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 ml-2" />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+import CustomSelect from '../components/common/SearchableSelect'
+import { getEslInfo, formatDisplayDate } from '../utils/eslHelper'
 
 export default function ExportReports() {
   // Toast notifications state
@@ -187,7 +125,7 @@ export default function ExportReports() {
     loadStudioData()
   }, [loadStudioData])
 
-  // Column Selector state (12 Columns)
+  // Column Selector state (14 Columns)
   const [selectedColumns, setSelectedColumns] = useState({
     productName: true,
     sku: true,
@@ -199,6 +137,8 @@ export default function ExportReports() {
     packQty: true,
     packUnit: true,
     expiryDate: true,
+    eslMonths: true,
+    daysRemaining: true,
     labStatus: true,
     responsibleOfficer: false,
   })
@@ -269,6 +209,8 @@ export default function ExportReports() {
     { key: 'packQty', label: 'Packaging Packs Count' },
     { key: 'packUnit', label: 'Pack Unit (Gatta/Bags/Tins)' },
     { key: 'expiryDate', label: 'Shelf-Life / Expiry Date' },
+    { key: 'eslMonths', label: 'Estimated Shelf Life (ESL)' },
+    { key: 'daysRemaining', label: 'Days Remaining (FEFO Status)' },
     { key: 'labStatus', label: 'Lab QA Clearance Status' },
     { key: 'responsibleOfficer', label: 'Authorizing Officer' },
   ]
@@ -353,8 +295,15 @@ export default function ExportReports() {
       if (selectedColumns.packUnit) {
         row['Pack Unit'] = item.outerPackaging || item.packagingUnit || 'Packs'
       }
+      const esl = getEslInfo(item)
       if (selectedColumns.expiryDate) {
-        row['Expiry / Test Date'] = item.expiryDate || (item.testDate ? new Date(item.testDate).toLocaleDateString('en-IN') : 'Live')
+        row['Expiry Date'] = esl.expiryFormatted
+      }
+      if (selectedColumns.eslMonths) {
+        row['Estimated Shelf Life (ESL)'] = esl.eslText
+      }
+      if (selectedColumns.daysRemaining) {
+        row['Days Remaining (FEFO Status)'] = `${esl.daysRemaining} days (${esl.status})`
       }
       if (selectedColumns.labStatus) {
         row['Lab QA Status'] = item.labStatus || item.status || 'Verified / Passed'
@@ -719,7 +668,7 @@ export default function ExportReports() {
             {/* Storage Shed Filter */}
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
-                shade Scope Filter
+                shed Scope Filter
               </label>
               <CustomSelect
                 value={filtershade}

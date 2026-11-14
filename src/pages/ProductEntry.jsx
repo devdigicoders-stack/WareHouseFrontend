@@ -20,76 +20,10 @@ import {
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
 import DataLoader from '../components/common/DataLoader'
+import { getEslInfo } from '../utils/eslHelper'
+import { formatDualUnits, MAXIMUM_UNIT_OPTIONS, MINIMUM_UNIT_OPTIONS } from '../utils/unitHelper'
 
-// Custom Select Component to eliminate native OS dropdown black-frame flicker
-function CustomSelect({ label, value, onChange, options, required, zIndexClass = 'z-20' }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const containerRef = useRef(null)
-
-  useEffect(() => {
-    function handleOutside(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleOutside)
-    return () => document.removeEventListener('mousedown', handleOutside)
-  }, [])
-
-  const selectedOption = options.find((opt) => opt.value === value) || options[0]
-
-  return (
-    <div className={`relative ${zIndexClass}`} ref={containerRef}>
-      {label && (
-        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-          {label} {required && <span className="text-rose-500">*</span>}
-        </label>
-      )}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full bg-white border rounded-xl px-3.5 py-2.5 text-xs text-left flex items-center justify-between transition-all cursor-pointer shadow-2xs ${
-          isOpen
-            ? 'border-indigo-600 ring-2 ring-indigo-500/20 text-slate-900'
-            : 'border-slate-300 text-slate-800 hover:border-slate-400'
-        }`}
-      >
-        <span className="truncate font-medium">{selectedOption?.label || value}</span>
-        <ChevronDown
-          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ml-2 ${
-            isOpen ? 'rotate-180 text-indigo-600' : ''
-          }`}
-        />
-      </button>
-
-      {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl py-1 max-h-56 overflow-y-auto z-50">
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setIsOpen(false)
-                }}
-                className={`w-full px-3.5 py-2 text-xs text-left flex items-center justify-between transition-colors cursor-pointer ${
-                  isSelected
-                    ? 'bg-indigo-50 text-indigo-700 font-bold'
-                    : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <span className="truncate">{opt.label}</span>
-                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+import CustomSelect from '../components/common/SearchableSelect'
 
 const CATEGORY_OPTIONS = [
   { value: 'Grains & Pulses', label: 'Grains & Pulses' },
@@ -167,9 +101,12 @@ export default function ProductEntry() {
     sku: '',
     category: 'Grains & Pulses',
     brand: '',
-    baseUnit: 'Kg',
-    outerPackaging: 'Bag',
-    packSize: '25',
+    maxUnit: 'Carton',
+    minUnit: 'Packet',
+    conversionRatio: '10',
+    baseUnit: 'Packet',
+    outerPackaging: 'Carton',
+    packSize: '10',
     storageZone: shades.length > 0 ? `${shades[0].code} (${shades[0].name})` : 'Shed 1 (General Stores)',
     reorderLevel: '50',
     currentStock: '0',
@@ -214,20 +151,26 @@ export default function ProductEntry() {
 
   const handleOpenEdit = (prod) => {
     setEditingId(prod._id)
+    const maxU = prod.maxUnit || prod.outerPackaging || 'Carton'
+    const minU = prod.minUnit || prod.baseUnit || 'Packet'
+    const ratio = String(prod.conversionRatio || prod.packSize || 10)
     setFormData({
       name: prod.name,
       sku: prod.sku,
       category: prod.category,
       brand: prod.brand,
-      baseUnit: prod.baseUnit,
-      outerPackaging: prod.outerPackaging,
-      packSize: String(prod.packSize),
+      maxUnit: maxU,
+      minUnit: minU,
+      conversionRatio: ratio,
+      baseUnit: minU,
+      outerPackaging: maxU,
+      packSize: ratio,
       storageZone: prod.storageZone,
       reorderLevel: String(prod.reorderLevel),
       currentStock: String(prod.currentStock),
-      barcode: prod.barcode,
-      hsnCode: prod.hsnCode,
-      description: prod.description,
+      barcode: prod.barcode || '',
+      hsnCode: prod.hsnCode || '',
+      description: prod.description || '',
     })
     setShowModal(true)
   }
@@ -239,12 +182,21 @@ export default function ProductEntry() {
     const stock = Number(formData.currentStock) || 0
     const reorder = Number(formData.reorderLevel) || 50
     const status = stock <= 0 ? 'Out of Stock' : stock <= reorder ? 'Low Stock' : 'Active'
+    const maxU = formData.maxUnit || formData.outerPackaging || 'Carton'
+    const minU = formData.minUnit || formData.baseUnit || 'Packet'
+    const ratio = Number(formData.conversionRatio) || Number(formData.packSize) || 1
+
     const payload = {
       ...formData,
       name: formData.name.trim(),
       sku: formData.sku.trim(),
       brand: formData.brand.trim() || 'Standard Commercial',
-      packSize: Number(formData.packSize) || 1,
+      maxUnit: maxU,
+      minUnit: minU,
+      conversionRatio: ratio,
+      outerPackaging: maxU,
+      baseUnit: minU,
+      packSize: ratio,
       currentStock: stock,
       reorderLevel: reorder,
       status,
@@ -361,7 +313,7 @@ export default function ProductEntry() {
               Product Catalog &amp; SKU Master
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 leading-relaxed">
-              Maintain product specifications, outer packaging ratios, SKU codes, and shade storage zones
+              Maintain product specifications, outer packaging ratios, SKU codes, and Shed storage zones
             </p>
           </div>
         </div>
@@ -516,6 +468,7 @@ export default function ProductEntry() {
                 <th className="py-3.5 px-4 min-w-[160px]">Category</th>
                 <th className="py-3.5 px-4 min-w-[160px]">Packaging Ratio</th>
                 <th className="py-3.5 px-4 min-w-[180px]">Storage Shed</th>
+                <th className="py-3.5 px-4 min-w-[140px]">Expiry / ESL</th>
                 <th className="py-3.5 px-4 w-28 text-right">Stock</th>
                 <th className="py-3.5 px-4 w-28 text-right">Reorder</th>
                 <th className="py-3.5 px-4 text-center w-28">Status</th>
@@ -525,7 +478,7 @@ export default function ProductEntry() {
             <tbody className="divide-y divide-slate-100 bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan="10" className="py-8">
+                  <td colSpan="11" className="py-8">
                     <DataLoader
                       text="Loading Product Master Catalog..."
                       subtext="Fetching registered items, SKUs, and packaging specs..."
@@ -535,12 +488,14 @@ export default function ProductEntry() {
                 </tr>
               ) : filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan="10" className="py-10 text-center text-slate-400 text-sm">
+                  <td colSpan="11" className="py-10 text-center text-slate-400 text-sm">
                     No products found matching current category or search criteria.
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((p, idx) => (
+                filteredProducts.map((p, idx) => {
+                  const esl = getEslInfo(p)
+                  return (
                   <tr key={p._id || p.id || idx} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-3 text-center text-slate-400 font-mono text-xs font-semibold">
                       {idx + 1}
@@ -556,13 +511,39 @@ export default function ProductEntry() {
                       {p.category}
                     </td>
                     <td className="py-3.5 px-4 text-xs whitespace-nowrap font-mono text-slate-700">
-                      <span>1 {p.outerPackaging} = <strong>{p.packSize} {p.baseUnit}</strong></span>
+                      <div className="font-bold text-slate-900">
+                        1 {p.maxUnit || p.outerPackaging} = <strong>{p.conversionRatio || p.packSize} {p.minUnit || p.baseUnit}s</strong>
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-sans mt-0.5">
+                        Max: {p.maxUnit || p.outerPackaging} • Min: {p.minUnit || p.baseUnit}
+                      </div>
                     </td>
                     <td className="py-3.5 px-4 text-xs font-semibold text-slate-800 whitespace-nowrap">
                       {p.storageZone}
                     </td>
-                    <td className="py-3.5 px-4 text-right whitespace-nowrap font-mono font-bold text-slate-900 text-xs">
-                      {p.currentStock} <span className="font-normal text-slate-500">{p.baseUnit}</span>
+                    <td className="py-3.5 px-4 text-xs whitespace-nowrap font-mono">
+                      <div className="font-bold text-slate-800">{esl.expiryFormatted}</div>
+                      <div className="text-[10px] text-emerald-600 font-semibold">{esl.eslText}</div>
+                    </td>
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap text-xs">
+                      {(() => {
+                        const dual = formatDualUnits(
+                          p.currentStock,
+                          p.conversionRatio || p.packSize,
+                          p.maxUnit || p.outerPackaging,
+                          p.minUnit || p.baseUnit
+                        )
+                        return (
+                          <div>
+                            <div className="font-mono font-bold text-slate-900">
+                              {dual.totalQty} <span className="font-normal text-slate-500">{dual.minUnit}</span>
+                            </div>
+                            <div className="text-[10px] font-semibold text-indigo-600 font-mono mt-0.5">
+                              {dual.breakdownText}
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td className="py-3.5 px-4 text-right whitespace-nowrap font-mono font-semibold text-slate-600 text-xs">
                       {p.reorderLevel} <span className="font-normal text-slate-400">{p.baseUnit}</span>
@@ -597,7 +578,7 @@ export default function ProductEntry() {
                       </div>
                     </td>
                   </tr>
-                ))
+                )})
               )}
             </tbody>
           </table>
@@ -686,36 +667,88 @@ export default function ProductEntry() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <CustomSelect
-                  label="Outer Packaging"
-                  value={formData.outerPackaging}
-                  onChange={(val) => setFormData({ ...formData, outerPackaging: val })}
-                  options={PACKAGING_OPTIONS}
-                  zIndexClass="z-30"
-                />
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Pack Size (Ratio)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    placeholder="25"
-                    value={formData.packSize}
-                    onChange={(e) => setFormData({ ...formData, packSize: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
+              {/* Dual Unit & Packaging Conversion Configuration (Inward Bada Pack vs Outward Loose Piece) */}
+              <div className="bg-indigo-50/70 p-3.5 rounded-2xl border border-indigo-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-indigo-600" />
+                    <span className="text-xs font-bold text-indigo-950 uppercase tracking-wider">
+                      Dual-Unit & Packaging Configuration (In & Out Formats)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-indigo-700 bg-white px-2 py-0.5 rounded-full border border-indigo-200">
+                    Max vs Min Units
+                  </span>
                 </div>
 
-                <CustomSelect
-                  label="Base Measurement Unit"
-                  value={formData.baseUnit}
-                  onChange={(val) => setFormData({ ...formData, baseUnit: val })}
-                  options={BASE_UNIT_OPTIONS}
-                  zIndexClass="z-30"
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      1. Maximum Unit (Inward Bulk Pack) <span className="text-rose-500">*</span>
+                    </label>
+                    <CustomSelect
+                      value={formData.maxUnit || formData.outerPackaging}
+                      onChange={(val) => setFormData({ ...formData, maxUnit: val, outerPackaging: val })}
+                      options={MAXIMUM_UNIT_OPTIONS}
+                      zIndexClass="z-30"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                      Bada pack (e.g. Carton, Box, Bag)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      2. Conversion Ratio <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="1"
+                        required
+                        placeholder="10"
+                        value={formData.conversionRatio || formData.packSize}
+                        onChange={(e) => setFormData({ ...formData, conversionRatio: e.target.value, packSize: e.target.value })}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      />
+                      <span className="absolute right-3 top-2.5 text-[10px] font-mono text-slate-400">
+                        per {formData.maxUnit || 'Pack'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                      Kitne pieces aate hain 1 pack mein
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      3. Minimum Unit (Outward Loose Piece) <span className="text-rose-500">*</span>
+                    </label>
+                    <CustomSelect
+                      value={formData.minUnit || formData.baseUnit}
+                      onChange={(val) => setFormData({ ...formData, minUnit: val, baseUnit: val })}
+                      options={MINIMUM_UNIT_OPTIONS}
+                      zIndexClass="z-30"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                      Chhota piece (e.g. Packet, Piece, Kg)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Live Interactive Conversion Preview Banner */}
+                <div className="p-2.5 bg-white rounded-xl border border-indigo-200/80 flex flex-col sm:flex-row sm:items-center justify-between text-xs font-mono gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-slate-700 font-medium">Formula:</span>
+                    <strong className="text-indigo-900 font-bold">
+                      1 {formData.maxUnit || 'Carton'} = {formData.conversionRatio || formData.packSize || 10} {formData.minUnit || 'Packet'}s
+                    </strong>
+                  </div>
+                  <span className="text-[10px] text-emerald-700 font-sans font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 self-start sm:self-auto">
+                    Inward in {formData.maxUnit || 'Carton'}s • Outward in Loose {formData.minUnit || 'Packet'}s
+                  </span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

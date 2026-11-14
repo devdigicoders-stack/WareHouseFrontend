@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { printSpecificElement } from '../utils/printHelper'
+import { getEslInfo } from '../utils/eslHelper'
 import {
   Wand2,
   Check,
@@ -24,69 +25,13 @@ import {
   Sparkles,
   MapPin,
   Plus,
+  Calendar,
+  Filter,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
 import DataLoader from '../components/common/DataLoader'
-
-// Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
-function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef(null)
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const selectedOption = options.find((opt) => opt.value === value)
-
-  return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-left font-medium text-slate-800 flex items-center justify-between transition focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-      >
-        <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
-        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ml-2 ${isOpen ? 'rotate-180 text-indigo-600' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div className={`absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 ${zIndexClass} max-h-56 overflow-y-auto`}>
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setIsOpen(false)
-                }}
-                className={`w-full px-3.5 py-2 text-xs text-left flex items-center justify-between transition ${
-                  isSelected
-                    ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                    : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <div className="truncate">
-                  <div className="truncate">{opt.label}</div>
-                  {opt.sublabel && <div className="text-[10px] text-slate-400 font-normal">{opt.sublabel}</div>}
-                </div>
-                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+import { DATE_PRESET_OPTIONS, isDateMatching } from '../utils/dateFilterHelper'
+import CustomSelect from '../components/common/SearchableSelect'
 
 export default function PutAwayCheckIn() {
   // Toast state
@@ -99,6 +44,9 @@ export default function PutAwayCheckIn() {
   // Active Tab for Queue
   const [activeTab, setActiveTab] = useState('PENDING')
   const [searchQuery, setSearchQuery] = useState('')
+  const [filterDate, setFilterDate] = useState('ALL')
+  const [filterCustomDate, setFilterCustomDate] = useState('')
+  const [filterProduct, setFilterProduct] = useState('ALL')
   const [currentPage, setCurrentPage] = useState(1)
   const perPage = 6
 
@@ -110,6 +58,7 @@ export default function PutAwayCheckIn() {
   // Form State
   const [formGRN, setFormGRN] = useState('')
   const [formProduct, setFormProduct] = useState('')
+  const [formCategory, setFormCategory] = useState('')
   const [formBatch, setFormBatch] = useState('')
   const [formPackUnit, setFormPackUnit] = useState('Bags')
   const [formBaseUnit, setFormBaseUnit] = useState('Kg')
@@ -170,6 +119,7 @@ export default function PutAwayCheckIn() {
                 grnNo: g.grnNo,
                 productName: m.productName,
                 sku: m.sku || 'SKU-01',
+                category: prod?.category || m.category || '',
                 batchNo: m.batchNo || `BTH-${g.grnNo?.slice(-4) || '2026'}`,
                 packUnit: m.packagingUnit || 'Bags',
                 packsCount: m.packageQty || 50,
@@ -179,6 +129,7 @@ export default function PutAwayCheckIn() {
                 shadeId: g.shade || 'SH01',
                 recommendedLocation: assignedLocation,
                 receivedOn: new Date(g.createdAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+                createdAt: g.createdAt || g.dateTime || new Date().toISOString(),
                 priority: 'High',
                 status: isCompleted ? 'Completed' : 'Pending',
                 labStatus: labStatus,
@@ -191,6 +142,7 @@ export default function PutAwayCheckIn() {
           const firstPending = mapped.find((item) => item.status === 'Pending') || mapped[0]
           setFormGRN(firstPending.grnNo)
           setFormProduct(firstPending.productName)
+          setFormCategory(firstPending.category || '')
           setFormBatch(firstPending.batchNo)
           setFormPackUnit(firstPending.packUnit)
           setFormBaseUnit(firstPending.uom)
@@ -396,11 +348,40 @@ export default function PutAwayCheckIn() {
       .catch(() => {})
   }, [formGRN, formProduct, formBatch, formLocationCode, baseQuantityComputed, formBaseUnit])
 
+  // Dynamic Product Filter Options
+  const productFilterOptions = useMemo(() => {
+    const list = [{ value: 'ALL', label: 'All Products (Sabhi Items)' }]
+    const names = new Set()
+    queueItems.forEach((i) => {
+      if (i.productName && !names.has(i.productName)) {
+        names.add(i.productName)
+        list.push({ value: i.productName, label: i.productName })
+      }
+    })
+    return list
+  }, [queueItems])
+
   // Filtered Queue
   const filteredQueue = useMemo(() => {
     return queueItems.filter((item) => {
       if (activeTab === 'PENDING' && item.status !== 'Pending') return false
       if (activeTab === 'COMPLETED' && item.status !== 'Completed') return false
+
+      // Date Filter
+      if (filterDate !== 'ALL') {
+        const dVal = item.createdAt || item.receivedOn
+        if (!isDateMatching(dVal, filterDate, filterCustomDate)) return false
+      }
+
+      // Product Filter
+      if (filterProduct !== 'ALL') {
+        const target = filterProduct.toLowerCase()
+        const prodMatch =
+          (item.productName && item.productName.toLowerCase().includes(target)) ||
+          (item.sku && item.sku.toLowerCase().includes(target))
+        if (!prodMatch) return false
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
         return (
@@ -412,7 +393,7 @@ export default function PutAwayCheckIn() {
       }
       return true
     })
-  }, [queueItems, activeTab, searchQuery])
+  }, [queueItems, activeTab, searchQuery, filterDate, filterCustomDate, filterProduct])
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredQueue.length / perPage))
@@ -432,6 +413,7 @@ export default function PutAwayCheckIn() {
   const handleLoadQueueItem = (item) => {
     setFormGRN(item.grnNo)
     setFormProduct(item.productName)
+    setFormCategory(item.category || '')
     setFormBatch(item.batchNo)
     setFormPackUnit(item.packUnit)
     setFormBaseUnit(item.uom)
@@ -756,20 +738,51 @@ export default function PutAwayCheckIn() {
           <div>
             <h1 className="text-xl font-bold text-slate-800 tracking-tight">Put-Away / Check-In</h1>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Allocate received gate items into shade ➔ Row ➔ Column bins with base product unit auto-calculation.
+              Allocate received gate items into Shed ➔ Row ➔ Column bins with base product unit auto-calculation.
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
           <Link
+            to="/grn?tab=pending"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-xs transition"
+          >
+            <span>🚚 Unified GRN &amp; Put-in Hub</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+          <Link
             to="/location-master"
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
           >
             <span>View 2D Grid Matrix</span>
-            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+            <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
+      </div>
+
+      {/* Unified GRN + Put-in Info Banner */}
+      <div className="bg-gradient-to-r from-amber-50 via-indigo-50 to-emerald-50 border border-amber-200/80 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <div>
+            <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+              ✨ Naya Unified Flow: GRN aur Put-in ek hi jagah jud chuke hain!
+            </h4>
+            <p className="text-[11px] text-slate-600 mt-0.5">
+              Confusion aur duplicate entry se bachne ke liye ab aap direct GRN page par "Pending Put-in" aur "Completed Put-in" tabs se samaan ko rack mein rakh sakte hain aur slip nikal sakte hain.
+            </p>
+          </div>
+        </div>
+        <Link
+          to="/grn?tab=pending"
+          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 transition shadow-xs"
+        >
+          <span>Open Unified GRN &amp; Put-in</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
 
       {/* 4 Dynamic KPI Stat Cards */}
@@ -1089,6 +1102,10 @@ export default function PutAwayCheckIn() {
                 <span className="font-bold text-slate-900">{formBatch}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-slate-500 font-sans">Expiry / ESL:</span>
+                <span className="font-bold text-rose-700">{getEslInfo({ name: formProduct, category: formCategory || '', batchNo: formBatch }).expiryFormatted} ({getEslInfo({ name: formProduct, category: formCategory || '' }).eslText})</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-slate-500 font-sans">Packs Count:</span>
                 <span className="font-bold text-slate-900">{formPacksCount} {formPackUnit}</span>
               </div>
@@ -1166,17 +1183,86 @@ export default function PutAwayCheckIn() {
             </div>
           </div>
 
-          <div className="relative w-full sm:w-72">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by GRN, product, batch..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Date Preset Filter */}
+            <div className="w-36">
+              <CustomSelect
+                value={filterDate}
+                onChange={(val) => {
+                  setFilterDate(val)
+                  setCurrentPage(1)
+                }}
+                options={DATE_PRESET_OPTIONS}
+                placeholder="All Dates"
+                zIndexClass="z-30"
+              />
+            </div>
+
+            {/* Product Item Filter */}
+            <div className="w-44">
+              <CustomSelect
+                value={filterProduct}
+                onChange={(val) => {
+                  setFilterProduct(val)
+                  setCurrentPage(1)
+                }}
+                options={productFilterOptions}
+                placeholder="All Products"
+                zIndexClass="z-30"
+              />
+            </div>
+
+            {/* Keyword Search */}
+            <div className="relative w-full sm:w-56">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setCurrentPage(1)
+                }}
+                placeholder="Search GRN, product, batch..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+              />
+            </div>
+
+            {(filterDate !== 'ALL' || filterProduct !== 'ALL' || searchQuery) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterDate('ALL')
+                  setFilterCustomDate('')
+                  setFilterProduct('ALL')
+                  setSearchQuery('')
+                  setCurrentPage(1)
+                }}
+                className="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 transition"
+                title="Reset Filters"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
+
+        {filterDate === 'CUSTOM' && (
+          <div className="px-5 py-2 bg-indigo-50/50 border-b border-indigo-100 flex items-center gap-3 text-xs">
+            <span className="font-bold text-slate-700 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+              Select Specific Date:
+            </span>
+            <input
+              type="date"
+              value={filterCustomDate}
+              onChange={(e) => {
+                setFilterCustomDate(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="bg-white border border-indigo-300 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            />
+          </div>
+        )}
 
         {/* Full-Width Table */}
         <div className="overflow-x-auto w-full">
@@ -1402,6 +1488,9 @@ export default function PutAwayCheckIn() {
               <div className="text-[10px] text-slate-600 font-mono">
                 {printedLabelData.packsCount} {printedLabelData.packUnit} = {printedLabelData.baseQuantity} {printedLabelData.baseUnit}
               </div>
+              <div className="text-[10px] text-rose-700 font-mono font-bold">
+                EXP: {getEslInfo({ name: printedLabelData?.productName, batchNo: printedLabelData?.batchNo }).expiryFormatted} • {getEslInfo({ name: printedLabelData?.productName }).eslText}
+              </div>
               <div className="text-[9px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block">
                 QC Status: {printedLabelData.labStatus}
               </div>
@@ -1507,18 +1596,20 @@ export default function PutAwayCheckIn() {
             <form onSubmit={handleCreateRack} className="space-y-3 text-xs">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Select Facility / Shed *</label>
-                <select
+                <CustomSelect
                   value={newRackData.shadeId}
-                  onChange={(e) => setNewRackData({ ...newRackData, shadeId: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800"
-                >
-                  <option value="SH01">SH01 - Shed 1: Grains &amp; Bulk Pulses</option>
-                  <option value="SH02">SH02 - Shed 2: Edible Oils &amp; Liquids</option>
-                  <option value="SH03">SH03 - Shed 3: Packaged Food &amp; FMCG</option>
-                  <option value="SH04">SH04 - Shed 4: Packaging Materials</option>
-                  <option value="SH05">SH05 - Shed 5: Chemicals &amp; Hygiene</option>
-                  <option value="SH06">SH06 - Shed 6: Spares &amp; General Goods</option>
-                </select>
+                  onChange={(val) => setNewRackData({ ...newRackData, shadeId: val })}
+                  options={[
+                    { value: 'SH01', label: 'SH01 - Shed 1: Grains & Bulk Pulses' },
+                    { value: 'SH02', label: 'SH02 - Shed 2: Edible Oils & Liquids' },
+                    { value: 'SH03', label: 'SH03 - Shed 3: Packaged Food & FMCG' },
+                    { value: 'SH04', label: 'SH04 - Shed 4: Packaging Materials' },
+                    { value: 'SH05', label: 'SH05 - Shed 5: Chemicals & Hygiene' },
+                    { value: 'SH06', label: 'SH06 - Shed 6: Spares & General Goods' },
+                  ]}
+                  placeholder="Select Facility / Shed"
+                  zIndexClass="z-30"
+                />
               </div>
 
               <div>
@@ -1560,18 +1651,20 @@ export default function PutAwayCheckIn() {
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">Storage Classification</label>
-                <select
+                <CustomSelect
                   value={newRackData.category}
-                  onChange={(e) => setNewRackData({ ...newRackData, category: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800"
-                >
-                  <option value="Grains & Pulses">Grains &amp; Bulk Pulses (Food)</option>
-                  <option value="Edible Oils">Edible Oils &amp; Liquids (Food)</option>
-                  <option value="Packaged FMCG">Packaged FMCG &amp; Snacks (Food)</option>
-                  <option value="Packaging Materials">Corrugated Cartons &amp; Packaging</option>
-                  <option value="Chemicals & Hygiene">Industrial Chemicals &amp; Detergents (Hazardous)</option>
-                  <option value="General Spares">Machinery Spares &amp; Hardware</option>
-                </select>
+                  onChange={(val) => setNewRackData({ ...newRackData, category: val })}
+                  options={[
+                    { value: 'Grains & Pulses', label: 'Grains & Bulk Pulses (Food)' },
+                    { value: 'Edible Oils', label: 'Edible Oils & Liquids (Food)' },
+                    { value: 'Packaged FMCG', label: 'Packaged FMCG & Snacks (Food)' },
+                    { value: 'Packaging Materials', label: 'Corrugated Cartons & Packaging' },
+                    { value: 'Chemicals & Hygiene', label: 'Industrial Chemicals & Detergents (Hazardous)' },
+                    { value: 'General Spares', label: 'Machinery Spares & Hardware' },
+                  ]}
+                  placeholder="Select Storage Classification"
+                  zIndexClass="z-20"
+                />
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">

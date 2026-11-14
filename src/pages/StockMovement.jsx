@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { printSpecificElement } from '../utils/printHelper'
+import { getEslInfo } from '../utils/eslHelper'
 import {
   ArrowLeftRight,
   Eye,
@@ -30,66 +31,7 @@ import {
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
 import DataLoader from '../components/common/DataLoader'
-
-// Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
-function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef(null)
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const selectedOption = options.find((opt) => opt.value === value)
-
-  return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-left font-medium text-slate-800 flex items-center justify-between transition focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-      >
-        <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
-        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ml-2 ${isOpen ? 'rotate-180 text-indigo-600' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div className={`absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 ${zIndexClass} max-h-56 overflow-y-auto`}>
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setIsOpen(false)
-                }}
-                className={`w-full px-3.5 py-2 text-xs text-left flex items-center justify-between transition ${
-                  isSelected
-                    ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                    : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <div className="truncate">
-                  <div className="truncate">{opt.label}</div>
-                  {opt.sublabel && <div className="text-[10px] text-slate-400 font-normal">{opt.sublabel}</div>}
-                </div>
-                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+import CustomSelect from '../components/common/SearchableSelect'
 
 const fmt = (iso) => {
   if (!iso) return '-'
@@ -228,6 +170,27 @@ export default function StockMovement() {
     })
     return list
   }, [racks])
+
+  // Searchable Options for Source and Destination Bins
+  const occupiedBinOptions = useMemo(() => {
+    return [
+      { value: '', label: '-- Search & Select Occupied Source Bin --' },
+      ...occupiedBins.map((b) => ({
+        value: b.code,
+        label: `${b.code} — ${b.productName} (${b.currentStock} qty, Batch: ${b.batchNo})`,
+      }))
+    ]
+  }, [occupiedBins])
+
+  const emptyBinOptions = useMemo(() => {
+    return [
+      { value: '', label: '-- Search & Select Available Empty Destination Bin --' },
+      ...emptyBins.map((b) => ({
+        value: b.code,
+        label: `${b.code} (Shed ${b.shadeCode} • ${b.rackNumber} • R${b.row}•C${b.col})`,
+      }))
+    ]
+  }, [emptyBins])
 
   // When source bin is picked, auto-fill product details
   const handleSelectSourceBin = (binCode) => {
@@ -566,7 +529,7 @@ export default function StockMovement() {
                 <th className="py-3.5 px-4 min-w-[120px]">Ref No.</th>
                 <th className="py-3.5 px-4 min-w-[100px]">Type</th>
                 <th className="py-3.5 px-4 min-w-[180px]">Product Stored</th>
-                <th className="py-3.5 px-4 min-w-[110px]">Batch No.</th>
+                <th className="py-3.5 px-4 min-w-[140px]">Batch &amp; Expiry / ESL</th>
                 <th className="py-3.5 px-4 min-w-[130px]">From Location</th>
                 <th className="py-3.5 px-4 min-w-[130px]">To Location</th>
                 <th className="py-3.5 px-4 text-center min-w-[100px]">Quantity</th>
@@ -633,7 +596,13 @@ export default function StockMovement() {
                         {row.productName}
                       </td>
                       <td className="py-3.5 px-4 font-mono text-slate-700 font-medium">
-                        {row.batchNo}
+                        <div>{row.batchNo}</div>
+                        <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+                          EXP: {getEslInfo(row).expiryFormatted}
+                        </div>
+                        <div className="text-[9px] text-indigo-600 font-sans font-bold">
+                          {getEslInfo(row).eslText}
+                        </div>
                       </td>
                       <td className="py-3.5 px-4 font-mono font-medium text-slate-600">
                         {row.fromLocation}
@@ -749,24 +718,19 @@ export default function StockMovement() {
                 />
               </div>
 
-              {/* Source Bin Selection */}
+              {/* Source Bin Selection (Searchable) */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Source Origin Bin (Occupied Bin) <span className="text-rose-500">*</span>
                 </label>
                 {occupiedBins.length > 0 ? (
-                  <select
+                  <CustomSelect
                     value={newMovement.fromLocation}
-                    onChange={(e) => handleSelectSourceBin(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-                  >
-                    <option value="">Select occupied source bin...</option>
-                    {occupiedBins.map((b) => (
-                      <option key={b.code} value={b.code}>
-                        {b.code} — {b.productName} ({b.currentStock} qty, Batch: {b.batchNo})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleSelectSourceBin(val)}
+                    options={occupiedBinOptions}
+                    placeholder="-- Search & Select Source Bin --"
+                    zIndexClass="z-30"
+                  />
                 ) : (
                   <input
                     type="text"
@@ -816,18 +780,13 @@ export default function StockMovement() {
                 </label>
                 {emptyBins.length > 0 ? (
                   <div className="space-y-1.5">
-                    <select
+                    <CustomSelect
                       value={newMovement.toLocation}
-                      onChange={(e) => setNewMovement({ ...newMovement, toLocation: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-mono font-bold text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
-                    >
-                      <option value="">Select available empty bin...</option>
-                      {emptyBins.map((b) => (
-                        <option key={b.code} value={b.code}>
-                          {b.code} (shade {b.shadeCode} - {b.rackNumber} - R{b.row}•C{b.col})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setNewMovement({ ...newMovement, toLocation: val })}
+                      options={emptyBinOptions}
+                      placeholder="-- Search & Select Empty Destination Bin --"
+                      zIndexClass="z-20"
+                    />
                     <input
                       type="text"
                       placeholder="Or enter custom bin / staging bay name..."
@@ -1009,6 +968,10 @@ export default function StockMovement() {
                       <strong className="font-mono text-slate-800">{showDetailModal.batchNo}</strong>
                     </div>
                     <div className="flex justify-between">
+                      <span className="text-slate-500">Expiry Date / ESL:</span>
+                      <strong className="font-mono text-slate-800">{getEslInfo(showDetailModal).expiryFormatted} ({getEslInfo(showDetailModal).eslText})</strong>
+                    </div>
+                    <div className="flex justify-between">
                       <span className="text-slate-500">Transferred Qty:</span>
                       <strong className="font-mono text-slate-900">{showDetailModal.quantity} {showDetailModal.unit || 'Kg'}</strong>
                     </div>
@@ -1059,6 +1022,9 @@ export default function StockMovement() {
                 <p className="text-xs font-bold text-slate-900 truncate">{showDetailModal.productName}</p>
                 <div className="text-[10px] text-slate-600 font-mono">
                   Batch: {showDetailModal.batchNo} • {showDetailModal.quantity} {showDetailModal.unit || 'Kg'}
+                </div>
+                <div className="text-[10px] text-slate-700 font-semibold bg-slate-50 py-0.5 rounded">
+                  EXP: {getEslInfo(showDetailModal).expiryFormatted} • {getEslInfo(showDetailModal).eslText}
                 </div>
                 <div className="text-[9px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 inline-block">
                   Relocation Status: Completed &amp; Occupied

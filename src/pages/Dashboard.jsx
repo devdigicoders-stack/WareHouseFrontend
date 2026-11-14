@@ -4,6 +4,7 @@ import { Truck, Package, QrCode, MapPin, Search, Send, Clock, ArrowRight, Activi
 import { useApp } from '../hooks/useApp'
 import { fetchAnalyticsSummary, fetchGateEntries, fetchGRNs, fetchProducts, fetchshades, fetchRacks, fetchQCs, fetchStockMovements, fetchDispatches } from '../services/api'
 import DataLoader from '../components/common/DataLoader'
+import { getEslInfo, formatDisplayDate } from '../utils/eslHelper'
 
 export default function Dashboard() {
   const { user } = useApp()
@@ -249,15 +250,22 @@ export default function Dashboard() {
   }))
 
   // Recent GRN Receipts
-  const grnReceipts = recentGRN.map((r, idx) => ({
-    id: r._id || idx + 1,
-    grn: r.grnNo || `GRN-2026-${String(idx + 1).padStart(4, '0')}`,
-    product: r.materials?.[0]?.productName || 'Material Item',
-    batch: r.materials?.[0]?.batchNo || 'BAT-01',
-    qty: r.totalQty || String(r.materials?.[0]?.packageQty || '0'),
-    status: r.status || 'Completed',
-    statusColor: r.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'
-  }))
+  const grnReceipts = recentGRN.map((r, idx) => {
+    const mat = r.materials?.[0] || {}
+    const esl = getEslInfo(mat)
+    return {
+      id: r._id || idx + 1,
+      grn: r.grnNo || `GRN-2026-${String(idx + 1).padStart(4, '0')}`,
+      product: mat.productName || 'Material Item',
+      batch: mat.batchNo || 'BAT-01',
+      qty: r.totalQty || String(mat.packageQty || '0'),
+      status: r.status || 'Completed',
+      statusColor: r.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200',
+      expiryFormatted: esl.expiryFormatted,
+      eslText: esl.eslText,
+      badgeColor: esl.badgeColor,
+    }
+  })
 
   // Live Dynamic Expiry Alerts (FEFO Priority Queue)
   const expiryAlerts = useMemo(() => {
@@ -276,11 +284,13 @@ export default function Dashboard() {
             items.push({
               product: m.productName,
               sku: m.sku || matchingProd?.sku || '',
+              category: matchingProd?.category || '',
               batch: m.batchNo || 'N/A',
               location: m.location || matchingProd?.binLocation || 'Warehouse Staging',
               qty: m.totalBaseQty || matchingProd?.currentStock || 1,
               unit: m.baseUnit || matchingProd?.baseUnit || 'Kg',
               expiryRaw: m.expiryDate,
+              shelfLifeMonths: matchingProd?.shelfLifeMonths,
             })
           }
         }
@@ -296,11 +306,13 @@ export default function Dashboard() {
           items.push({
             product: p.name,
             sku: p.sku || '',
+            category: p.category || '',
             batch: p.batchNo || 'LOT-2026',
             location: p.binLocation || 'Storage Staging',
             qty: p.currentStock || 1,
             unit: p.baseUnit || 'Kg',
             expiryRaw: p.expiryDate,
+            shelfLifeMonths: p.shelfLifeMonths,
           })
         }
       }
@@ -308,6 +320,12 @@ export default function Dashboard() {
 
     // 3. Compute Days Remaining and FEFO Status for each batch
     const mapped = items.map((item, idx) => {
+      const esl = getEslInfo({
+        productName: item.product,
+        category: item.category,
+        expiryDate: item.expiryRaw,
+        shelfLifeMonths: item.shelfLifeMonths,
+      })
       const exp = new Date(item.expiryRaw)
       const diffTime = exp.getTime() - now.getTime()
       const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
@@ -343,6 +361,7 @@ export default function Dashboard() {
         qty: item.qty,
         unit: item.unit,
         date: formattedDate,
+        eslText: esl.eslText,
         days: Math.max(0, days),
         daysRemaining: days,
         status,
@@ -595,7 +614,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* 3. FULL WIDTH Warehouse Location & shade Storage Overview */}
+      {/* 3. FULL WIDTH Warehouse Location & shed Storage Overview */}
       <div className="bg-white rounded-2xl p-4 sm:p-6 lg:p-7 border border-slate-200 shadow-sm space-y-5 sm:space-y-6">
         
         {/* Header with Title and Legend */}
@@ -609,7 +628,7 @@ export default function Dashboard() {
             </div>
             <div className="min-w-0">
               <h3 className="text-base sm:text-lg lg:text-xl font-extrabold text-slate-900 tracking-tight leading-snug">
-                Warehouse Location &amp; shade Storage Overview
+                Warehouse Location &amp; Shed Storage Overview
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5 leading-relaxed">
                 Real-time storage space utilization, capacity monitoring &amp; bay allocation Across all 6 sheds
@@ -986,6 +1005,7 @@ export default function Dashboard() {
                 <th className="py-4 px-4">Product Name</th>
                 <th className="py-4 px-4">Batch No.</th>
                 <th className="py-4 px-4 text-right">Received Qty</th>
+                <th className="py-4 px-4">Expiry Date / ESL</th>
                 <th className="py-4 px-4 text-center">Lab Quality Status</th>
                 <th className="py-4 px-5 text-right">Action</th>
               </tr>
@@ -993,7 +1013,7 @@ export default function Dashboard() {
             <tbody className="divide-y divide-slate-100 bg-white">
               {grnReceipts.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="py-8 text-center text-slate-400 font-medium">
+                  <td colSpan="8" className="py-8 text-center text-slate-400 font-medium">
                     No recent GRN receipts recorded yet. Process inward goods at unloading bays to generate GRNs.
                   </td>
                 </tr>
@@ -1018,6 +1038,14 @@ export default function Dashboard() {
                     </td>
                     <td className="py-4 px-4 text-right font-mono font-bold text-slate-900 text-sm">
                       {row.qty} <span className="font-normal text-xs text-slate-500">Units</span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-mono text-slate-900 text-xs font-bold">{row.expiryFormatted}</span>
+                        <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded border w-max ${row.badgeColor}`}>
+                          {row.eslText}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-4 px-4 text-center">
                       <span className={`text-xs font-bold px-3 py-1 rounded-full border inline-flex items-center gap-1 ${row.statusColor}`}>
@@ -1091,7 +1119,7 @@ export default function Dashboard() {
                 <th className="py-4 px-4">Batch No.</th>
                 <th className="py-4 px-4">Warehouse Location</th>
                 <th className="py-4 px-4 text-right">Remaining Stock</th>
-                <th className="py-4 px-4">Expiry Date</th>
+                <th className="py-4 px-4">Expiry Date &amp; ESL</th>
                 <th className="py-4 px-4 text-center">Days Remaining</th>
                 <th className="py-4 px-4 text-center">FEFO Status</th>
                 <th className="py-4 px-5 text-right">Action</th>
@@ -1128,7 +1156,12 @@ export default function Dashboard() {
                       {row.qty} <span className="font-normal text-xs text-slate-500">{row.unit}</span>
                     </td>
                     <td className="py-4 px-4 text-slate-700 font-medium text-sm">
-                      {row.date}
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-bold text-slate-900 text-xs">{row.date}</span>
+                        <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 w-max">
+                          {row.eslText}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-4 px-4 text-center">
                       <span className={`font-mono font-bold px-2.5 py-1 rounded-md text-xs border ${row.dayColor}`}>

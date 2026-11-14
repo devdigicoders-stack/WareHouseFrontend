@@ -22,70 +22,8 @@ import {
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
 import DataLoader from '../components/common/DataLoader'
-
-// Custom Accessible Select Dropdown to eliminate Windows Chromium native black flicker
-function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef(null)
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const selectedOption = options.find((opt) => opt.value === value)
-
-  return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-700 flex items-center justify-between gap-2 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-      >
-        <span className="truncate">
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div className={`absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl py-1 ${zIndexClass} max-h-56 overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-100`}>
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setIsOpen(false)
-                }}
-                className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition cursor-pointer ${
-                  isSelected
-                    ? 'bg-indigo-50 text-indigo-700 font-bold'
-                    : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <div className="truncate">
-                  <div>{opt.label}</div>
-                  {opt.sublabel && (
-                    <div className="text-[10px] text-slate-400 font-normal">{opt.sublabel}</div>
-                  )}
-                </div>
-                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+import { getEslInfo } from '../utils/eslHelper'
+import CustomSelect from '../components/common/SearchableSelect'
 
 export default function DamageRejection() {
   // Toast notifications state
@@ -299,6 +237,17 @@ export default function DamageRejection() {
   useEffect(() => {
     loadDamageData()
   }, [loadDamageData])
+
+  // Dynamic Product Master Options for Searchable Quick Select
+  const registeredProductOptions = useMemo(() => {
+    return [
+      { value: '', label: '-- Search & Choose Registered Product from Warehouse --' },
+      ...productsList.map((p) => ({
+        value: p._id,
+        label: `${p.name} (SKU: ${p.sku} | Live Stock: ${p.currentStock || 0} ${p.baseUnit || 'Kg'})`,
+      }))
+    ]
+  }, [productsList])
 
   // Filtered Damage Cases
   const filteredCases = useMemo(() => {
@@ -901,6 +850,9 @@ export default function DamageRejection() {
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900">{row.productName}</div>
                       <div className="text-[10px] text-slate-400 font-mono mt-0.5">{row.batchNo}</div>
+                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                        EXP: {getEslInfo(row).expiryFormatted} <span className="text-indigo-600 font-semibold font-sans">({getEslInfo(row).eslText})</span>
+                      </div>
                     </td>
                     <td className="py-3.5 px-4">
                       <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200/60 text-[11px]">
@@ -1031,10 +983,9 @@ export default function DamageRejection() {
                     </label>
                     <span className="text-[10px] font-semibold text-indigo-600">Auto-fills SKU, unit & location</span>
                   </div>
-                  <select
+                  <CustomSelect
                     value={newCase.productId || ''}
-                    onChange={(e) => {
-                      const prodId = e.target.value
+                    onChange={(prodId) => {
                       const p = productsList.find((x) => x._id === prodId)
                       if (p) {
                         const sId = p.shadeId || (p.storageZone?.includes('SH') ? p.storageZone.slice(0, 4) : 'SH01')
@@ -1051,17 +1002,17 @@ export default function DamageRejection() {
                           packUnit: p.outerPackaging || 'Bags',
                           unitsPerPack: Number(p.packSize) || 1,
                         }))
+                      } else {
+                        setNewCase((prev) => ({
+                          ...prev,
+                          productId: '',
+                        }))
                       }
                     }}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="">-- Choose registered warehouse product (or enter manually below) --</option>
-                    {productsList.map((p) => (
-                      <option key={p._id} value={p._id}>
-                        {p.name} (SKU: {p.sku} | Live Stock: {p.currentStock || 0} {p.baseUnit || 'Kg'})
-                      </option>
-                    ))}
-                  </select>
+                    options={registeredProductOptions}
+                    placeholder="-- Search & Choose Registered Product --"
+                    zIndexClass="z-30"
+                  />
                   {newCase.productId && (() => {
                     const selProd = productsList.find((x) => x._id === newCase.productId)
                     const avail = Number(selProd?.currentStock) || 0
@@ -1315,6 +1266,9 @@ export default function DamageRejection() {
                   <p className="text-[10px] text-slate-400 font-bold uppercase">Product</p>
                   <p className="font-bold text-slate-900 text-sm">{showDetailsModal.productName}</p>
                   <p className="text-[10px] text-slate-400 font-mono mt-0.5">Batch: {showDetailsModal.batchNo}</p>
+                  <p className="text-[10px] text-indigo-700 font-semibold mt-0.5">
+                    EXP: {getEslInfo(showDetailsModal).expiryFormatted} • {getEslInfo(showDetailsModal).eslText}
+                  </p>
                 </div>
                 <span className="font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded text-xs">
                   {showDetailsModal.location}

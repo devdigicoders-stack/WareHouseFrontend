@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import JsBarcode from 'jsbarcode'
 import { printSpecificElement } from '../utils/printHelper'
+import { getEslInfo } from '../utils/eslHelper'
 import {
   QrCode,
   Barcode,
@@ -32,67 +33,9 @@ import {
   CheckCheck,
 } from 'lucide-react'
 import { apiRequest } from '../services/api'
+import SearchableSelect from '../components/common/SearchableSelect'
 import DataLoader from '../components/common/DataLoader'
-
-// Custom Accessible Select Dropdown to eliminate black flicker
-function CustomSelect({ value, onChange, options, placeholder = 'Select option...', className = '', zIndexClass = 'z-50' }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef(null)
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const selectedOption = options.find((opt) => opt.value === value)
-
-  return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-left font-medium text-slate-800 flex items-center justify-between transition focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-      >
-        <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
-        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ml-2 ${isOpen ? 'rotate-180 text-indigo-600' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div className={`absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 ${zIndexClass} max-h-56 overflow-y-auto`}>
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setIsOpen(false)
-                }}
-                className={`w-full px-3.5 py-2 text-xs text-left flex items-center justify-between transition ${
-                  isSelected
-                    ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                    : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <div className="truncate">
-                  <div className="truncate">{opt.label}</div>
-                  {opt.sublabel && <div className="text-[10px] text-slate-400 font-normal">{opt.sublabel}</div>}
-                </div>
-                {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+import CustomSelect from '../components/common/SearchableSelect'
 
 export default function LabelGeneration() {
   const [searchParams] = useSearchParams()
@@ -202,6 +145,17 @@ export default function LabelGeneration() {
     fetchData()
   }, [searchParams])
 
+  // Searchable GRN Options
+  const grnOptions = useMemo(() => {
+    return [
+      { value: '', label: '-- Search & Choose Received GRN --' },
+      ...grnList.map((g) => ({
+        value: g.grnNo,
+        label: `${g.grnNo} • ${g.supplier} (${g.materials?.length || 1} Items)`,
+      }))
+    ]
+  }, [grnList])
+
   // Active Selected Product Details (Only populated when a GRN is selected)
   const activeProduct = useMemo(() => {
     if (selectedGrnObject && selectedGrnObject.materials && selectedGrnObject.materials.length > 0) {
@@ -257,7 +211,7 @@ export default function LabelGeneration() {
 
     const qrPayload = isLocation
       ? `=== CENTRAL WAREHOUSE LOCATION TAG ===\nLocation: ${rackBinCode || 'SH01-RK01-R1-C1'}\nStorage Zone: ${selectedZone}\nInfo: ${additionalInfo || 'Warehouse Storage Cell'}`
-      : `=== CENTRAL WAREHOUSE WMS ===\nProduct: ${activeProduct?.name || ''}\nSKU: ${activeProduct?.sku || ''}\nBatch No: ${selectedBatchNo || activeProduct?.batchNo || 'N/A'}\nGRN No: ${selectedGrnNo || 'N/A'}\nQuantity: ${quantity} ${activeProduct?.outerPackaging || 'Units'}\nStorage Zone: ${storageLocation || activeProduct?.storageZone || ''}\nMfg Date: ${mfgDate}\nExpiry Date: ${expDate}\nStatus: VERIFIED INWARD STOCK`
+      : `=== CENTRAL WAREHOUSE WMS ===\nProduct: ${activeProduct?.name || ''}\nSKU: ${activeProduct?.sku || ''}\nBatch No: ${selectedBatchNo || activeProduct?.batchNo || 'N/A'}\nGRN No: ${selectedGrnNo || 'N/A'}\nQuantity: ${quantity} ${activeProduct?.outerPackaging || 'Units'}\nStorage Zone: ${storageLocation || activeProduct?.storageZone || ''}\nMfg Date: ${mfgDate}\nExpiry Date: ${expDate}\nShelf Life: ${getEslInfo({ productName: activeProduct?.name, expiryDate: expDate }).eslText}\nStatus: VERIFIED INWARD STOCK`
 
     QRCode.toDataURL(qrPayload, {
       width: 260,
@@ -678,7 +632,7 @@ export default function LabelGeneration() {
             </button>
           </div>
 
-          {/* Quick Auto-Fill from GRN */}
+          {/* Quick Auto-Fill from GRN (Searchable) */}
           {grnList.length > 0 && (
             <div className="p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-2.5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -688,18 +642,15 @@ export default function LabelGeneration() {
                     Select GRN to Auto-Fill Items:
                   </span>
                 </div>
-                <select
-                  value={selectedGrnNo}
-                  onChange={(e) => handleSelectGrn(e.target.value)}
-                  className="bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                >
-                  <option value="">-- Choose Received GRN --</option>
-                  {grnList.map((g) => (
-                    <option key={g._id || g.grnNo} value={g.grnNo}>
-                      {g.grnNo} • {g.supplier} ({g.materials?.length || 1} Items)
-                    </option>
-                  ))}
-                </select>
+                <div className="w-full sm:w-80">
+                  <SearchableSelect
+                    value={selectedGrnNo}
+                    onChange={(val) => handleSelectGrn(val)}
+                    options={grnOptions}
+                    placeholder="-- Search & Choose Received GRN --"
+                    zIndexClass="z-30"
+                  />
+                </div>
               </div>
 
               {/* Multi-Item Line Selector for Multi-Item GRN */}
@@ -1161,9 +1112,14 @@ export default function LabelGeneration() {
                         <span className="font-bold">{mfgDate}</span>
                       </div>
                       {includeExpiryDate && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-500 font-sans">Expiry Date:</span>
-                          <span className="font-bold text-rose-700">{expDate}</span>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-sans">Expiry / ESL:</span>
+                          <span className="font-bold text-rose-700 font-mono text-[9px] flex items-center gap-1">
+                            <span>{expDate}</span>
+                            <span className="text-[8px] font-sans text-indigo-700 bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200 font-bold">
+                              {getEslInfo({ productName: activeProduct?.name, expiryDate: expDate }).eslText}
+                            </span>
+                          </span>
                         </div>
                       )}
                       <div className="flex justify-between">
@@ -1327,9 +1283,14 @@ export default function LabelGeneration() {
                       <span className="font-bold">{item.mfgDate}</span>
                     </div>
                     {includeExpiryDate && (
-                      <div className="flex justify-between">
-                        <span className="text-slate-500 font-sans">Expiry Date:</span>
-                        <span className="font-bold text-rose-700">{item.expiryDate}</span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500 font-sans">Expiry / ESL:</span>
+                        <span className="font-bold text-rose-700 font-mono text-[8px] flex items-center gap-1">
+                          <span>{item.expiryDate}</span>
+                          <span className="text-[7px] font-sans text-indigo-700 bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200 font-bold">
+                            {getEslInfo({ productName: item.productName || item.product, expiryDate: item.expiryDate }).eslText}
+                          </span>
+                        </span>
                       </div>
                     )}
                     <div className="flex justify-between">

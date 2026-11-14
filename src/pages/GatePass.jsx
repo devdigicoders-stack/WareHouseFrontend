@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { printSpecificElement } from '../utils/printHelper'
+import { getEslInfo } from '../utils/eslHelper'
 import {
   fetchGatePasses,
   createGatePass,
@@ -30,6 +31,39 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import DataLoader from '../components/common/DataLoader'
+import SearchableSelect from '../components/common/SearchableSelect'
+
+const PASS_TYPE_OPTIONS = [
+  { value: 'Material Outward', label: 'Material Outward (Dispatch)' },
+  { value: 'Material Inward', label: 'Material Inward (Receiving)' },
+  { value: 'Inter-Depot Transfer', label: 'Inter-Depot Transfer' },
+  { value: 'Disposal / Scrap Outward', label: 'Disposal / Scrap Outward' },
+  { value: 'Vehicle Movement Only', label: 'Vehicle Movement Only' },
+]
+
+const PURPOSE_OPTIONS = [
+  { value: 'Customer Delivery', label: 'Customer Delivery' },
+  { value: 'Inter-Depot Transfer', label: 'Inter-Depot Transfer' },
+  { value: 'Return to Supplier', label: 'Return to Supplier' },
+  { value: 'Scrap Disposal', label: 'Scrap Disposal' },
+  { value: 'Sample Dispatch', label: 'Sample Dispatch' },
+]
+
+const VEHICLE_TYPE_OPTIONS = [
+  { value: 'Heavy Commercial Truck', label: 'Heavy Commercial Truck (10 Wheeler)' },
+  { value: 'Standard Truck (6 Wheeler)', label: 'Standard Truck (6 Wheeler)' },
+  { value: 'Covered Container', label: 'Covered Container' },
+  { value: 'Light Cargo Vehicle (LCV)', label: 'Light Cargo Vehicle (LCV)' },
+  { value: 'Trailor (Multi-Axle)', label: 'Trailor (Multi-Axle)' },
+]
+
+const UNIT_OPTIONS = [
+  { value: 'Bags (50 Kg)', label: 'Bags (50 Kg)' },
+  { value: 'Cartons / Gatta', label: 'Cartons / Gatta' },
+  { value: 'Tins (15 Ltr)', label: 'Tins (15 Ltr)' },
+  { value: 'Boxes / Crates', label: 'Boxes / Crates' },
+  { value: 'Units', label: 'Individual Units' },
+]
 
 export default function GatePass() {
   const [activeTab, setActiveTab] = useState('create') // 'create' | 'register'
@@ -93,7 +127,10 @@ export default function GatePass() {
     }
 
     const itemsSummary = Array.isArray(selectedPass.materials) && selectedPass.materials.length > 0
-      ? selectedPass.materials.map((m, idx) => `${idx + 1}. ${m.productName} (Qty: ${m.qty} ${m.unit || 'Units'}${m.batchNo ? ', Batch: ' + m.batchNo : ''})`).join('\n')
+      ? selectedPass.materials.map((m, idx) => {
+          const esl = getEslInfo(m)
+          return `${idx + 1}. ${m.productName} (Qty: ${m.qty} ${m.unit || 'Units'}${m.batchNo ? ', Batch: ' + m.batchNo : ''}, Exp: ${esl.expiryFormatted}, ESL: ${esl.shelfLifeMonths}m)`
+        }).join('\n')
       : 'General Consignment'
 
     const qrPayload = [
@@ -204,14 +241,23 @@ export default function GatePass() {
     setReceiverAddress(dsp.destination || '')
     if (Array.isArray(dsp.items) && dsp.items.length > 0) {
       setMaterialItems(
-        dsp.items.map((it, idx) => ({
-          id: idx + 1,
-          productName: it.productName || '',
-          batchNo: it.batchNo || '—',
-          qty: it.requestedQty || it.pickedQty || 1,
-          unit: it.packagingUnit || 'Bags',
-          remarks: `Outward Dispatch item from ${dsp.dispatchNo}`,
-        }))
+        dsp.items.map((it, idx) => {
+          const packUnit = it.packagingUnit || it.maxUnit || 'Bags'
+          const looseUnit = it.minUnit || 'Units'
+          let breakdownNote = `${it.requestedQty || it.pickedQty || 1} ${packUnit}`
+          if (it.looseQty > 0) {
+            breakdownNote += ` + ${it.looseQty} ${looseUnit}`
+          }
+          return {
+            id: idx + 1,
+            productName: it.productName || '',
+            batchNo: it.batchNo || '—',
+            qty: it.baseQty || it.requestedQty || it.pickedQty || 1,
+            unit: it.baseQty ? (it.minUnit || dsp.baseUnit || 'Units') : packUnit,
+            expiryDate: it.expiryDate || '',
+            remarks: `Outward Dispatch item from ${dsp.dispatchNo} (${breakdownNote})`,
+          }
+        })
       )
     }
     triggerToast(`Dispatch Order Slip ${dsp.dispatchNo} verified!`)
@@ -638,18 +684,20 @@ export default function GatePass() {
                           {availableDispatches.length} Active Dispatch Orders
                         </span>
                       </div>
-                      <select
+                      <SearchableSelect
                         value={selectedDispatchId || referenceNo}
-                        onChange={(e) => handleSelectDispatch(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-xl border border-indigo-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-                      >
-                        <option value="">-- Chuniye Dispatch Order Slip (DSP-xxxx) --</option>
-                        {availableDispatches.map((d) => (
-                          <option key={d._id} value={d._id}>
-                            {d.dispatchNo} — {d.customerName || 'Direct'} ({d.vehicleNo || 'No Truck'}) • Order: {d.orderNo} [{d.status}]
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => handleSelectDispatch(val)}
+                        options={[
+                          { value: '', label: '-- Chuniye Dispatch Order Slip (DSP-xxxx) --' },
+                          ...availableDispatches.map((d) => ({
+                            value: d._id,
+                            label: `${d.dispatchNo} — ${d.customerName || 'Direct'} (${d.vehicleNo || 'No Truck'})`,
+                            sublabel: `Order: ${d.orderNo} • Status: ${d.status}`,
+                          })),
+                        ]}
+                        placeholder="Search or Select Dispatch Slip..."
+                        zIndexClass="z-30"
+                      />
 
                       {referenceNo && (
                         <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
@@ -673,17 +721,13 @@ export default function GatePass() {
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Pass Type <span className="text-rose-500">*</span>
                   </label>
-                  <select
+                  <SearchableSelect
                     value={passType}
-                    onChange={(e) => setPassType(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-                  >
-                    <option value="Material Outward">Material Outward (Dispatch)</option>
-                    <option value="Material Inward">Material Inward (Receiving)</option>
-                    <option value="Inter-Depot Transfer">Inter-Depot Transfer</option>
-                    <option value="Disposal / Scrap Outward">Disposal / Scrap Outward</option>
-                    <option value="Vehicle Movement Only">Vehicle Movement Only</option>
-                  </select>
+                    onChange={(val) => setPassType(val)}
+                    options={PASS_TYPE_OPTIONS}
+                    placeholder="Select Pass Type..."
+                    zIndexClass="z-20"
+                  />
                 </div>
 
                 {/* Date & Time */}
@@ -725,17 +769,13 @@ export default function GatePass() {
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Movement Purpose <span className="text-rose-500">*</span>
                   </label>
-                  <select
+                  <SearchableSelect
                     value={purpose}
-                    onChange={(e) => setPurpose(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-                  >
-                    <option value="Customer Delivery">Customer Delivery</option>
-                    <option value="Inter-Depot Transfer">Inter-Depot Transfer</option>
-                    <option value="Return to Supplier">Return to Supplier</option>
-                    <option value="Scrap Disposal">Scrap Disposal</option>
-                    <option value="Sample Dispatch">Sample Dispatch</option>
-                  </select>
+                    onChange={(val) => setPurpose(val)}
+                    options={PURPOSE_OPTIONS}
+                    placeholder="Select Purpose..."
+                    zIndexClass="z-20"
+                  />
                 </div>
 
                 {/* Vehicle Number */}
@@ -763,17 +803,13 @@ export default function GatePass() {
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Vehicle Type
                   </label>
-                  <select
+                  <SearchableSelect
                     value={vehicleType}
-                    onChange={(e) => setVehicleType(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-                  >
-                    <option value="Heavy Commercial Truck">Heavy Commercial Truck (10 Wheeler)</option>
-                    <option value="Standard Truck (6 Wheeler)">Standard Truck (6 Wheeler)</option>
-                    <option value="Covered Container">Covered Container</option>
-                    <option value="Light Cargo Vehicle (LCV)">Light Cargo Vehicle (LCV)</option>
-                    <option value="Trailor (Multi-Axle)">Trailor (Multi-Axle)</option>
-                  </select>
+                    onChange={(val) => setVehicleType(val)}
+                    options={VEHICLE_TYPE_OPTIONS}
+                    placeholder="Select Vehicle Type..."
+                    zIndexClass="z-20"
+                  />
                 </div>
 
                 {/* Driver Name */}
@@ -932,18 +968,14 @@ export default function GatePass() {
                             className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           />
                         </td>
-                        <td className="py-3 px-3">
-                          <select
+                        <td className="py-3 px-3 min-w-[170px]">
+                          <SearchableSelect
                             value={item.unit}
-                            onChange={(e) => handleUpdateItem(item.id, 'unit', e.target.value)}
-                            className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                          >
-                            <option value="Bags (50 Kg)">Bags (50 Kg)</option>
-                            <option value="Cartons / Gatta">Cartons / Gatta</option>
-                            <option value="Tins (15 Ltr)">Tins (15 Ltr)</option>
-                            <option value="Boxes / Crates">Boxes / Crates</option>
-                            <option value="Units">Individual Units</option>
-                          </select>
+                            onChange={(val) => handleUpdateItem(item.id, 'unit', val)}
+                            options={UNIT_OPTIONS}
+                            placeholder="Select Unit..."
+                            zIndexClass="z-30"
+                          />
                         </td>
                         <td className="py-3 px-3">
                           <input
@@ -1299,20 +1331,28 @@ export default function GatePass() {
                         <th className="py-2.5 px-3 w-8 text-center">#</th>
                         <th className="py-2.5 px-3">Product Description</th>
                         <th className="py-2.5 px-3">Batch</th>
+                        <th className="py-2.5 px-3">Expiry Date / ESL</th>
                         <th className="py-2.5 px-3 text-right">Quantity</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
-                      {selectedPass.materials.map((m, idx) => (
-                        <tr key={idx}>
-                          <td className="py-2.5 px-3 text-slate-400 font-mono text-center">{idx + 1}</td>
-                          <td className="py-2.5 px-3 font-bold text-slate-800">{m.productName}</td>
-                          <td className="py-2.5 px-3 font-mono text-slate-600">{m.batchNo}</td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
-                            {m.qty} <span className="font-normal text-slate-500">{m.unit}</span>
-                          </td>
-                        </tr>
-                      ))}
+                      {selectedPass.materials.map((m, idx) => {
+                        const esl = getEslInfo(m)
+                        return (
+                          <tr key={idx}>
+                            <td className="py-2.5 px-3 text-slate-400 font-mono text-center">{idx + 1}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-800">{m.productName}</td>
+                            <td className="py-2.5 px-3 font-mono text-slate-600">{m.batchNo}</td>
+                            <td className="py-2.5 px-3">
+                              <span className="font-mono text-slate-800 font-semibold">{esl.expiryFormatted}</span>
+                              <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 font-medium">({esl.eslText})</span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                              {m.qty} <span className="font-normal text-slate-500">{m.unit}</span>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
