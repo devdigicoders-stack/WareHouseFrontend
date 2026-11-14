@@ -32,7 +32,7 @@ import {
   fetchStockAdjustments,
   fetchGatePasses,
   fetchRacks,
-  fetchShades,
+  fetchshades,
   fetchGateEntries,
 } from '../services/api'
 import { exportToExcel, exportToCSV, printOrExportPDF } from '../utils/exportHelper'
@@ -119,7 +119,7 @@ export default function ExportReports() {
   const [fileName, setFileName] = useState(() => `Warehouse_Inventory_Extract_${new Date().toISOString().slice(0, 10)}`)
 
   // Filter settings
-  const [filterShade, setFilterShade] = useState('ALL')
+  const [filtershade, setFiltershade] = useState('ALL')
   const [dateFilterPreset, setDateFilterPreset] = useState('ALL_TIME')
   const [startDate, setStartDate] = useState(() => {
     const d = new Date()
@@ -263,7 +263,7 @@ export default function ExportReports() {
     { key: 'sku', label: 'SKU / Identifier Code' },
     { key: 'category', label: 'Product / Entry Category' },
     { key: 'batchNo', label: 'Batch / Lot Number' },
-    { key: 'storageBin', label: 'Storage Bin & Shade Coordinate' },
+    { key: 'storageBin', label: 'Storage Bin & Shed Coordinate' },
     { key: 'baseQty', label: 'Base Unit Quantity' },
     { key: 'baseUnit', label: 'Base Unit (Kg/Ltr/Pcs)' },
     { key: 'packQty', label: 'Packaging Packs Count' },
@@ -303,12 +303,12 @@ export default function ExportReports() {
       return []
     }
 
-    // Apply Shade Filter
+    // Apply shade Filter
     let filtered = rawItems
-    if (filterShade !== 'ALL') {
+    if (filtershade !== 'ALL') {
       filtered = filtered.filter((item) => {
         const shadeStr = (item.shadeId || item.storageZone || item.shade || item.location || '').toUpperCase()
-        return shadeStr.includes(filterShade)
+        return shadeStr.includes(filtershade)
       })
     }
 
@@ -339,7 +339,7 @@ export default function ExportReports() {
         row['Batch / Lot No'] = item.batchNo || item.batchNumber || item.poNo || item.orderNo || 'BT-2026-001'
       }
       if (selectedColumns.storageBin) {
-        row['Storage Bin & Shade'] = item.binLocation || item.locationCode || item.storageZone || item.shade || 'SH01-R01-C01'
+        row['Storage Bin & Shed'] = item.binLocation || item.locationCode || item.storageZone || item.shade || 'SH01-R01-C01'
       }
       if (selectedColumns.baseQty) {
         row['Base Quantity'] = Number(item.currentStock ?? item.totalBaseQty ?? item.adjustedQty ?? item.quantity ?? item.totalQty ?? 0).toLocaleString()
@@ -370,7 +370,7 @@ export default function ExportReports() {
   const handleGenerateExport = () => {
     const exportRows = buildExportData()
     if (exportRows.length === 0) {
-      triggerToast('Notice: 0 matching records found with current shade/date filters.')
+      triggerToast('Notice: 0 matching records found with current shed/date filters.')
       return
     }
     const cleanFileName = fileName.trim() || `Warehouse_${selectedDataset.toUpperCase()}_Extract`
@@ -383,7 +383,7 @@ export default function ExportReports() {
         exportToCSV(exportRows, cleanFileName)
         triggerToast(`Exported ${cleanFileName}.csv (${exportRows.length} rows)`)
       } else {
-        printOrExportPDF(exportRows, currentDatasetMeta.name, `Warehouse Extract (${filterShade !== 'ALL' ? filterShade : 'All Shades'})`)
+        printOrExportPDF(exportRows, currentDatasetMeta.name, `Warehouse Extract (${filtershade !== 'ALL' ? filtershade : 'All Sheds'})`)
         triggerToast(`Opened PDF Print / Export dialog for ${currentDatasetMeta.name}`)
       }
 
@@ -430,7 +430,7 @@ export default function ExportReports() {
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium mt-1 max-w-2xl">
-              Configure columnar extracts, select date ranges, apply shade filters, and export verified warehouse datasets to Excel, CSV, or PDF.
+              Configure columnar extracts, select date ranges, apply shed filters, and export verified warehouse datasets to Excel, CSV, or PDF.
             </p>
           </div>
         </div>
@@ -465,7 +465,7 @@ export default function ExportReports() {
               setSelectedDataset('inventory')
               setFileFormat('excel')
               setFileName(`Warehouse_Inventory_Extract_${new Date().toISOString().slice(0, 10)}`)
-              setFilterShade('ALL')
+              setFiltershade('ALL')
               setDateFilterPreset('ALL_TIME')
               triggerToast('Export parameters reset to defaults.')
             }}
@@ -509,7 +509,7 @@ export default function ExportReports() {
             <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5 truncate">
               {totalLiveRecords.toLocaleString()} Records
             </h3>
-            <p className="text-[11px] text-indigo-600 font-medium truncate">Across all 6 shades</p>
+            <p className="text-[11px] text-indigo-600 font-medium truncate">Across all 6 sheds</p>
           </div>
         </div>
 
@@ -716,22 +716,22 @@ export default function ExportReports() {
               </div>
             </div>
 
-            {/* Storage Shade Filter */}
+            {/* Storage Shed Filter */}
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
-                Shade Scope Filter
+                shade Scope Filter
               </label>
               <CustomSelect
-                value={filterShade}
-                onChange={(val) => setFilterShade(val)}
+                value={filtershade}
+                onChange={(val) => setFiltershade(val)}
                 options={[
-                  { value: 'ALL', label: 'All 6 Dedicated Shades' },
-                  { value: 'SH01', label: 'Shade 1: Grains & Bulk Pulses' },
-                  { value: 'SH02', label: 'Shade 2: Edible Oils & Liquids' },
-                  { value: 'SH03', label: 'Shade 3: Packaged Food & FMCG' },
-                  { value: 'SH04', label: 'Shade 4: Packaging Materials & Cartons' },
-                  { value: 'SH05', label: 'Shade 5: Chemicals & Hygiene' },
-                  { value: 'SH06', label: 'Shade 6: Spares & General Goods' },
+                  { value: 'ALL', label: 'All 6 Dedicated Sheds' },
+                  { value: 'SH01', label: 'Shed 1: Grains & Bulk Pulses' },
+                  { value: 'SH02', label: 'Shed 2: Edible Oils & Liquids' },
+                  { value: 'SH03', label: 'Shed 3: Packaged Food & FMCG' },
+                  { value: 'SH04', label: 'Shed 4: Packaging Materials & Cartons' },
+                  { value: 'SH05', label: 'Shed 5: Chemicals & Hygiene' },
+                  { value: 'SH06', label: 'Shed 6: Spares & General Goods' },
                 ]}
               />
             </div>

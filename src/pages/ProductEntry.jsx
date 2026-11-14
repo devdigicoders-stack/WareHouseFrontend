@@ -119,12 +119,12 @@ const BASE_UNIT_OPTIONS = [
 ]
 
 const STORAGE_ZONE_OPTIONS = [
-  { value: 'SH-01 (Shade 1: Grains & Bulk Pulses)', label: 'SH-01 - Shade 1: Grains & Bulk Pulses' },
-  { value: 'SH-02 (Shade 2: Edible Oils & Liquids)', label: 'SH-02 - Shade 2: Edible Oils & Liquids' },
-  { value: 'SH-03 (Shade 3: FMCG & Packaged Foods)', label: 'SH-03 - Shade 3: FMCG & Packaged Foods' },
-  { value: 'SH-04 (Shade 4: Packaging & Materials)', label: 'SH-04 - Shade 4: Packaging & Materials' },
-  { value: 'SH-05 (Shade 5: Chemicals & Hygiene)', label: 'SH-05 - Shade 5: Chemicals & Hygiene' },
-  { value: 'SH-06 (Shade 6: Spares & General Hardware)', label: 'SH-06 - Shade 6: Spares & General Hardware' },
+  { value: 'SH-01 (Shed 1: Grains & Bulk Pulses)', label: 'SH-01 - Shed 1: Grains & Bulk Pulses' },
+  { value: 'SH-02 (Shed 2: Edible Oils & Liquids)', label: 'SH-02 - Shed 2: Edible Oils & Liquids' },
+  { value: 'SH-03 (Shed 3: FMCG & Packaged Foods)', label: 'SH-03 - Shed 3: FMCG & Packaged Foods' },
+  { value: 'SH-04 (Shed 4: Packaging & Materials)', label: 'SH-04 - Shed 4: Packaging & Materials' },
+  { value: 'SH-05 (Shed 5: Chemicals & Hygiene)', label: 'SH-05 - Shed 5: Chemicals & Hygiene' },
+  { value: 'SH-06 (Shed 6: Spares & General Hardware)', label: 'SH-06 - Shed 6: Spares & General Hardware' },
 ]
 
 export default function ProductEntry() {
@@ -135,7 +135,7 @@ export default function ProductEntry() {
   const [toastMessage, setToastMessage] = useState(null)
 
   const [products, setProducts] = useState([])
-  const [shades, setShades] = useState([])
+  const [shades, setshades] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -145,7 +145,7 @@ export default function ProductEntry() {
       apiRequest('/shade'),
     ]).then(([prodRes, shadeRes]) => {
       if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) setProducts(prodRes.value)
-      if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value) && shadeRes.value.length > 0) setShades(shadeRes.value)
+      if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value) && shadeRes.value.length > 0) setshades(shadeRes.value)
     }).finally(() => {
       setLoading(false)
     })
@@ -170,7 +170,7 @@ export default function ProductEntry() {
     baseUnit: 'Kg',
     outerPackaging: 'Bag',
     packSize: '25',
-    storageZone: shades.length > 0 ? `${shades[0].code} (${shades[0].name})` : 'Shade 1 (General Stores)',
+    storageZone: shades.length > 0 ? `${shades[0].code} (${shades[0].name})` : 'Shed 1 (General Stores)',
     reorderLevel: '50',
     currentStock: '0',
     barcode: '',
@@ -478,7 +478,7 @@ export default function ProductEntry() {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search product, SKU, brand, shade..."
+            placeholder="Search product, SKU, brand, shed..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
@@ -515,7 +515,7 @@ export default function ProductEntry() {
                 <th className="py-3.5 px-4 min-w-[240px]">Product Name &amp; Brand</th>
                 <th className="py-3.5 px-4 min-w-[160px]">Category</th>
                 <th className="py-3.5 px-4 min-w-[160px]">Packaging Ratio</th>
-                <th className="py-3.5 px-4 min-w-[180px]">Storage Shade</th>
+                <th className="py-3.5 px-4 min-w-[180px]">Storage Shed</th>
                 <th className="py-3.5 px-4 w-28 text-right">Stock</th>
                 <th className="py-3.5 px-4 w-28 text-right">Reorder</th>
                 <th className="py-3.5 px-4 text-center w-28">Status</th>
@@ -721,7 +721,7 @@ export default function ProductEntry() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="sm:col-span-2">
                   <CustomSelect
-                    label="Assigned Storage Shade"
+                    label="Assigned Storage Shed"
                     value={formData.storageZone}
                     onChange={(val) => setFormData({ ...formData, storageZone: val })}
                     options={storageZoneOptions}

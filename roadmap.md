@@ -14,7 +14,7 @@ NOTE
 
 Backend Integration Preference: Should we build a self-contained local storage / mock backend first for immediate interactive testing in the browser, and then connect to Node.js/Express SQLite/PostgreSQL, or build both simultaneously?
 Camera / Barcode Hardware: Will warehouse operators use standard USB handheld 2D barcode/QR scanners (which simulate keyboard keystrokes), or device camera scanning, or both? (We will support both by default).
-Shade Dimensions: Does each of the 6 Shades have a fixed number of Rows and Columns (e.g., 10 Rows × 10 Columns = 100 slots per shade), or should each Shade's grid size be dynamically configurable?
+shade Dimensions: Does each of the 6 shades have a fixed number of Rows and Columns (e.g., 10 Rows × 10 Columns = 100 slots per shade), or should each shade's grid size be dynamically configurable?
 Implementation Phases & Roadmap
 Phase 1: Security & Terminal Auth (PIN + USB)
 Phase 2: Master Data & Nomenclature
@@ -22,7 +22,7 @@ Phase 3: Gate Entry & Inward Logistics
 Phase 4: GRN & Base-Unit Math Engine
 Phase 5: Serialized QR & Label Engine
 Phase 6: Lab Testing & Quality Quarantine
-Phase 7: 6-Shade 3D Grid & Put-Away
+Phase 7: 6-shade 3D Grid & Put-Away
 Phase 8: Expiry Tracker & FEFO Enforcement
 Phase 9: High-Speed QR Checkout Engine
 Phase 10: Military Audit Trail & Reports
@@ -33,7 +33,7 @@ Audit Logger: Track every login, failed attempt, and logout with precision milli
 Phase 2: Master Data & Nomenclature Management
 Product & Nomenclature Master: Item Name, Military SKU / Part No, Category (Rations, Equipment, Medical, Spares, Uniforms).
 Unit Hierarchy: Base Unit (Piece/Tin/Kg) vs Packaging Unit (Gatta/Carton/Crate/Bag) with auto-conversion factors.
-Warehouse Architecture: Setup for 6 Shades (Shade 1 to Shade 6) with customizable Row × Column matrix and capacity limits.
+Warehouse Architecture: Setup for 6 shades (shade 1 to shade 6) with customizable Row × Column matrix and capacity limits.
 Suppliers & Military Depots Directory: Authorized units, suppliers, and contractor registry.
 Phase 3: Gate Entry & Inward Logistics
 Gate Inward Console:
@@ -56,13 +56,13 @@ Phase 6: Lab Testing & Quality Assurance (QA/QC Hold)
 Mandatory Quarantine: Newly arrived stock starts in Pending Lab Test status.
 Testing Lifecycle: Pending Sampling ➔ Sent to Lab ➔ Under Testing ➔ Approved (Passed) / Rejected (Failed) / Hold.
 Enforcement Rule: Only Approved batches unlock for Put-Away. Rejected stock auto-diverts to Isolation/Return logs.
-Phase 7: 6-Shade Visual Grid & Put-Away (Check-In)
-Interactive Shade Matrix: Visual color-coded grid for Shade 1 through 6:
+Phase 7: 6-shade Visual Grid & Put-Away (Check-In)
+Interactive shade Matrix: Visual color-coded grid for shade 1 through 6:
 🟢 Vacant slot
 🔵 Occupied / Valid stock
 🟡 Near Expiry warning
 🔴 Full / Quarantined
-Put-Away Assistant: Scan carton QR ➔ System recommends optimal slot (Shade 3 ➔ Row 5 ➔ Column 7) ➔ Scan location to confirm.
+Put-Away Assistant: Scan carton QR ➔ System recommends optimal slot (shade 3 ➔ Row 5 ➔ Column 7) ➔ Scan location to confirm.
 Phase 8: Expiry Management & FEFO Engine
 3-Tier Expiry Monitor:
 Safe Stock (>90 Days)
@@ -84,43 +84,43 @@ Gate Outward Clearance: Gate Pass generated for outbound vehicle.
 Phase 10: Military Audit Trail, Daily Ledgers & Reports
 Daily Stock Ledger (Army Form compliant): Opening Balance + Receipts - Issues = Closing Balance.
 Inward / Outward Registers: Filterable by date, batch, supplier, or recipient unit.
-Shade Occupancy & Heatmap: Real-time space utilization statistics.
+shade Occupancy & Heatmap: Real-time space utilization statistics.
 Tamper-Proof Audit Trail: Permanent timestamped log of every single scan, click, check-in, and checkout.
 Export Engine: 1-Click PDF & Excel export for official documentation.
 Proposed Changes (Frontend Modules)
 [NEW] Security & Auth
-[NEW] 
+[NEW]
 src/components/auth/PinLoginModal.jsx
-[NEW] 
+[NEW]
 src/components/auth/UsbTokenModal.jsx
 [NEW] Gate & Inward Management
-[NEW] 
+[NEW]
 src/pages/GateEntry.jsx
-[NEW] 
+[NEW]
 src/pages/GoodsReceiving.jsx
 [NEW] Lab Testing & Quality Control
-[NEW] 
+[NEW]
 src/pages/LabTesting.jsx
-[NEW] Warehouse 6-Shade Visual Grid
-[NEW] 
-src/pages/WarehouseShades.jsx
-[NEW] 
-src/components/warehouse/ShadeGrid.jsx
-[NEW] 
+[NEW] Warehouse 6-shade Visual Grid
+[NEW]
+src/pages/Warehouseshades.jsx
+[NEW]
+src/components/warehouse/shadeGrid.jsx
+[NEW]
 src/pages/PutAwayCheckIn.jsx
 [NEW] Inventory, Expiry & QR Checkout
-[NEW] 
+[NEW]
 src/pages/InventoryStock.jsx
-[NEW] 
+[NEW]
 src/pages/ExpiryMonitor.jsx
-[NEW] 
+[NEW]
 src/pages/QrCheckout.jsx
-[NEW] 
+[NEW]
 src/components/qr/QrLabelGenerator.jsx
-[NEW] 
+[NEW]
 src/components/qr/QrScannerModal.jsx
 [NEW] Reports & Audit
-[NEW] 
+[NEW]
 src/pages/ReportsAudit.jsx
 Verification Plan
 Automated Verification
@@ -128,7 +128,7 @@ npm run lint: Zero ESLint warnings/errors across all modules.
 npm run build: Clean production bundle compilation with Vite and Tailwind CSS.
 Functional Verification
 PIN / USB Token Verification: Test invalid vs valid PIN entry and token simulation.
-Unit Conversion Math: Verify 100 Gatta * 6 = 600 Pieces accurately reflected across all tables.
+Unit Conversion Math: Verify 100 Gatta \* 6 = 600 Pieces accurately reflected across all tables.
 Lab Hold Gatekeeper: Confirm that an item in Pending or Under Testing CANNOT be checked out.
 Expiry Auto-Lock: Inject an expired batch and verify that the checkout scanner strictly rejects it with an alert.
-Put-Away Matrix: Test clicking/scanning slots in Shade 1 through 6 and ensuring real-time state updates.
+Put-Away Matrix: Test clicking/scanning slots in shade 1 through 6 and ensuring real-time state updates.

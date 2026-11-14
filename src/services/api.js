@@ -29,6 +29,8 @@ export const deleteProduct = (id) => apiRequest(`/product/${id}`, { method: 'DEL
 // 2. Shades & Buildings
 export const fetchShades = () => apiRequest('/shade')
 export const createShade = (data) => apiRequest('/shade', { method: 'POST', body: JSON.stringify(data) })
+export const fetchshades = fetchShades
+export const createshade = createShade
 
 // 3. Racks & Locations
 export const fetchRacks = (shadeId) => apiRequest(`/rack${shadeId ? `?shadeId=${shadeId}` : ''}`)

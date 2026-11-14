@@ -112,12 +112,12 @@ const STATUS_OPTIONS = [
 ]
 
 const LOCATION_OPTIONS = [
-  { value: 'Shade 1 • Bay A • Rack 02', label: 'Shade 1 (General Stores) • Bay A • Rack 02' },
-  { value: 'Shade 2 • Bay B • Rack 01', label: 'Shade 2 (Food & Grains) • Bay B • Rack 01' },
-  { value: 'Shade 2 • Bay B • Rack 03', label: 'Shade 2 (Food & Grains) • Bay B • Rack 03' },
-  { value: 'Shade 3 • Bay C • Rack 04', label: 'Shade 3 (Industrial Supplies) • Bay C • Rack 04' },
-  { value: 'Shade 4 • Bay D • Rack 01', label: 'Shade 4 (Chemical & Hazardous) • Bay D • Rack 01' },
-  { value: 'Shade 6 • Bay F • Rack 02', label: 'Shade 6 (Textiles & Medical) • Bay F • Rack 02' },
+  { value: 'Shed 1 • Bay A • Rack 02', label: 'Shed 1 (General Stores) • Bay A • Rack 02' },
+  { value: 'Shed 2 • Bay B • Rack 01', label: 'Shed 2 (Food & Grains) • Bay B • Rack 01' },
+  { value: 'Shed 2 • Bay B • Rack 03', label: 'Shed 2 (Food & Grains) • Bay B • Rack 03' },
+  { value: 'Shed 3 • Bay C • Rack 04', label: 'Shed 3 (Industrial Supplies) • Bay C • Rack 04' },
+  { value: 'Shed 4 • Bay D • Rack 01', label: 'Shed 4 (Chemical & Hazardous) • Bay D • Rack 01' },
+  { value: 'Shed 6 • Bay F • Rack 02', label: 'Shed 6 (Textiles & Medical) • Bay F • Rack 02' },
 ]
 
 export default function BatchManagement() {
@@ -168,7 +168,7 @@ export default function BatchManagement() {
     expiryDate: '2028-08-31',
     qty: '100',
     unit: 'Bags',
-    location: 'Shade 2 • Bay B • Rack 01',
+    location: 'Shed 2 • Bay B • Rack 01',
     status: 'Active',
   }
   const [newBatch, setNewBatch] = useState(initialNewBatch)
@@ -190,7 +190,7 @@ export default function BatchManagement() {
         label: `${p.name} (SKU: ${p.sku})`,
         sku: p.sku,
         unit: p.baseUnit || 'Bags',
-        location: p.storageZone || 'Shade 1 (General Stores)',
+        location: p.storageZone || 'Shed 1 (General Stores)',
         productId: p._id,
       }))
     }
@@ -613,7 +613,7 @@ export default function BatchManagement() {
                 <th className="py-3.5 px-4 w-32">Expiry Date</th>
                 <th className="py-3.5 px-4 w-32">Shelf Life</th>
                 <th className="py-3.5 px-4 w-28 text-right">Available Qty</th>
-                <th className="py-3.5 px-4 min-w-[200px]">Shade Location</th>
+                <th className="py-3.5 px-4 min-w-[200px]">Shed Location</th>
                 <th className="py-3.5 px-4 text-center w-28">Status</th>
                 <th className="py-3.5 px-5 text-right w-36">Actions</th>
               </tr>
@@ -826,7 +826,7 @@ export default function BatchManagement() {
               </div>
 
               <CustomSelect
-                label="Storage Shade Location"
+                label="Storage Shed Location"
                 value={newBatch.location}
                 onChange={(val) => setNewBatch({ ...newBatch, location: val })}
                 options={LOCATION_OPTIONS}

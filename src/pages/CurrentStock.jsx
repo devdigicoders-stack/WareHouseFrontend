@@ -91,14 +91,14 @@ function CustomSelect({ value, onChange, options, placeholder = 'Select option..
   )
 }
 
-// Fallback Shades
-const DEFAULT_SHADES = [
-  { id: 'SH-01', name: 'Shade 1: Grains & Bulk Pulses', category: 'Grains & Pulses', baseUnit: 'Kg', packUnit: 'Bags (50kg)', unitsPerPack: 50 },
-  { id: 'SH-02', name: 'Shade 2: Edible Oils & Liquids', category: 'Edible Oils', baseUnit: 'Ltr', packUnit: 'Tins (15L)', unitsPerPack: 15 },
-  { id: 'SH-03', name: 'Shade 3: Packaged Food & FMCG', category: 'Packaged FMCG', baseUnit: 'Pieces', packUnit: 'Gatta (Cartons)', unitsPerPack: 6 },
-  { id: 'SH-04', name: 'Shade 4: Packaging Materials & Cartons', category: 'Packaging Materials', baseUnit: 'Cartons', packUnit: 'Bundles', unitsPerPack: 25 },
-  { id: 'SH-05', name: 'Shade 5: Chemicals & Hygiene', category: 'Chemicals & Hygiene', baseUnit: 'Ltr', packUnit: 'Barrels (200L)', unitsPerPack: 200 },
-  { id: 'SH-06', name: 'Shade 6: Spares & General Goods', category: 'Spares & General', baseUnit: 'Nos', packUnit: 'Crates', unitsPerPack: 10 },
+// Fallback shades
+const DEFAULT_shadeS = [
+  { id: 'SH-01', name: 'Shed 1: Grains & Bulk Pulses', category: 'Grains & Pulses', baseUnit: 'Kg', packUnit: 'Bags (50kg)', unitsPerPack: 50 },
+  { id: 'SH-02', name: 'Shed 2: Edible Oils & Liquids', category: 'Edible Oils', baseUnit: 'Ltr', packUnit: 'Tins (15L)', unitsPerPack: 15 },
+  { id: 'SH-03', name: 'Shed 3: Packaged Food & FMCG', category: 'Packaged FMCG', baseUnit: 'Pieces', packUnit: 'Gatta (Cartons)', unitsPerPack: 6 },
+  { id: 'SH-04', name: 'Shed 4: Packaging Materials & Cartons', category: 'Packaging Materials', baseUnit: 'Cartons', packUnit: 'Bundles', unitsPerPack: 25 },
+  { id: 'SH-05', name: 'Shed 5: Chemicals & Hygiene', category: 'Chemicals & Hygiene', baseUnit: 'Ltr', packUnit: 'Barrels (200L)', unitsPerPack: 200 },
+  { id: 'SH-06', name: 'Shed 6: Spares & General Goods', category: 'Spares & General', baseUnit: 'Nos', packUnit: 'Crates', unitsPerPack: 10 },
 ]
 
 export default function CurrentStock() {
@@ -114,11 +114,11 @@ export default function CurrentStock() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
 
-  // Shades from database
-  const [shadesList, setShadesList] = useState(DEFAULT_SHADES)
+  // shades from database
+  const [shadesList, setshadesList] = useState(DEFAULT_shadeS)
 
   // Filter toolbar state
-  const [filterShade, setFilterShade] = useState('ALL')
+  const [filtershade, setFiltershade] = useState('ALL')
   const [filterCategory, setFilterCategory] = useState('ALL')
   const [filterLabStatus, setFilterLabStatus] = useState('ALL')
   const [filterStockLevel, setFilterStockLevel] = useState('ALL')
@@ -179,8 +179,8 @@ export default function CurrentStock() {
   // Stock List Table Data (Loaded dynamically from database)
   const [stockData, setStockData] = useState([])
 
-  // Normalize shade codes (e.g. SH01 -> SH-01, SH-01 -> SH-01)
-  const normalizeShade = (code) => {
+  // Normalize Shed Codes (e.g. SH01 -> SH-01, SH-01 -> SH-01)
+  const normalizeshade = (code) => {
     if (!code) return 'SH-01'
     const clean = code.toUpperCase().replace(/\s+/g, '')
     const match = clean.match(/SH-?\d{1,2}/)
@@ -191,21 +191,21 @@ export default function CurrentStock() {
     return code
   }
 
-  // Fetch Shades from MongoDB
-  const fetchShades = useCallback(() => {
+  // Fetch shades from MongoDB
+  const fetchshades = useCallback(() => {
     fetch(`${API}/api/shade`)
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           const mapped = data.map((s) => ({
-            id: s.code || normalizeShade(s.name),
+            id: s.code || normalizeshade(s.name),
             name: s.name,
             category: s.type || 'General Goods',
             baseUnit: s.baseUnit || 'Kg',
             packUnit: s.packUnit || 'Packs',
             unitsPerPack: s.unitsPerPack || 1,
           }))
-          setShadesList(mapped)
+          setshadesList(mapped)
         }
       })
       .catch(() => {})
@@ -219,10 +219,10 @@ export default function CurrentStock() {
       .then((data) => {
         if (Array.isArray(data)) {
           const mapped = data.map((p, idx) => {
-            const normalizedShade = normalizeShade(p.shadeId || p.storageZone)
+            const normalizedshade = normalizeshade(p.shadeId || p.storageZone)
             const rowVal = p.row || 'R01'
             const colVal = p.col || 'C01'
-            const binLoc = p.binLocation || `${normalizedShade}-${rowVal}-${colVal}`
+            const binLoc = p.binLocation || `${normalizedshade}-${rowVal}-${colVal}`
             const currentStock = Number(p.currentStock) || 0
             const packSize = Number(p.packSize) || 1
             const reorderLevel = Number(p.reorderLevel) || 50
@@ -240,8 +240,8 @@ export default function CurrentStock() {
               sku: p.sku || `PRD-${idx + 1}`,
               batchNo: p.batchNo || '—',
               category: p.category || 'General Goods',
-              shadeId: normalizedShade,
-              shadeName: p.storageZone || `Shade ${normalizedShade}`,
+              shadeId: normalizedshade,
+              shadeName: p.storageZone || `Shed ${normalizedshade}`,
               row: rowVal,
               col: colVal,
               location: binLoc,
@@ -274,9 +274,9 @@ export default function CurrentStock() {
   }, [])
 
   useEffect(() => {
-    fetchShades()
+    fetchshades()
     fetchProducts()
-  }, [fetchShades, fetchProducts])
+  }, [fetchshades, fetchProducts])
 
   // Dynamic Category options derived from active database records
   const categoryOptions = useMemo(() => {
@@ -290,7 +290,7 @@ export default function CurrentStock() {
   // Filtered Stock Items
   const filteredStock = useMemo(() => {
     return stockData.filter((item) => {
-      if (filterShade !== 'ALL' && item.shadeId !== filterShade) return false
+      if (filtershade !== 'ALL' && item.shadeId !== filtershade) return false
       if (filterCategory !== 'ALL' && item.category !== filterCategory) return false
       if (filterLabStatus !== 'ALL' && item.labStatus !== filterLabStatus) return false
       if (filterStockLevel === 'Low Stock' && item.status !== 'Low Stock') return false
@@ -309,7 +309,7 @@ export default function CurrentStock() {
       }
       return true
     })
-  }, [stockData, filterShade, filterCategory, filterLabStatus, filterStockLevel, searchQuery])
+  }, [stockData, filtershade, filterCategory, filterLabStatus, filterStockLevel, searchQuery])
 
   // Paginated List
   const totalPages = Math.max(1, Math.ceil(filteredStock.length / perPage))
@@ -336,18 +336,18 @@ export default function CurrentStock() {
     }
 
     const computedBase = (Number(newStock.packsCount) || 0) * (Number(newStock.unitsPerPack) || 1)
-    const matchedShade = shadesList.find((s) => s.id === newStock.shadeId)
+    const matchedshade = shadesList.find((s) => s.id === newStock.shadeId)
     const locCode = `${newStock.shadeId}-${newStock.row}-${newStock.col}`
 
     const payload = {
       name: newStock.productName.trim(),
       sku: newStock.sku.trim().toUpperCase(),
-      category: newStock.category || matchedShade?.category || 'General Goods',
+      category: newStock.category || matchedshade?.category || 'General Goods',
       baseUnit: newStock.baseUnit.trim(),
       outerPackaging: newStock.packUnit.trim(),
       packSize: Number(newStock.unitsPerPack) || 1,
       currentStock: computedBase,
-      storageZone: matchedShade?.name || `Shade ${newStock.shadeId}`,
+      storageZone: matchedshade?.name || `shade ${newStock.shadeId}`,
       shadeId: newStock.shadeId,
       row: newStock.row.trim().toUpperCase(),
       col: newStock.col.trim().toUpperCase(),
@@ -471,7 +471,7 @@ export default function CurrentStock() {
       'SKU',
       'Batch No',
       'Category',
-      'Shade',
+      'Shed',
       'Storage Bin',
       'Base Unit Stock',
       'Base Unit',
@@ -652,35 +652,35 @@ export default function CurrentStock() {
         </div>
       </div>
 
-      {/* Dynamic Dedicated Shades Switcher Tabs from MongoDB */}
+      {/* Dynamic Dedicated Sheds Switcher Tabs from MongoDB */}
       <div className="bg-white rounded-2xl p-3 shadow-xs border border-slate-200/80">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => {
-              setFilterShade('ALL')
+              setFiltershade('ALL')
               setCurrentPage(1)
             }}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 ${
-              filterShade === 'ALL'
+              filtershade === 'ALL'
                 ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-600/20'
                 : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/80'
             }`}
           >
-            <span>All Shades</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${filterShade === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+            <span>All Sheds</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${filtershade === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
               {stockData.length}
             </span>
           </button>
           {shadesList.map((s) => {
-            const isActive = filterShade === s.id
+            const isActive = filtershade === s.id
             const count = stockData.filter((i) => i.shadeId === s.id).length
             return (
               <button
                 key={s.id}
                 type="button"
                 onClick={() => {
-                  setFilterShade(s.id)
+                  setFiltershade(s.id)
                   setCurrentPage(1)
                 }}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 ${
@@ -719,11 +719,11 @@ export default function CurrentStock() {
               <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-3 py-1 rounded-full border border-indigo-200/60">
                 {filteredStock.length} Items Found
               </span>
-              {(searchQuery || filterShade !== 'ALL' || filterCategory !== 'ALL' || filterLabStatus !== 'ALL' || filterStockLevel !== 'ALL') && (
+              {(searchQuery || filtershade !== 'ALL' || filterCategory !== 'ALL' || filterLabStatus !== 'ALL' || filterStockLevel !== 'ALL') && (
                 <button
                   type="button"
                   onClick={() => {
-                    setFilterShade('ALL')
+                    setFiltershade('ALL')
                     setFilterCategory('ALL')
                     setFilterLabStatus('ALL')
                     setFilterStockLevel('ALL')
@@ -813,19 +813,19 @@ export default function CurrentStock() {
 
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
-                Warehouse Shade
+                Warehouse Shed
               </label>
               <CustomSelect
-                value={filterShade}
+                value={filtershade}
                 onChange={(val) => {
-                  setFilterShade(val)
+                  setFiltershade(val)
                   setCurrentPage(1)
                 }}
                 options={[
-                  { value: 'ALL', label: 'All Shades' },
+                  { value: 'ALL', label: 'All Sheds' },
                   ...shadesList.map((s) => ({ value: s.id, label: `${s.id}: ${s.name || s.category}` })),
                 ]}
-                placeholder="All Shades"
+                placeholder="All Sheds"
               />
             </div>
           </div>
@@ -838,7 +838,7 @@ export default function CurrentStock() {
               <tr className="bg-slate-50/75 border-b border-slate-200/80 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">
                 <th className="py-3 px-4 w-12 text-center">#</th>
                 <th className="py-3 px-4 min-w-[200px]">Product &amp; SKU</th>
-                <th className="py-3 px-4 min-w-[150px]">Storage Bin &amp; Shade</th>
+                <th className="py-3 px-4 min-w-[150px]">Storage Bin &amp; Shed</th>
                 <th className="py-3 px-4 min-w-[130px]">Batch No</th>
                 <th className="py-3 px-4 min-w-[130px] text-right">Available Stock</th>
                 <th className="py-3 px-4 min-w-[140px] text-right">Packaging Packs</th>
@@ -854,7 +854,7 @@ export default function CurrentStock() {
                   <td colSpan="10" className="py-8">
                     <DataLoader
                       text="Loading Live Inventory & Stock Ledger..."
-                      subtext="Syncing SKUs, shade balances, and batch quantities..."
+                      subtext="Syncing SKUs, shed balances, and batch quantities..."
                       size="md"
                     />
                   </td>
@@ -1123,7 +1123,7 @@ export default function CurrentStock() {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Target Shade</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Target Shed</label>
                   <CustomSelect
                     value={newStock.shadeId}
                     onChange={(val) => {

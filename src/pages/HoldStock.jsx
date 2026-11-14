@@ -100,7 +100,7 @@ export default function HoldStock() {
 
   // Filter toolbar state
   const [searchKeyword, setSearchKeyword] = useState('')
-  const [filterShade, setFilterShade] = useState('ALL')
+  const [filtershade, setFiltershade] = useState('ALL')
   const [filterReason, setFilterReason] = useState('ALL')
 
   // Pagination state
@@ -112,14 +112,14 @@ export default function HoldStock() {
   const [showReleaseModal, setShowReleaseModal] = useState(null)
   const [showDetailsModal, setShowDetailsModal] = useState(null)
 
-  // 6 Dedicated Shades
-  const SHADES = [
-    { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses' },
-    { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids' },
-    { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG' },
-    { id: 'SH04', name: 'Shade 4: Packaging Materials & Cartons' },
-    { id: 'SH05', name: 'Shade 5: Chemicals & Hygiene' },
-    { id: 'SH06', name: 'Shade 6: Spares & General Goods' },
+  // 6 Dedicated Sheds
+  const shadeS = [
+    { id: 'SH01', name: 'Shed 1: Grains & Bulk Pulses' },
+    { id: 'SH02', name: 'Shed 2: Edible Oils & Liquids' },
+    { id: 'SH03', name: 'Shed 3: Packaged Food & FMCG' },
+    { id: 'SH04', name: 'Shed 4: Packaging Materials & Cartons' },
+    { id: 'SH05', name: 'Shed 5: Chemicals & Hygiene' },
+    { id: 'SH06', name: 'Shed 6: Spares & General Goods' },
   ]
 
   // Fallback demo items if database has 0 records
@@ -316,7 +316,7 @@ export default function HoldStock() {
       if (activeTab === 'RELEASED' && item.status !== 'Released') return false
 
       // Dropdown filters
-      if (filterShade !== 'ALL' && item.shadeId !== filterShade) return false
+      if (filtershade !== 'ALL' && item.shadeId !== filtershade) return false
       if (filterReason !== 'ALL' && item.reason !== filterReason) return false
 
       if (searchKeyword.trim() !== '') {
@@ -332,7 +332,7 @@ export default function HoldStock() {
       }
       return true
     })
-  }, [holdItems, activeTab, filterShade, filterReason, searchKeyword])
+  }, [holdItems, activeTab, filtershade, filterReason, searchKeyword])
 
   // Paginated Results
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / perPage))
@@ -570,8 +570,8 @@ export default function HoldStock() {
 
   // Dropdown Options
   const shadeOptions = [
-    { value: 'ALL', label: 'All 6 Dedicated Shades' },
-    ...SHADES.map((s) => ({ value: s.id, label: s.name })),
+    { value: 'ALL', label: 'All 6 Dedicated Sheds' },
+    ...shadeS.map((s) => ({ value: s.id, label: s.name })),
   ]
 
   const reasonOptions = [
@@ -763,12 +763,12 @@ export default function HoldStock() {
               <span className="text-xs bg-amber-50 text-amber-700 font-bold px-3 py-1 rounded-full border border-amber-200/60">
                 {filteredItems.length} Records Found
               </span>
-              {(searchKeyword || filterShade !== 'ALL' || filterReason !== 'ALL' || activeTab !== 'ALL') && (
+              {(searchKeyword || filtershade !== 'ALL' || filterReason !== 'ALL' || activeTab !== 'ALL') && (
                 <button
                   type="button"
                   onClick={() => {
                     setActiveTab('ALL')
-                    setFilterShade('ALL')
+                    setFiltershade('ALL')
                     setFilterReason('ALL')
                     setSearchKeyword('')
                     setCurrentPage(1)
@@ -811,16 +811,16 @@ export default function HoldStock() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
-                Storage Shade Zone
+                Storage Shed Zone
               </label>
               <CustomSelect
-                value={filterShade}
+                value={filtershade}
                 onChange={(val) => {
-                  setFilterShade(val)
+                  setFiltershade(val)
                   setCurrentPage(1)
                 }}
                 options={shadeOptions}
-                placeholder="All 6 Dedicated Shades"
+                placeholder="All 6 Dedicated Sheds"
               />
             </div>
 
@@ -1126,11 +1126,11 @@ export default function HoldStock() {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Storage Shade</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Storage Shed</label>
                   <CustomSelect
                     value={newHold.shadeId}
                     onChange={(val) => setNewHold({ ...newHold, shadeId: val })}
-                    options={SHADES.map((s) => ({ value: s.id, label: s.name }))}
+                    options={shadeS.map((s) => ({ value: s.id, label: s.name }))}
                   />
                 </div>
                 <div>

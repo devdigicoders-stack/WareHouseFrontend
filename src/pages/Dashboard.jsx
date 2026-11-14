@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Truck, Package, QrCode, MapPin, Search, Send, Clock, ArrowRight, Activity } from 'lucide-react'
 import { useApp } from '../hooks/useApp'
-import { fetchAnalyticsSummary, fetchGateEntries, fetchGRNs, fetchProducts, fetchShades, fetchRacks, fetchQCs, fetchStockMovements, fetchDispatches } from '../services/api'
+import { fetchAnalyticsSummary, fetchGateEntries, fetchGRNs, fetchProducts, fetchshades, fetchRacks, fetchQCs, fetchStockMovements, fetchDispatches } from '../services/api'
 import DataLoader from '../components/common/DataLoader'
 
 export default function Dashboard() {
@@ -13,7 +13,7 @@ export default function Dashboard() {
   const [recentGRN, setRecentGRN] = useState([])
   const [allGRNs, setAllGRNs] = useState([])
   const [allProducts, setAllProducts] = useState([])
-  const [liveShades, setLiveShades] = useState([])
+  const [liveshades, setLiveshades] = useState([])
   const [liveRacks, setLiveRacks] = useState([])
   const [allQCs, setAllQCs] = useState([])
   const [allMovements, setAllMovements] = useState([])
@@ -27,7 +27,7 @@ export default function Dashboard() {
           fetchAnalyticsSummary(),
           fetchGateEntries(),
           fetchGRNs(),
-          fetchShades(),
+          fetchshades(),
           fetchProducts(),
           fetchRacks(),
           fetchQCs(),
@@ -48,7 +48,7 @@ export default function Dashboard() {
           setAllProducts(prodData.value)
         }
         if (shadesData.status === 'fulfilled' && Array.isArray(shadesData.value)) {
-          setLiveShades(shadesData.value.slice(0, 6))
+          setLiveshades(shadesData.value.slice(0, 6))
         }
         if (racksData.status === 'fulfilled' && Array.isArray(racksData.value)) {
           setLiveRacks(racksData.value)
@@ -159,9 +159,9 @@ export default function Dashboard() {
     },
   ]
 
-  // Live Dynamic Shades Data computed from MongoDB Shades & Racks
+  // Live Dynamic shades Data computed from MongoDB shades & Racks
   const shades = useMemo(() => {
-    return liveShades.map((s, idx) => {
+    return liveshades.map((s, idx) => {
       const sCode = (s.code || `SH-0${idx + 1}`).trim()
       const cleanCode = sCode.replace(/[-_]/g, '').toUpperCase()
 
@@ -208,7 +208,7 @@ export default function Dashboard() {
         color: idx % 2 === 0 ? 'bg-emerald-500' : 'bg-indigo-500',
       }
     })
-  }, [liveShades, liveRacks])
+  }, [liveshades, liveRacks])
 
   // Warehouse Live Dynamic Overall Capacity Metrics
   const overallCapacity = useMemo(() => {
@@ -508,7 +508,7 @@ export default function Dashboard() {
     { label: 'New Gate Entry', desc: 'Log incoming vehicle & driver entry', path: '/gate-entry', icon: Truck, badge: 'Inward', color: 'bg-emerald-50 text-emerald-600 border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white' },
     { label: 'Create GRN', desc: 'Receive goods & verify batch math', path: '/grn', icon: Package, badge: 'Receiving', color: 'bg-amber-50 text-amber-600 border-amber-100 group-hover:bg-amber-600 group-hover:text-white' },
     { label: 'Generate QR / Label', desc: 'Print serialized carton barcodes', path: '/label-qr', icon: QrCode, badge: 'Print', color: 'bg-blue-50 text-blue-600 border-blue-100 group-hover:bg-blue-600 group-hover:text-white' },
-    { label: 'Put-Away / Check-In', desc: 'Assign shade & rack storage slots', path: '/put-away', icon: MapPin, badge: 'Storage', color: 'bg-indigo-50 text-indigo-600 border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white' },
+    { label: 'Put-Away / Check-In', desc: 'Assign shed & rack storage slots', path: '/put-away', icon: MapPin, badge: 'Storage', color: 'bg-indigo-50 text-indigo-600 border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white' },
     { label: 'Stock Search', desc: 'Instant SKU, batch & location lookup', path: '/stock-search', icon: Search, badge: 'Lookup', color: 'bg-purple-50 text-purple-600 border-purple-100 group-hover:bg-purple-600 group-hover:text-white' },
     { label: 'Issue / Dispatch', desc: 'Scan outward QR & gate clearance', path: '/issue-dispatch', icon: Send, badge: 'Outward', color: 'bg-rose-50 text-rose-600 border-rose-100 group-hover:bg-rose-600 group-hover:text-white' },
   ]
@@ -550,7 +550,7 @@ export default function Dashboard() {
       {loading ? (
         <DataLoader
           text="Loading Live Warehouse Dashboard..."
-          subtext="Synchronizing real-time KPIs, active loading bays, shade capacities, and ledger events..."
+          subtext="Synchronizing real-time KPIs, active loading bays, shed capacities, and ledger events..."
           size="full"
         />
       ) : (
@@ -595,7 +595,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* 3. FULL WIDTH Warehouse Location & Shade Storage Overview */}
+      {/* 3. FULL WIDTH Warehouse Location & shade Storage Overview */}
       <div className="bg-white rounded-2xl p-4 sm:p-6 lg:p-7 border border-slate-200 shadow-sm space-y-5 sm:space-y-6">
         
         {/* Header with Title and Legend */}
@@ -609,10 +609,10 @@ export default function Dashboard() {
             </div>
             <div className="min-w-0">
               <h3 className="text-base sm:text-lg lg:text-xl font-extrabold text-slate-900 tracking-tight leading-snug">
-                Warehouse Location &amp; Shade Storage Overview
+                Warehouse Location &amp; shade Storage Overview
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5 leading-relaxed">
-                Real-time storage space utilization, capacity monitoring &amp; bay allocation across all 6 shades
+                Real-time storage space utilization, capacity monitoring &amp; bay allocation Across all 6 sheds
               </p>
             </div>
           </div>
@@ -636,7 +636,7 @@ export default function Dashboard() {
               to="/shade-mgmt"
               className="px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-bold transition-all flex items-center gap-1.5 shadow-xs shrink-0"
             >
-              Configure Shades <ArrowRight className="w-4 h-4" />
+              Configure Sheds <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
@@ -688,7 +688,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 6 Shades Grid - Proper 3 Columns × 2 Rows */}
+        {/* 6 shades Grid - Proper 3 Columns × 2 Rows */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
           {shades.map((shade, idx) => {
             const isHigh = shade.occupancy >= 80
@@ -776,7 +776,7 @@ export default function Dashboard() {
                 </div>
 
                 <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs sm:text-sm font-bold text-indigo-600 group-hover:text-indigo-800">
-                  <span className="truncate">Inspect {shade.code || 'Shade'} Bays</span>
+                  <span className="truncate">Inspect {shade.code || 'Shed'} Bays</span>
                   <span className="group-hover:translate-x-1.5 transition-transform text-base shrink-0 ml-1">→</span>
                 </div>
               </Link>

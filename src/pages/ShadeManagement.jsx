@@ -43,14 +43,14 @@ function CustomSelect({ value, onChange, options, placeholder = 'Select option..
   )
 }
 
-const SHADE_TYPES = ['Grains & Pulses', 'Edible Oils', 'Packaged FMCG', 'Packaging Materials', 'Chemicals & Hygiene', 'Spares & General', 'Cold Storage', 'General']
+const shade_TYPES = ['Grains & Pulses', 'Edible Oils', 'Packaged FMCG', 'Packaging Materials', 'Chemicals & Hygiene', 'Spares & General', 'Cold Storage', 'General']
 
 const emptyForm = {
   code: '', name: '', type: 'Packaged FMCG', description: '', manager: '', status: 'Active',
 }
 
 export default function ShadeManagement() {
-  const [shades, setShades] = useState([])
+  const [shades, setshades] = useState([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -67,22 +67,22 @@ export default function ShadeManagement() {
     setTimeout(() => setToast(null), 3200)
   }
 
-  const fetchShades = async () => {
+  const fetchshades = async () => {
     try {
       setLoading(true)
       const res = await fetch(`${API}/api/shade`)
       const data = await res.json()
-      setShades(data)
+      setshades(data)
     } catch {
-      triggerToast('Failed to load shades', 'error')
+      triggerToast('Failed to load sheds', 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { fetchShades() }, [])
+  useEffect(() => { fetchshades() }, [])
 
-  const filteredShades = useMemo(() => {
+  const filteredshades = useMemo(() => {
     return shades.filter((s) => {
       if (selectedType !== 'ALL' && s.type !== selectedType) return false
       if (selectedStatus !== 'ALL' && s.status !== selectedStatus) return false
@@ -127,8 +127,8 @@ export default function ShadeManagement() {
         const err = await res.json()
         throw new Error(err.message || 'Save failed')
       }
-      await fetchShades()
-      triggerToast(editingItem ? `Shade ${formData.code} updated.` : `Shade ${formData.code} created.`)
+      await fetchshades()
+      triggerToast(editingItem ? `Shed ${formData.code} updated.` : `Shed ${formData.code} created.`)
       setShowModal(false)
     } catch (err) {
       triggerToast(err.message, 'error')
@@ -141,8 +141,8 @@ export default function ShadeManagement() {
     try {
       const res = await fetch(`${API}/api/shade/${shade._id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Delete failed')
-      await fetchShades()
-      triggerToast(`Shade ${shade.code} deleted.`)
+      await fetchshades()
+      triggerToast(`Shed ${shade.code} deleted.`)
     } catch (err) {
       triggerToast(err.message, 'error')
     } finally {
@@ -152,11 +152,11 @@ export default function ShadeManagement() {
 
   const handleExportCSV = () => {
     const headers = ['#', 'Code', 'Name', 'Type', 'Manager', 'Status']
-    const rows = filteredShades.map((s, i) => [i + 1, `"${s.code}"`, `"${s.name}"`, `"${s.type}"`, `"${s.manager || ''}"`, s.status])
+    const rows = filteredshades.map((s, i) => [i + 1, `"${s.code}"`, `"${s.name}"`, `"${s.type}"`, `"${s.manager || ''}"`, s.status])
     const csv = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
     const link = document.createElement('a')
     link.setAttribute('href', encodeURI(csv))
-    link.setAttribute('download', 'Shade_Register.csv')
+    link.setAttribute('download', 'shed_Register.csv')
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -172,7 +172,7 @@ export default function ShadeManagement() {
 
   const typeOptions = [
     { value: 'ALL', label: 'All Types' },
-    ...SHADE_TYPES.map((t) => ({ value: t, label: t })),
+    ...shade_TYPES.map((t) => ({ value: t, label: t })),
   ]
   const statusOptions = [
     { value: 'ALL', label: 'All Statuses' },
@@ -198,8 +198,8 @@ export default function ShadeManagement() {
             <Warehouse className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800 tracking-tight">Shade Management</h1>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">Create and manage warehouse shades. Add racks inside each shade.</p>
+            <h1 className="text-xl font-bold text-slate-800 tracking-tight">Shed Management</h1>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">Create and manage warehouse sheds. Add racks inside each shed.</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
@@ -217,7 +217,7 @@ export default function ShadeManagement() {
           </button>
           <button type="button" onClick={handleOpenAdd} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition">
             <Plus className="w-4 h-4" />
-            <span>Add Shade</span>
+            <span>Add Shed</span>
           </button>
         </div>
       </div>
@@ -225,7 +225,7 @@ export default function ShadeManagement() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         {[
-          { label: 'Total Shades', value: stats.total, sub: 'Configured', color: 'indigo', Icon: Warehouse },
+          { label: 'Total Sheds', value: stats.total, sub: 'Configured', color: 'indigo', Icon: Warehouse },
           { label: 'Active', value: stats.active, sub: 'Operational', color: 'emerald', Icon: CheckCircle2 },
           { label: 'Maintenance', value: stats.maintenance, sub: 'Under review', color: 'amber', Icon: AlertTriangle },
           { label: 'Inactive', value: stats.inactive, sub: 'Disabled', color: 'slate', Icon: ShieldCheck },
@@ -248,8 +248,8 @@ export default function ShadeManagement() {
         <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3.5">
           <div className="flex items-center gap-2.5">
             <Layers className="w-4 h-4 text-indigo-600" />
-            <h2 className="text-sm font-bold text-slate-800">Shade Register</h2>
-            <span className="text-xs bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full border border-slate-200">{filteredShades.length} shades</span>
+            <h2 className="text-sm font-bold text-slate-800">Shed Register</h2>
+            <span className="text-xs bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full border border-slate-200">{filteredshades.length} shades</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-center text-xs">
             <div className="relative">
@@ -266,13 +266,13 @@ export default function ShadeManagement() {
         <div className="overflow-x-auto w-full">
           {loading ? (
             <DataLoader
-              text="Loading Warehouse Shades..."
+              text="Loading warehouse sheds..."
               subtext="Fetching storage zones, capacities, and active managers..."
               size="md"
             />
-          ) : filteredShades.length === 0 ? (
+          ) : filteredshades.length === 0 ? (
             <div className="py-16 text-center text-slate-400 text-sm">
-              {shades.length === 0 ? 'No shades yet. Click "Add Shade" to create one.' : 'No shades match your filter.'}
+              {shades.length === 0 ? 'No sheds yet. Click "Add Shed" to create one.' : 'No sheds match your filter.'}
             </div>
           ) : (
             <table className="w-full text-left text-xs divide-y divide-slate-200">
@@ -280,7 +280,7 @@ export default function ShadeManagement() {
                 <tr>
                   <th className="py-3.5 px-4 w-12 text-center">#</th>
                   <th className="py-3.5 px-4 min-w-[90px]">Code</th>
-                  <th className="py-3.5 px-4 min-w-[200px]">Shade Name</th>
+                  <th className="py-3.5 px-4 min-w-[200px]">Shed Name</th>
                   <th className="py-3.5 px-4 min-w-[160px]">Type</th>
                   <th className="py-3.5 px-4 min-w-[180px]">Description</th>
                   <th className="py-3.5 px-4 min-w-[160px]">Manager</th>
@@ -289,7 +289,7 @@ export default function ShadeManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredShades.map((row, idx) => (
+                {filteredshades.map((row, idx) => (
                   <tr key={row._id} className="hover:bg-slate-50/80 transition">
                     <td className="py-3.5 px-4 text-center text-slate-400 font-bold text-[11px]">{idx + 1}</td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-900">{row.code}</td>
@@ -332,8 +332,8 @@ export default function ShadeManagement() {
                   <Warehouse className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-slate-800">{editingItem ? 'Edit Shade' : 'Add New Shade'}</h3>
-                  <p className="text-[11px] text-slate-500">Shade code must be unique (e.g. SH-01)</p>
+                  <h3 className="font-bold text-sm text-slate-800">{editingItem ? 'Edit Shed' : 'Add New Shed'}</h3>
+                  <p className="text-[11px] text-slate-500">Shed Code must be unique (e.g. SH-01)</p>
                 </div>
               </div>
               <button type="button" onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-700 p-1">
@@ -344,15 +344,15 @@ export default function ShadeManagement() {
             <form onSubmit={handleSave} className="pt-4 space-y-3.5 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Shade Code *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Shed Code *</label>
                   <input type="text" required value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                     placeholder="e.g. SH-01"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Shade Name *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Shed Name *</label>
                   <input type="text" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="e.g. Shade 1: Grains"
+                    placeholder="e.g. Shed 1: Grains"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white" />
                 </div>
               </div>
@@ -360,7 +360,7 @@ export default function ShadeManagement() {
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Type / Category</label>
                 <CustomSelect value={formData.type} onChange={(v) => setFormData({ ...formData, type: v })}
-                  options={SHADE_TYPES.map((t) => ({ value: t, label: t }))} zIndexClass="z-40" />
+                  options={shade_TYPES.map((t) => ({ value: t, label: t }))} zIndexClass="z-40" />
               </div>
 
               <div>
@@ -390,7 +390,7 @@ export default function ShadeManagement() {
                   className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
                 <button type="submit" disabled={saving}
                   className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-5 py-2 rounded-xl text-xs font-bold transition">
-                  {saving ? 'Saving...' : editingItem ? 'Update Shade' : 'Create Shade'}
+                  {saving ? 'Saving...' : editingItem ? 'Update Shed' : 'Create Shed'}
                 </button>
               </div>
             </form>
@@ -407,13 +407,13 @@ export default function ShadeManagement() {
                 <Trash2 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-slate-800">Delete Shade?</h3>
+                <h3 className="font-bold text-sm text-slate-800">Delete Shed?</h3>
                 <p className="text-[11px] text-slate-500">This action cannot be undone.</p>
               </div>
             </div>
             <p className="text-xs text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
               Are you sure you want to delete <strong>{deleteConfirm.code} — {deleteConfirm.name}</strong>?
-              All racks inside this shade should be deleted first.
+              All racks inside this shed should be deleted first.
             </p>
             <div className="flex gap-2">
               <button type="button" onClick={() => setDeleteConfirm(null)}

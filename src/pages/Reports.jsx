@@ -9,7 +9,7 @@ import {
   fetchStockAdjustments,
   fetchGatePasses,
   fetchRacks,
-  fetchShades,
+  fetchshades,
   fetchGateEntries,
 } from '../services/api'
 import { exportToExcel, exportToCSV, printOrExportPDF } from '../utils/exportHelper'
@@ -111,14 +111,14 @@ function CustomSelect({ value, onChange, options, placeholder = 'Select option..
   )
 }
 
-// 6 Dedicated Warehouse Shades
-const SHADES = [
-  { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses' },
-  { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids' },
-  { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG' },
-  { id: 'SH04', name: 'Shade 4: Packaging Materials & Cartons' },
-  { id: 'SH05', name: 'Shade 5: Chemicals & Hygiene' },
-  { id: 'SH06', name: 'Shade 6: Spares & General Goods' },
+// 6 Dedicated Warehouse Sheds
+const shadeS = [
+  { id: 'SH01', name: 'Shed 1: Grains & Bulk Pulses' },
+  { id: 'SH02', name: 'Shed 2: Edible Oils & Liquids' },
+  { id: 'SH03', name: 'Shed 3: Packaged Food & FMCG' },
+  { id: 'SH04', name: 'Shed 4: Packaging Materials & Cartons' },
+  { id: 'SH05', name: 'Shed 5: Chemicals & Hygiene' },
+  { id: 'SH06', name: 'Shed 6: Spares & General Goods' },
 ]
 
 export default function Reports() {
@@ -137,7 +137,7 @@ export default function Reports() {
   const [adjustments, setAdjustments] = useState([])
   const [gatePasses, setGatePasses] = useState([])
   const [racks, setRacks] = useState([])
-  const [shadesList, setShadesList] = useState([])
+  const [shadesList, setshadesList] = useState([])
   const [gateEntries, setGateEntries] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [lastSyncedTime, setLastSyncedTime] = useState(new Date())
@@ -165,7 +165,7 @@ export default function Reports() {
 
   // Filter toolbar state
   const [filterCategory, setFilterCategory] = useState('ALL')
-  const [filterShade, setFilterShade] = useState('ALL')
+  const [filtershade, setFiltershade] = useState('ALL')
   const [filterFrequency, setFilterFrequency] = useState('ALL')
   const [filterStatus, setFilterStatus] = useState('ALL')
   const [searchQuery, setSearchQuery] = useState('')
@@ -213,7 +213,7 @@ export default function Reports() {
         fetchStockAdjustments(),
         fetchGatePasses(),
         fetchRacks(),
-        fetchShades(),
+        fetchshades(),
         fetchGateEntries(),
       ])
 
@@ -227,7 +227,7 @@ export default function Reports() {
       const rawAdjs = adjRes.status === 'fulfilled' && Array.isArray(adjRes.value) ? adjRes.value : []
       const rawGps = gpRes.status === 'fulfilled' && Array.isArray(gpRes.value) ? gpRes.value : []
       const rawRacks = rackRes.status === 'fulfilled' && Array.isArray(rackRes.value) ? rackRes.value : []
-      const rawShades = shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value) ? shadeRes.value : []
+      const rawshades = shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value) ? shadeRes.value : []
       const rawGes = geRes.status === 'fulfilled' && Array.isArray(geRes.value) ? geRes.value : []
 
       setProducts(rawProds)
@@ -237,7 +237,7 @@ export default function Reports() {
       setAdjustments(rawAdjs)
       setGatePasses(rawGps)
       setRacks(rawRacks)
-      setShadesList(rawShades)
+      setshadesList(rawshades)
       setGateEntries(rawGes)
       setLastSyncedTime(new Date())
     } catch (err) {
@@ -292,7 +292,7 @@ export default function Reports() {
           'Outer Packaging': p.outerPackaging || 'Packs',
           'Pack Size': p.packSize || 1,
           'Reorder Level': p.reorderLevel || 50,
-          'Storage Zone': p.storageZone || p.shadeId || 'Shade 1',
+          'Storage Zone': p.storageZone || p.shadeId || 'Shed 1',
           'Bin Location': p.binLocation || '—',
           'QC Lab Status': p.labStatus || 'PASSED',
           'Batch No': p.batchNo || '—',
@@ -320,7 +320,7 @@ export default function Reports() {
           'PO Indent No': g.poNo || '—',
           'Supplier / Vendor': g.supplier || '—',
           'Vehicle Number': g.vehicleNo || '—',
-          'Storage Shade': g.shade || 'General Storage',
+          'Storage Shed': g.shade || 'General Storage',
           'Items Received': g.materials?.length || g.itemsCount || 1,
           'Total Qty': g.totalQty || (g.materials?.reduce((s, m) => s + (Number(m.totalBaseQty) || Number(m.packageQty) || 0), 0) + ' Units'),
           'Received By': g.receivedBy || 'Store Supervisor',
@@ -377,7 +377,7 @@ export default function Reports() {
           'Logged Date': h.createdAt ? new Date(h.createdAt).toLocaleDateString('en-IN') : 'Live',
         }))
 
-      case 'RPT-BIN-006': // Storage Shade & 2D Bin Capacity Utilization
+      case 'RPT-BIN-006': // Storage Shed & 2D Bin Capacity Utilization
         return racks.map((r) => {
           const cells = r.cells || []
           const occupied = cells.filter((c) => c.status === 'Occupied' || c.status === 'Reserved').length
@@ -385,7 +385,7 @@ export default function Reports() {
           const utilRate = total > 0 ? Math.round((occupied / total) * 100) : 0
           return {
             'Rack Identifier': r.rackNumber || r.name || '—',
-            'Storage Shade': r.shadeCode || r.shadeId?.code || 'SH01',
+            'Storage Shed': r.shadeCode || r.shadeId?.code || 'SH01',
             'Grid Rows': r.rows || 4,
             'Grid Columns': r.columns || 6,
             'Height Levels': r.levels || 3,
@@ -411,7 +411,7 @@ export default function Reports() {
             'Minimum Reorder Threshold': reorder.toLocaleString(),
             'Replenishment Deficit': deficit.toLocaleString(),
             'Base Unit': p.baseUnit || 'Kg',
-            'Storage Zone': p.storageZone || p.shadeId || 'Shade 1',
+            'Storage Zone': p.storageZone || p.shadeId || 'Shed 1',
             'Bin Location': p.binLocation || '—',
             'Urgency Level': stock === 0 ? 'CRITICAL (Out of Stock)' : 'HIGH (Below Safety)',
             'Action Needed': 'Initiate PO Purchase Indent to Vendor',
@@ -462,7 +462,7 @@ export default function Reports() {
         code: 'RPT-STK-001',
         category: 'Inventory',
         shadeId: 'SH03',
-        shadeName: 'Shade 3: Packaged FMCG',
+        shadeName: 'Shed 3: Packaged FMCG',
         frequency: 'Daily',
         formats: ['Excel', 'PDF', 'CSV'],
         lastGenerated: lastSyncedTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
@@ -477,7 +477,7 @@ export default function Reports() {
         code: 'RPT-GRN-002',
         category: 'Inward Operations',
         shadeId: 'SH01',
-        shadeName: 'Shade 1: Grains & Pulses',
+        shadeName: 'Shed 1: Grains & Pulses',
         frequency: 'Daily',
         formats: ['Excel', 'PDF', 'CSV'],
         lastGenerated: lastSyncedTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
@@ -492,7 +492,7 @@ export default function Reports() {
         code: 'RPT-DSP-003',
         category: 'Outward Operations',
         shadeId: 'SH03',
-        shadeName: 'Shade 3: Packaged FMCG',
+        shadeName: 'Shed 3: Packaged FMCG',
         frequency: 'Daily',
         formats: ['Excel', 'PDF', 'CSV'],
         lastGenerated: lastSyncedTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
@@ -507,7 +507,7 @@ export default function Reports() {
         code: 'RPT-LAB-004',
         category: 'Quality & Labs',
         shadeId: 'SH02',
-        shadeName: 'Shade 2: Edible Oils',
+        shadeName: 'Shed 2: Edible Oils',
         frequency: 'Weekly',
         formats: ['PDF', 'Excel', 'CSV'],
         lastGenerated: lastSyncedTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
@@ -522,7 +522,7 @@ export default function Reports() {
         code: 'RPT-HLD-005',
         category: 'Inventory',
         shadeId: 'SH05',
-        shadeName: 'Shade 5: Chemicals & Hygiene',
+        shadeName: 'Shed 5: Chemicals & Hygiene',
         frequency: 'Weekly',
         formats: ['Excel', 'PDF', 'CSV'],
         lastGenerated: lastSyncedTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
@@ -533,11 +533,11 @@ export default function Reports() {
       },
       {
         id: 6,
-        name: 'Storage Shade & 2D Bin Capacity Utilization',
+        name: 'Storage Shed & 2D Bin Capacity Utilization',
         code: 'RPT-BIN-006',
         category: 'Warehouse Management',
         shadeId: 'ALL',
-        shadeName: 'All 6 Dedicated Shades',
+        shadeName: 'All 6 Dedicated Sheds',
         frequency: 'Weekly',
         formats: ['Excel', 'PDF', 'CSV'],
         lastGenerated: lastSyncedTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
@@ -552,7 +552,7 @@ export default function Reports() {
         code: 'RPT-ORD-007',
         category: 'Inventory',
         shadeId: 'SH01',
-        shadeName: 'Shade 1: Grains & Pulses',
+        shadeName: 'Shed 1: Grains & Pulses',
         frequency: 'Daily',
         formats: ['Excel', 'PDF', 'CSV'],
         lastGenerated: lastSyncedTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
@@ -567,7 +567,7 @@ export default function Reports() {
         code: 'RPT-GPO-008',
         category: 'Outward Operations',
         shadeId: 'ALL',
-        shadeName: 'All 6 Dedicated Shades',
+        shadeName: 'All 6 Dedicated Sheds',
         frequency: 'Monthly',
         formats: ['Excel', 'PDF', 'CSV'],
         lastGenerated: lastSyncedTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
@@ -583,7 +583,7 @@ export default function Reports() {
   const filteredReports = useMemo(() => {
     return reportsList.filter((item) => {
       if (filterCategory !== 'ALL' && item.category !== filterCategory) return false
-      if (filterShade !== 'ALL' && item.shadeId !== filterShade && item.shadeId !== 'ALL') return false
+      if (filtershade !== 'ALL' && item.shadeId !== filtershade && item.shadeId !== 'ALL') return false
       if (filterFrequency !== 'ALL' && item.frequency !== filterFrequency) return false
       if (filterStatus !== 'ALL' && item.status !== filterStatus) return false
 
@@ -599,7 +599,7 @@ export default function Reports() {
       }
       return true
     })
-  }, [reportsList, filterCategory, filterShade, filterFrequency, filterStatus, searchQuery])
+  }, [reportsList, filterCategory, filtershade, filterFrequency, filterStatus, searchQuery])
 
   // Paginated Results
   const totalPages = Math.max(1, Math.ceil(filteredReports.length / perPage))
@@ -619,7 +619,7 @@ export default function Reports() {
         'Report Code': report.code,
         'Report Name': report.name,
         'Operational Category': report.category,
-        'Storage Shade': report.shadeName,
+        'Storage Shed': report.shadeName,
         'Generated By': report.generatedBy,
         'Records Available': 0,
         'Export Timestamp': new Date().toLocaleString('en-IN'),
@@ -684,8 +684,8 @@ export default function Reports() {
   ]
 
   const shadeOptions = [
-    { value: 'ALL', label: 'All 6 Dedicated Shades' },
-    ...SHADES.map((s) => ({ value: s.id, label: s.name })),
+    { value: 'ALL', label: 'All 6 Dedicated Sheds' },
+    ...shadeS.map((s) => ({ value: s.id, label: s.name })),
   ]
 
   const frequencyOptions = [
@@ -804,7 +804,7 @@ export default function Reports() {
               {kpis.activeSKUs.toLocaleString()} SKUs
             </h3>
             <p className="text-[11px] text-emerald-600 font-medium truncate">
-              Across {kpis.shadesCount} warehouse shades
+              Across {kpis.shadesCount} warehouse sheds
             </p>
           </div>
         </div>
@@ -854,7 +854,7 @@ export default function Reports() {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-slate-800">Operational Report Catalog</h2>
-                <p className="text-[11px] text-slate-500">Filter reports by operational module, storage shade, frequency, or status.</p>
+                <p className="text-[11px] text-slate-500">Filter reports by operational module, Storage Shed, frequency, or status.</p>
               </div>
             </div>
 
@@ -874,12 +874,12 @@ export default function Reports() {
                 </button>
               )}
 
-              {(searchQuery || filterCategory !== 'ALL' || filterShade !== 'ALL' || filterFrequency !== 'ALL' || filterStatus !== 'ALL') && (
+              {(searchQuery || filterCategory !== 'ALL' || filtershade !== 'ALL' || filterFrequency !== 'ALL' || filterStatus !== 'ALL') && (
                 <button
                   type="button"
                   onClick={() => {
                     setFilterCategory('ALL')
-                    setFilterShade('ALL')
+                    setFiltershade('ALL')
                     setFilterFrequency('ALL')
                     setFilterStatus('ALL')
                     setSearchQuery('')
@@ -979,16 +979,16 @@ export default function Reports() {
 
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
-                Storage Shade
+                Storage Shed
               </label>
               <CustomSelect
-                value={filterShade}
+                value={filtershade}
                 onChange={(val) => {
-                  setFilterShade(val)
+                  setFiltershade(val)
                   setCurrentPage(1)
                 }}
                 options={shadeOptions}
-                placeholder="All 6 Dedicated Shades"
+                placeholder="All 6 Dedicated Sheds"
               />
             </div>
 
@@ -1039,7 +1039,7 @@ export default function Reports() {
                   <th className="py-3 px-4 w-12 text-center">#</th>
                   <th className="py-3 px-4 min-w-[220px]">Report Name &amp; Code</th>
                   <th className="py-3 px-4 min-w-[150px]">Operational Module</th>
-                  <th className="py-3 px-4 min-w-[140px]">Frequency &amp; Shade</th>
+                  <th className="py-3 px-4 min-w-[140px]">Frequency &amp; Shed</th>
                   <th className="py-3 px-4 min-w-[120px] text-right">Records Count</th>
                   <th className="py-3 px-4 min-w-[140px]">Last Generated</th>
                   <th className="py-3 px-4 min-w-[120px] text-center">Formats</th>

@@ -948,7 +948,7 @@ export default function GatePass() {
                         <td className="py-3 px-3">
                           <input
                             type="text"
-                            placeholder="e.g. Shade 2 (Rack R3)"
+                            placeholder="e.g. Shed 2 (Rack R3)"
                             value={item.remarks}
                             onChange={(e) => handleUpdateItem(item.id, 'remarks', e.target.value)}
                             className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"

@@ -97,7 +97,7 @@ export default function StockSearch() {
 
   // Filter form states
   const [searchKeyword, setSearchKeyword] = useState('')
-  const [filterShade, setFilterShade] = useState('ALL')
+  const [filtershade, setFiltershade] = useState('ALL')
   const [filterCategory, setFilterCategory] = useState('ALL')
   const [filterLabStatus, setFilterLabStatus] = useState('ALL')
   const [filterStatus, setFilterStatus] = useState('ALL')
@@ -138,14 +138,14 @@ export default function StockSearch() {
     }
   }, [showQrModal])
 
-  // 6 Dedicated Warehouse Shades
-  const SHADES = [
-    { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses' },
-    { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids' },
-    { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG' },
-    { id: 'SH04', name: 'Shade 4: Packaging Materials & Cartons' },
-    { id: 'SH05', name: 'Shade 5: Chemicals & Hygiene' },
-    { id: 'SH06', name: 'Shade 6: Spares & General Goods' },
+  // 6 Dedicated Warehouse Sheds
+  const shadeS = [
+    { id: 'SH01', name: 'Shed 1: Grains & Bulk Pulses' },
+    { id: 'SH02', name: 'Shed 2: Edible Oils & Liquids' },
+    { id: 'SH03', name: 'Shed 3: Packaged Food & FMCG' },
+    { id: 'SH04', name: 'Shed 4: Packaging Materials & Cartons' },
+    { id: 'SH05', name: 'Shed 5: Chemicals & Hygiene' },
+    { id: 'SH06', name: 'Shed 6: Spares & General Goods' },
   ]
 
   // Dynamic Stock Items Database
@@ -164,7 +164,7 @@ export default function StockSearch() {
             batchNo: p.batchNo || '—',
             category: p.category || 'General Goods',
             shadeId: p.shadeId || 'SH01',
-            shadeName: p.storageZone || p.shadeName || 'Shade 1: Grains & Bulk Pulses',
+            shadeName: p.storageZone || p.shadeName || 'Shed 1: Grains & Bulk Pulses',
             row: p.row || 'R01',
             col: p.col || 'C01',
             location: p.binLocation || `${p.shadeId || 'SH01'}-${p.row || 'R01'}-${p.col || 'C01'}`,
@@ -188,7 +188,7 @@ export default function StockSearch() {
   // Filtered Stock Results
   const filteredStock = useMemo(() => {
     return stockItems.filter((item) => {
-      if (filterShade !== 'ALL' && item.shadeId !== filterShade) return false
+      if (filtershade !== 'ALL' && item.shadeId !== filtershade) return false
       if (filterCategory !== 'ALL' && item.category !== filterCategory) return false
       if (filterLabStatus !== 'ALL' && item.labStatus !== filterLabStatus) return false
       if (filterStatus !== 'ALL' && item.status !== filterStatus) return false
@@ -205,7 +205,7 @@ export default function StockSearch() {
       }
       return true
     })
-  }, [stockItems, filterShade, filterCategory, filterLabStatus, filterStatus, searchKeyword])
+  }, [stockItems, filtershade, filterCategory, filterLabStatus, filterStatus, searchKeyword])
 
   // Paginated Results
   const totalPages = Math.max(1, Math.ceil(filteredStock.length / perPage))
@@ -214,7 +214,7 @@ export default function StockSearch() {
   // Reset all filters
   const handleResetFilters = () => {
     setSearchKeyword('')
-    setFilterShade('ALL')
+    setFiltershade('ALL')
     setFilterCategory('ALL')
     setFilterLabStatus('ALL')
     setFilterStatus('ALL')
@@ -250,7 +250,7 @@ export default function StockSearch() {
       'Product Name',
       'SKU',
       'Batch No',
-      'Shade',
+      'Shed',
       'Storage Bin',
       'Base Unit Quantity',
       'Packaging Packs',
@@ -288,8 +288,8 @@ export default function StockSearch() {
 
   // Dropdown Options
   const shadeOptions = [
-    { value: 'ALL', label: 'All 6 Dedicated Shades' },
-    ...SHADES.map((s) => ({ value: s.id, label: s.name })),
+    { value: 'ALL', label: 'All 6 Dedicated Sheds' },
+    ...shadeS.map((s) => ({ value: s.id, label: s.name })),
   ]
 
   const categoryOptions = [
@@ -332,7 +332,7 @@ export default function StockSearch() {
           <div>
             <h1 className="text-xl font-bold text-slate-800 tracking-tight">Stock Search &amp; Bin Locator</h1>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Query inventory across 6 shades, physical grid coordinates, SKU identifiers, and quality lab test certificates.
+              Query inventory across 6 sheds, physical grid coordinates, SKU identifiers, and quality lab test certificates.
             </p>
           </div>
         </div>
@@ -451,7 +451,7 @@ export default function StockSearch() {
           </div>
         </div>
 
-        {/* Card 4: Facility Shade Coverage */}
+        {/* Card 4: Facility shade Coverage */}
         <div className="bg-white rounded-2xl p-4.5 shadow-2xs border border-slate-200/90 hover:border-slate-300 transition-all flex flex-col justify-between">
           <div className="flex items-center justify-between gap-2 mb-3">
             <div className="w-9 h-9 rounded-xl bg-purple-50 border border-purple-100/80 text-purple-600 flex items-center justify-center shrink-0">
@@ -466,13 +466,13 @@ export default function StockSearch() {
               <span className="text-2xl sm:text-3xl font-black text-purple-600 tracking-tight leading-none">
                 6
               </span>
-              <span className="text-xs font-bold text-slate-500">Shades</span>
+              <span className="text-xs font-bold text-slate-500">Sheds</span>
             </div>
             <div className="text-xs font-bold text-slate-800 mt-2 truncate">
-              Dedicated Shade Coverage
+              Dedicated Shed Coverage
             </div>
             <div className="text-[11px] text-purple-600 font-semibold mt-0.5 truncate">
-              Shades 1 to 6 online
+              Sheds 1 to 6 online
             </div>
           </div>
         </div>
@@ -490,7 +490,7 @@ export default function StockSearch() {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-slate-800">Advanced Stock Search</h2>
-                <p className="text-[11px] text-slate-500">Filter by SKU, storage bin coordinate, shade zone, or quality status.</p>
+                <p className="text-[11px] text-slate-500">Filter by SKU, storage bin coordinate, shed zone, or quality status.</p>
               </div>
             </div>
 
@@ -498,7 +498,7 @@ export default function StockSearch() {
               <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-3 py-1 rounded-full border border-indigo-200/60">
                 {filteredStock.length} Results Found
               </span>
-              {(searchKeyword || filterShade !== 'ALL' || filterCategory !== 'ALL' || filterLabStatus !== 'ALL' || filterStatus !== 'ALL') && (
+              {(searchKeyword || filtershade !== 'ALL' || filterCategory !== 'ALL' || filterLabStatus !== 'ALL' || filterStatus !== 'ALL') && (
                 <button
                   type="button"
                   onClick={handleResetFilters}
@@ -539,16 +539,16 @@ export default function StockSearch() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1 text-xs">
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
-                Warehouse Storage Shade
+                Warehouse Storage Shed
               </label>
               <CustomSelect
-                value={filterShade}
+                value={filtershade}
                 onChange={(val) => {
-                  setFilterShade(val)
+                  setFiltershade(val)
                   setCurrentPage(1)
                 }}
                 options={shadeOptions}
-                placeholder="All 6 Dedicated Shades"
+                placeholder="All 6 Dedicated Sheds"
               />
             </div>
 
@@ -613,7 +613,7 @@ export default function StockSearch() {
                   />
                 </th>
                 <th className="py-3 px-4 min-w-[200px]">Product Name &amp; SKU</th>
-                <th className="py-3 px-4 min-w-[150px]">Bin Coordinate &amp; Shade</th>
+                <th className="py-3 px-4 min-w-[150px]">Bin Coordinate &amp; Shed</th>
                 <th className="py-3 px-4 min-w-[120px]">Batch No</th>
                 <th className="py-3 px-4 min-w-[130px] text-right">Base Unit Stock</th>
                 <th className="py-3 px-4 min-w-[140px] text-right">Packaging Packs</th>

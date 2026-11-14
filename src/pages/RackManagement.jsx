@@ -56,11 +56,11 @@ const emptyForm = {
 }
 
 export default function RackManagement() {
-  const [shades, setShades] = useState([])
+  const [shades, setshades] = useState([])
   const [racks, setRacks] = useState([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
-  const [selectedShadeFilter, setSelectedShadeFilter] = useState('ALL')
+  const [selectedshadeFilter, setSelectedshadeFilter] = useState('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingRack, setEditingRack] = useState(null)
@@ -83,10 +83,10 @@ export default function RackManagement() {
       ])
       const shadesData = await shadesRes.json()
       const racksData = await racksRes.json()
-      setShades(shadesData)
+      setshades(shadesData)
       setRacks(racksData)
     } catch {
-      triggerToast('Failed to load racks & shades', 'error')
+      triggerToast('Failed to load racks & sheds', 'error')
     } finally {
       setLoading(false)
     }
@@ -96,7 +96,7 @@ export default function RackManagement() {
 
   const filteredRacks = useMemo(() => {
     return racks.filter((r) => {
-      if (selectedShadeFilter !== 'ALL' && r.shadeId !== selectedShadeFilter) return false
+      if (selectedshadeFilter !== 'ALL' && r.shadeId !== selectedshadeFilter) return false
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
         return r.rackNumber.toLowerCase().includes(q) ||
@@ -105,25 +105,25 @@ export default function RackManagement() {
       }
       return true
     })
-  }, [racks, selectedShadeFilter, searchQuery])
+  }, [racks, selectedshadeFilter, searchQuery])
 
   const stats = useMemo(() => {
     const totalRacks = racks.length
     const totalCells = racks.reduce((sum, r) => sum + (r.cells ? r.cells.length : r.rows * r.columns), 0)
     const activeRacks = racks.filter((r) => r.status === 'Active').length
-    const totalShadesCount = shades.length
-    return { totalRacks, totalCells, activeRacks, totalShadesCount }
+    const totalshadesCount = shades.length
+    return { totalRacks, totalCells, activeRacks, totalshadesCount }
   }, [racks, shades])
 
   const handleOpenAdd = () => {
     setEditingRack(null)
-    const defaultShade = shades[0] ? shades[0]._id : ''
-    const defaultShadeCode = shades[0] ? shades[0].code : 'SH-01'
-    const shadeRacks = racks.filter((r) => r.shadeId === defaultShade)
+    const defaultshade = shades[0] ? shades[0]._id : ''
+    const defaultshadeCode = shades[0] ? shades[0].code : 'SH-01'
+    const shadeRacks = racks.filter((r) => r.shadeId === defaultshade)
     const nextNum = String(shadeRacks.length + 1).padStart(2, '0')
     setFormData({
       ...emptyForm,
-      shadeId: defaultShade,
+      shadeId: defaultshade,
       rackNumber: `RK-${nextNum}`,
     })
     setShowModal(true)
@@ -145,7 +145,7 @@ export default function RackManagement() {
   const handleSave = async (e) => {
     e.preventDefault()
     if (!formData.shadeId || !formData.rackNumber) {
-      triggerToast('Shade and Rack Number are required', 'error')
+      triggerToast('Shed and Rack Number are required', 'error')
       return
     }
     setSaving(true)
@@ -185,7 +185,7 @@ export default function RackManagement() {
   }
 
   const handleExportCSV = () => {
-    const headers = ['#', 'Shade Code', 'Rack Number', 'Rows', 'Columns', 'Total Locations', 'Status', 'Description']
+    const headers = ['#', 'Shed Code', 'Rack Number', 'Rows', 'Columns', 'Total Locations', 'Status', 'Description']
     const rows = filteredRacks.map((r, i) => [
       i + 1,
       `"${r.shadeCode || ''}"`,
@@ -207,7 +207,7 @@ export default function RackManagement() {
   }
 
   const shadeOptions = [
-    { value: 'ALL', label: 'All Shades' },
+    { value: 'ALL', label: 'All Sheds' },
     ...shades.map((s) => ({ value: s._id, label: `${s.code} — ${s.name}` })),
   ]
 
@@ -229,14 +229,14 @@ export default function RackManagement() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-800 tracking-tight">Rack Management</h1>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">Define physical racks, rows, and columns inside warehouse shades. Auto-generate cell locations.</p>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">Define physical racks, rows, and columns inside warehouse sheds. Auto-generate cell locations.</p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
           <Link to="/shade-mgmt" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition">
             <Warehouse className="w-3.5 h-3.5 text-slate-500" />
-            <span>Shade Master</span>
+            <span>Shed Master</span>
           </Link>
           <Link to="/location-master" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition">
             <span>Location Grid</span>
@@ -262,7 +262,7 @@ export default function RackManagement() {
           <div>
             <p className="text-xs font-semibold text-slate-500">Total Racks</p>
             <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">{stats.totalRacks}</h3>
-            <p className="text-[11px] text-indigo-600 font-medium">Across {stats.totalShadesCount} shades</p>
+            <p className="text-[11px] text-indigo-600 font-medium">Across {stats.totalshadesCount} sheds</p>
           </div>
         </div>
 
@@ -293,8 +293,8 @@ export default function RackManagement() {
             <Warehouse className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Configured Shades</p>
-            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">{stats.totalShadesCount}</h3>
+            <p className="text-xs font-semibold text-slate-500">Configured Sheds</p>
+            <h3 className="text-xl font-bold text-slate-800 leading-tight mt-0.5">{stats.totalshadesCount}</h3>
             <p className="text-[11px] text-blue-600 font-medium">Storage buildings</p>
           </div>
         </div>
@@ -313,10 +313,10 @@ export default function RackManagement() {
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
               <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search rack number, shade code..."
+                placeholder="Search rack number, Shed Code..."
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white" />
             </div>
-            <CustomSelect value={selectedShadeFilter} onChange={setSelectedShadeFilter} options={shadeOptions} zIndexClass="z-30" />
+            <CustomSelect value={selectedshadeFilter} onChange={setSelectedshadeFilter} options={shadeOptions} zIndexClass="z-30" />
           </div>
         </div>
 
@@ -324,7 +324,7 @@ export default function RackManagement() {
           {loading ? (
             <DataLoader
               text="Loading Storage Racks & Zone Architecture..."
-              subtext="Fetching rack dimensions, cell counts, and shade allocations..."
+              subtext="Fetching rack dimensions, cell counts, and shed allocations..."
               size="md"
             />
           ) : filteredRacks.length === 0 ? (
@@ -336,7 +336,7 @@ export default function RackManagement() {
               <thead className="bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="py-3.5 px-4 w-12 text-center">#</th>
-                  <th className="py-3.5 px-4 min-w-[120px]">Shade Code</th>
+                  <th className="py-3.5 px-4 min-w-[120px]">Shed Code</th>
                   <th className="py-3.5 px-4 min-w-[120px]">Rack Number</th>
                   <th className="py-3.5 px-4 text-center min-w-[100px]">Rows × Cols</th>
                   <th className="py-3.5 px-4 text-center min-w-[120px]">Total Cells</th>
@@ -521,11 +521,11 @@ export default function RackManagement() {
 
             <form onSubmit={handleSave} className="pt-4 space-y-3.5 text-xs">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Target Shade *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Target Shed *</label>
                 <CustomSelect
                   value={formData.shadeId}
                   onChange={(v) => {
-                    const selShade = shades.find((s) => s._id === v)
+                    const selshade = shades.find((s) => s._id === v)
                     const shadeRacks = racks.filter((r) => r.shadeId === v)
                     const nextNum = String(shadeRacks.length + 1).padStart(2, '0')
                     setFormData({ ...formData, shadeId: v, rackNumber: `RK-${nextNum}` })

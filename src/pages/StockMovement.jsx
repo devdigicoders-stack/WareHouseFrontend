@@ -579,7 +579,7 @@ export default function StockMovement() {
                 <tr>
                   <td colSpan="11" className="py-8">
                     <DataLoader
-                      text="Loading Stock Movements & Inter-Shade Transfers..."
+                      text="Loading Stock Movements & Inter-Shed Transfers..."
                       subtext="Syncing internal warehouse relocations and pallet movements..."
                       size="md"
                     />
@@ -824,7 +824,7 @@ export default function StockMovement() {
                       <option value="">Select available empty bin...</option>
                       {emptyBins.map((b) => (
                         <option key={b.code} value={b.code}>
-                          {b.code} (Shade {b.shadeCode} - {b.rackNumber} - R{b.row}•C{b.col})
+                          {b.code} (shade {b.shadeCode} - {b.rackNumber} - R{b.row}•C{b.col})
                         </option>
                       ))}
                     </select>

@@ -22,7 +22,7 @@ import {
   updateGateEntryStatus,
   fetchGatePasses,
   updateGatePassStatus,
-  fetchShades,
+  fetchshades,
 } from '../services/api'
 
 // Options for Add Vehicle Modal Dropdowns
@@ -39,12 +39,12 @@ const PURPOSE_OPTIONS = [
 ]
 
 const DEFAULT_BAY_OPTIONS = [
-  { value: 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)', label: 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)' },
-  { value: 'Bay 2 (Shade 2: Edible Oils & Liquids - SH-02)', label: 'Bay 2 (Shade 2: Edible Oils & Liquids - SH-02)' },
-  { value: 'Bay 3 (Shade 3: FMCG & Packaged Foods - SH-03)', label: 'Bay 3 (Shade 3: FMCG & Packaged Foods - SH-03)' },
-  { value: 'Bay 4 (Shade 4: Packaging & Materials - SH-04)', label: 'Bay 4 (Shade 4: Packaging & Materials - SH-04)' },
-  { value: 'Bay 5 (Shade 5: Chemicals & Hygiene - SH-05)', label: 'Bay 5 (Shade 5: Chemicals & Hygiene - SH-05)' },
-  { value: 'Bay 6 (Shade 6: Spares & General Hardware - SH-06)', label: 'Bay 6 (Shade 6: Spares & General Hardware - SH-06)' },
+  { value: 'Bay 1 (Shed 1: Grains & Bulk Pulses - SH-01)', label: 'Bay 1 (Shed 1: Grains & Bulk Pulses - SH-01)' },
+  { value: 'Bay 2 (Shed 2: Edible Oils & Liquids - SH-02)', label: 'Bay 2 (Shed 2: Edible Oils & Liquids - SH-02)' },
+  { value: 'Bay 3 (Shed 3: FMCG & Packaged Foods - SH-03)', label: 'Bay 3 (Shed 3: FMCG & Packaged Foods - SH-03)' },
+  { value: 'Bay 4 (Shed 4: Packaging & Materials - SH-04)', label: 'Bay 4 (Shed 4: Packaging & Materials - SH-04)' },
+  { value: 'Bay 5 (Shed 5: Chemicals & Hygiene - SH-05)', label: 'Bay 5 (Shed 5: Chemicals & Hygiene - SH-05)' },
+  { value: 'Bay 6 (Shed 6: Spares & General Hardware - SH-06)', label: 'Bay 6 (Shed 6: Spares & General Hardware - SH-06)' },
   { value: 'Dock 1 (Dispatch Outward)', label: 'Dock 1 (Dispatch Outward)' },
   { value: 'Dock 2 (Dispatch Outward)', label: 'Dock 2 (Dispatch Outward)' },
 ]
@@ -172,7 +172,7 @@ export default function VehicleQueue() {
     supplier: '',
     challanNo: '',
     purpose: 'Goods Delivery (GRN Inward)',
-    bay: 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)',
+    bay: 'Bay 1 (Shed 1: Grains & Bulk Pulses - SH-01)',
   })
 
   // Toast trigger
@@ -183,7 +183,7 @@ export default function VehicleQueue() {
 
   // Load backend shades for bay options
   useEffect(() => {
-    fetchShades()
+    fetchshades()
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           const dynamicBays = data.map((s, idx) => ({
@@ -392,7 +392,7 @@ export default function VehicleQueue() {
         supplier: '',
         challanNo: '',
         purpose: 'Goods Delivery (GRN Inward)',
-        bay: 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)',
+        bay: 'Bay 1 (Shed 1: Grains & Bulk Pulses - SH-01)',
       })
       triggerToast(`Vehicle ${created.vehicleNumber} checked in with Pass/Token ${created.passNumber}!`)
       loadQueueData(false)

@@ -38,7 +38,7 @@ import {
   deleteDispatch,
   fetchProducts,
   fetchPartners,
-  fetchShades,
+  fetchshades,
   fetchGateEntries
 } from '../services/api'
 
@@ -106,14 +106,14 @@ function CustomSelect({ value, onChange, options, placeholder = 'Select option..
   )
 }
 
-// Fallback Standard Storage Shades if DB has none
-const DEFAULT_SHADES = [
-  { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses', category: 'Grains & Pulses', baseUnit: 'Kg', packUnit: 'Bags (50kg)', unitsPerPack: 50 },
-  { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids', category: 'Edible Oils', baseUnit: 'Ltr', packUnit: 'Tins (15L)', unitsPerPack: 15 },
-  { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG', category: 'Packaged FMCG', baseUnit: 'Pieces', packUnit: 'Gatta (Cartons)', unitsPerPack: 6 },
-  { id: 'SH04', name: 'Shade 4: Packaging Materials & Cartons', category: 'Packaging', baseUnit: 'Cartons', packUnit: 'Bundles', unitsPerPack: 25 },
-  { id: 'SH05', name: 'Shade 5: Chemicals & Hygiene', category: 'Chemicals', baseUnit: 'Ltr', packUnit: 'Carboys (20L)', unitsPerPack: 20 },
-  { id: 'SH06', name: 'Shade 6: Spares & General Goods', category: 'Spares', baseUnit: 'Nos', packUnit: 'Crates', unitsPerPack: 10 },
+// Fallback Standard Storage Sheds if DB has none
+const DEFAULT_shadeS = [
+  { id: 'SH01', name: 'Shed 1: Grains & Bulk Pulses', category: 'Grains & Pulses', baseUnit: 'Kg', packUnit: 'Bags (50kg)', unitsPerPack: 50 },
+  { id: 'SH02', name: 'Shed 2: Edible Oils & Liquids', category: 'Edible Oils', baseUnit: 'Ltr', packUnit: 'Tins (15L)', unitsPerPack: 15 },
+  { id: 'SH03', name: 'Shed 3: Packaged Food & FMCG', category: 'Packaged FMCG', baseUnit: 'Pieces', packUnit: 'Gatta (Cartons)', unitsPerPack: 6 },
+  { id: 'SH04', name: 'Shed 4: Packaging Materials & Cartons', category: 'Packaging', baseUnit: 'Cartons', packUnit: 'Bundles', unitsPerPack: 25 },
+  { id: 'SH05', name: 'Shed 5: Chemicals & Hygiene', category: 'Chemicals', baseUnit: 'Ltr', packUnit: 'Carboys (20L)', unitsPerPack: 20 },
+  { id: 'SH06', name: 'Shed 6: Spares & General Goods', category: 'Spares', baseUnit: 'Nos', packUnit: 'Crates', unitsPerPack: 10 },
 ]
 
 export default function IssueDispatch() {
@@ -126,7 +126,7 @@ export default function IssueDispatch() {
 
   // Filter toolbar state
   const [filterType, setFilterType] = useState('ALL')
-  const [filterShade, setFilterShade] = useState('ALL')
+  const [filtershade, setFiltershade] = useState('ALL')
   const [filterCustomer, setFilterCustomer] = useState('ALL')
   const [filterStatus, setFilterStatus] = useState('ALL')
   const [searchQuery, setSearchQuery] = useState('')
@@ -146,7 +146,7 @@ export default function IssueDispatch() {
   const [dispatches, setDispatches] = useState([])
   const [products, setProducts] = useState([])
   const [customers, setCustomers] = useState([])
-  const [shadesList, setShadesList] = useState(DEFAULT_SHADES)
+  const [shadesList, setshadesList] = useState(DEFAULT_shadeS)
   const [recentVehicles, setRecentVehicles] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -187,7 +187,7 @@ export default function IssueDispatch() {
         fetchDispatches(),
         fetchProducts(),
         fetchPartners(),
-        fetchShades(),
+        fetchshades(),
         fetchGateEntries(),
       ])
 
@@ -204,19 +204,19 @@ export default function IssueDispatch() {
         setCustomers(custs)
       }
 
-      // 3. Process Shades
+      // 3. Process shades
       if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value) && shadeRes.value.length > 0) {
-        const mappedShades = shadeRes.value.map((s, idx) => ({
+        const mappedshades = shadeRes.value.map((s, idx) => ({
           id: s.code || `SH0${idx + 1}`,
-          name: s.name || `Shade ${idx + 1}`,
+          name: s.name || `Shed ${idx + 1}`,
           category: s.category || 'General Storage',
           baseUnit: s.baseUnit || 'Kg',
           packUnit: s.packUnit || 'Bags (50kg)',
           unitsPerPack: s.unitsPerPack || 50
         }))
-        setShadesList(mappedShades)
+        setshadesList(mappedshades)
       } else {
-        setShadesList(DEFAULT_SHADES)
+        setshadesList(DEFAULT_shadeS)
       }
 
       // 4. Process Gate Entries for vehicle/driver suggestions
@@ -342,19 +342,19 @@ export default function IssueDispatch() {
   const handleOpenNewModal = () => {
     const defaultCust = customers.length > 0 ? customers[0].name : 'Reliance Retail Mega Hub'
     const defaultProd = products.length > 0 ? products[0] : null
-    const initialShadeId = defaultProd?.shadeId || (shadesList.length > 0 ? shadesList[0].id : 'SH01')
-    const matchedShade = shadesList.find(s => s.id === initialShadeId) || shadesList[0]
+    const initialshadeId = defaultProd?.shadeId || (shadesList.length > 0 ? shadesList[0].id : 'SH01')
+    const matchedshade = shadesList.find(s => s.id === initialshadeId) || shadesList[0]
 
-    const initialPackUnit = defaultProd?.outerPackaging || matchedShade?.packUnit || 'Bags (50kg)'
-    const initialUnitsPerPack = defaultProd?.packSize || matchedShade?.unitsPerPack || 50
-    const initialBaseUnit = defaultProd?.baseUnit || matchedShade?.baseUnit || 'Kg'
+    const initialPackUnit = defaultProd?.outerPackaging || matchedshade?.packUnit || 'Bags (50kg)'
+    const initialUnitsPerPack = defaultProd?.packSize || matchedshade?.unitsPerPack || 50
+    const initialBaseUnit = defaultProd?.baseUnit || matchedshade?.baseUnit || 'Kg'
 
     setSelectedProductId(defaultProd?._id || '')
     setNewDispatch({
       customerUnit: defaultCust,
       poIndentNo: `SO-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-      shadeId: initialShadeId,
-      location: defaultProd?.binLocation || `${initialShadeId}-RK01-R1-C1`,
+      shadeId: initialshadeId,
+      location: defaultProd?.binLocation || `${initialshadeId}-RK01-R1-C1`,
       productId: defaultProd?._id || '',
       productName: defaultProd?.name || 'Basmati Rice (Grade 1 Special 25kg)',
       sku: defaultProd?.sku || 'PRD-RIC-001',
@@ -382,21 +382,21 @@ export default function IssueDispatch() {
     const prod = products.find(p => p._id === prodId)
     if (!prod) return
 
-    const pShade = prod.shadeId || (prod.storageZone?.includes('SH02') ? 'SH02' : prod.storageZone?.includes('SH03') ? 'SH03' : 'SH01')
-    const matchedShade = shadesList.find(s => s.id === pShade)
+    const pshade = prod.shadeId || (prod.storageZone?.includes('SH02') ? 'SH02' : prod.storageZone?.includes('SH03') ? 'SH03' : 'SH01')
+    const matchedshade = shadesList.find(s => s.id === pshade)
 
     setNewDispatch(prev => ({
       ...prev,
       productId: prod._id,
       productName: prod.name,
       sku: prod.sku || prev.sku,
-      shadeId: pShade || prev.shadeId,
-      location: prod.binLocation || `${pShade || 'SH01'}-RK01-R1-C1`,
+      shadeId: pshade || prev.shadeId,
+      location: prod.binLocation || `${pshade || 'SH01'}-RK01-R1-C1`,
       batchNo: prod.batchNo && prod.batchNo !== '—' ? prod.batchNo : `BAT-2026-${prod.sku?.slice(-4) || 'GEN'}`,
       expiryDate: prod.expiryDate || prev.expiryDate,
-      baseUnit: prod.baseUnit || matchedShade?.baseUnit || prev.baseUnit,
-      packUnit: prod.outerPackaging || matchedShade?.packUnit || prev.packUnit,
-      unitsPerPack: Number(prod.packSize) || Number(matchedShade?.unitsPerPack) || prev.unitsPerPack || 1,
+      baseUnit: prod.baseUnit || matchedshade?.baseUnit || prev.baseUnit,
+      packUnit: prod.outerPackaging || matchedshade?.packUnit || prev.packUnit,
+      unitsPerPack: Number(prod.packSize) || Number(matchedshade?.unitsPerPack) || prev.unitsPerPack || 1,
       availableStock: prod.currentStock !== undefined ? prod.currentStock : 0
     }))
   }
@@ -443,7 +443,7 @@ export default function IssueDispatch() {
   const filteredDispatches = useMemo(() => {
     return dispatches.filter((item) => {
       if (filterType !== 'ALL' && item.dispatchType !== filterType) return false
-      if (filterShade !== 'ALL' && item.shadeId !== filterShade) return false
+      if (filtershade !== 'ALL' && item.shadeId !== filtershade) return false
       if (filterCustomer !== 'ALL' && item.customerUnit !== filterCustomer) return false
       if (filterStatus !== 'ALL' && item.status !== filterStatus) return false
 
@@ -462,7 +462,7 @@ export default function IssueDispatch() {
       }
       return true
     })
-  }, [dispatches, filterType, filterShade, filterCustomer, filterStatus, searchQuery])
+  }, [dispatches, filterType, filtershade, filterCustomer, filterStatus, searchQuery])
 
   // Paginated Results
   const totalPages = Math.max(1, Math.ceil(filteredDispatches.length / perPage))
@@ -664,7 +664,7 @@ export default function IssueDispatch() {
       'Date',
       'PO/Indent No',
       'Customer Unit',
-      'Origin Shade',
+      'Origin Shed',
       'Location',
       'Total Base Qty',
       'Base Unit',
@@ -708,9 +708,9 @@ export default function IssueDispatch() {
   }
 
   // Dynamic filter options derived from live data
-  const dynamicShadeOptions = useMemo(() => {
+  const dynamicshadeOptions = useMemo(() => {
     return [
-      { value: 'ALL', label: 'All Warehouse Shades' },
+      { value: 'ALL', label: 'All Warehouse Sheds' },
       ...shadesList.map((s) => ({ value: s.id, label: s.name })),
     ]
   }, [shadesList])
@@ -765,7 +765,7 @@ export default function IssueDispatch() {
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium mt-1 max-w-2xl">
-              Track outward stock dispatches, retail customer manifests, dual-unit pack reconciliations, and transit deliveries across warehouse storage shades.
+              Track outward stock dispatches, retail customer manifests, dual-unit pack reconciliations, and transit deliveries across warehouse Storage Sheds.
             </p>
           </div>
         </div>
@@ -874,7 +874,7 @@ export default function IssueDispatch() {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-slate-800">Outward Dispatch Manifest Register</h2>
-                <p className="text-[11px] text-slate-500">Filter shipments by customer destination, origin shade, dispatch type, or transit status.</p>
+                <p className="text-[11px] text-slate-500">Filter shipments by customer destination, Origin Shed, dispatch type, or transit status.</p>
               </div>
             </div>
 
@@ -882,12 +882,12 @@ export default function IssueDispatch() {
               <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-3 py-1 rounded-full border border-indigo-200/60">
                 {filteredDispatches.length} Dispatches Found
               </span>
-              {(searchQuery || filterType !== 'ALL' || filterShade !== 'ALL' || filterCustomer !== 'ALL' || filterStatus !== 'ALL') && (
+              {(searchQuery || filterType !== 'ALL' || filtershade !== 'ALL' || filterCustomer !== 'ALL' || filterStatus !== 'ALL') && (
                 <button
                   type="button"
                   onClick={() => {
                     setFilterType('ALL')
-                    setFilterShade('ALL')
+                    setFiltershade('ALL')
                     setFilterCustomer('ALL')
                     setFilterStatus('ALL')
                     setSearchQuery('')
@@ -946,16 +946,16 @@ export default function IssueDispatch() {
 
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
-                Origin Shade
+                Origin Shed
               </label>
               <CustomSelect
-                value={filterShade}
+                value={filtershade}
                 onChange={(val) => {
-                  setFilterShade(val)
+                  setFiltershade(val)
                   setCurrentPage(1)
                 }}
-                options={dynamicShadeOptions}
-                placeholder="All Warehouse Shades"
+                options={dynamicshadeOptions}
+                placeholder="All Warehouse Sheds"
               />
             </div>
 
@@ -1000,7 +1000,7 @@ export default function IssueDispatch() {
                 <th className="py-3 px-4 min-w-[140px]">Dispatch &amp; Date</th>
                 <th className="py-3 px-4 min-w-[140px]">PO / Indent</th>
                 <th className="py-3 px-4 min-w-[180px]">Customer Destination</th>
-                <th className="py-3 px-4 min-w-[130px]">Origin Shade</th>
+                <th className="py-3 px-4 min-w-[130px]">Origin Shed</th>
                 <th className="py-3 px-4 min-w-[150px] text-right">Base Qty &amp; Packs</th>
                 <th className="py-3 px-4 min-w-[140px]">Vehicle &amp; Driver</th>
                 <th className="py-3 px-4 min-w-[100px] text-center">QC Check</th>
@@ -1298,11 +1298,11 @@ export default function IssueDispatch() {
                 </div>
               </div>
 
-              {/* Row 2: Origin Shade & Dispatch Type */}
+              {/* Row 2: Origin Shed & Dispatch Type */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
-                    Origin Warehouse Shade *
+                    Origin Warehouse Shed *
                   </label>
                   <CustomSelect
                     value={newDispatch.shadeId}

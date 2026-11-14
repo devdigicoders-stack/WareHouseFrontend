@@ -39,18 +39,18 @@ import {
   fetchQCs,
   fetchStockAdjustments,
   fetchRacks,
-  fetchShades,
+  fetchshades,
   fetchStockMovements,
 } from '../services/api'
 import { exportToExcel, exportToCSV, printOrExportPDF } from '../utils/exportHelper'
 import { PRODUCT_MASTER } from '../data/productMaster'
 import DataLoader from '../components/common/DataLoader'
 
-// 6 Dedicated Warehouse Shades Definition
-const DEFAULT_SHADES = [
+// 6 Dedicated Warehouse Sheds Definition
+const DEFAULT_shadeS = [
   {
     id: 'SH01',
-    name: 'Shade 1: Grains & Bulk Pulses',
+    name: 'Shed 1: Grains & Bulk Pulses',
     category: 'Grains & Pulses',
     totalCapacity: 5000,
     unit: 'Bags (50kg)',
@@ -59,7 +59,7 @@ const DEFAULT_SHADES = [
   },
   {
     id: 'SH02',
-    name: 'Shade 2: Edible Oils & Liquids',
+    name: 'Shed 2: Edible Oils & Liquids',
     category: 'Edible Oils',
     totalCapacity: 3000,
     unit: 'Tins (15L)',
@@ -68,7 +68,7 @@ const DEFAULT_SHADES = [
   },
   {
     id: 'SH03',
-    name: 'Shade 3: Packaged Food & FMCG',
+    name: 'Shed 3: Packaged Food & FMCG',
     category: 'Packaged FMCG',
     totalCapacity: 6000,
     unit: 'Gatta',
@@ -77,7 +77,7 @@ const DEFAULT_SHADES = [
   },
   {
     id: 'SH04',
-    name: 'Shade 4: Packaging Materials & Cartons',
+    name: 'Shed 4: Packaging Materials & Cartons',
     category: 'Packaging',
     totalCapacity: 5000,
     unit: 'Bundles',
@@ -86,7 +86,7 @@ const DEFAULT_SHADES = [
   },
   {
     id: 'SH05',
-    name: 'Shade 5: Chemicals & Hygiene',
+    name: 'Shed 5: Chemicals & Hygiene',
     category: 'Chemicals',
     totalCapacity: 2000,
     unit: 'Carboys (20L)',
@@ -95,7 +95,7 @@ const DEFAULT_SHADES = [
   },
   {
     id: 'SH06',
-    name: 'Shade 6: Spares & General Goods',
+    name: 'Shed 6: Spares & General Goods',
     category: 'Spares',
     totalCapacity: 2000,
     unit: 'Crates',
@@ -119,7 +119,7 @@ export default function Analytics() {
   const [qcs, setQcs] = useState([])
   const [adjustments, setAdjustments] = useState([])
   const [racks, setRacks] = useState([])
-  const [shades, setShades] = useState([])
+  const [shades, setshades] = useState([])
   const [stockMovements, setStockMovements] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [lastSyncTime, setLastSyncTime] = useState(new Date())
@@ -155,7 +155,7 @@ export default function Analytics() {
         fetchQCs(),
         fetchStockAdjustments(),
         fetchRacks(),
-        fetchShades(),
+        fetchshades(),
         fetchStockMovements(),
       ])
 
@@ -169,7 +169,7 @@ export default function Analytics() {
       setQcs(qcRes.status === 'fulfilled' && Array.isArray(qcRes.value) ? qcRes.value : [])
       setAdjustments(adjRes.status === 'fulfilled' && Array.isArray(adjRes.value) ? adjRes.value : [])
       setRacks(rackRes.status === 'fulfilled' && Array.isArray(rackRes.value) ? rackRes.value : [])
-      setShades(shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value) ? shadeRes.value : [])
+      setshades(shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value) ? shadeRes.value : [])
       setStockMovements(smRes.status === 'fulfilled' && Array.isArray(smRes.value) ? smRes.value : [])
       setLastSyncTime(new Date())
     } catch (err) {
@@ -235,9 +235,9 @@ export default function Analytics() {
     }
   }, [grns, dispatches, qcs, adjustments, stockMovements, startDate, endDate])
 
-  // Compute Live Storage Shades Capacity Matrix
+  // Compute Live Storage Sheds Capacity Matrix
   const shadesCapacity = useMemo(() => {
-    return DEFAULT_SHADES.map((shadeDef) => {
+    return DEFAULT_shadeS.map((shadeDef) => {
       // Calculate occupied units from products stored in this shade
       const shadeProducts = products.filter((p) => {
         const zone = (p.storageZone || p.shadeId || '').toUpperCase()
@@ -359,14 +359,14 @@ export default function Analytics() {
   const criticalAlerts = useMemo(() => {
     const alerts = []
 
-    // 1. Shade near capacity alert
-    const highShade = shadesCapacity.find((s) => s.fillPercent >= 85)
-    if (highShade) {
+    // 1. shade near capacity alert
+    const highshade = shadesCapacity.find((s) => s.fillPercent >= 85)
+    if (highshade) {
       alerts.push({
         id: 'alt-shade',
         type: 'CRITICAL',
-        title: `${highShade.id} Storage Near Capacity (${highShade.fillPercent}%)`,
-        desc: `${highShade.name} is approaching maximum threshold. Relocate stock to buffer racks.`,
+        title: `${highshade.id} Storage Near Capacity (${highshade.fillPercent}%)`,
+        desc: `${highshade.name} is approaching maximum threshold. Relocate stock to buffer racks.`,
         time: 'Active Now',
       })
     }
@@ -457,10 +457,10 @@ export default function Analytics() {
       },
     ]
 
-    // 2. Shades Capacity Breakdown Data
+    // 2. shades Capacity Breakdown Data
     const shadesBreakdownData = shadesCapacity.map((s) => ({
-      'Shade Code': s.id,
-      'Storage Shade Description': s.name,
+      'Shed Code': s.id,
+      'Storage Shed Description': s.name,
       'Category': s.category,
       'Occupied Units': `${s.occupied.toLocaleString()} ${s.unit}`,
       'Total Capacity': `${s.totalCapacity.toLocaleString()} ${s.unit}`,
@@ -479,8 +479,8 @@ export default function Analytics() {
         'Status': k['Operational Status'],
       })),
       ...shadesBreakdownData.map((s) => ({
-        'Category / Section': 'Storage Shade Capacity',
-        'Key Identifier': `${s['Shade Code']} - ${s['Storage Shade Description']}`,
+        'Category / Section': 'Storage Shed Capacity',
+        'Key Identifier': `${s['Shed Code']} - ${s['Storage Shed Description']}`,
         'Value / Metric': s['Occupied Units'],
         'Benchmark / Capacity': s['Total Capacity'],
         'Period': dateRangeLabel,
@@ -539,7 +539,7 @@ export default function Analytics() {
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium mt-1 max-w-2xl">
-              Real-time capacity tracking across 6 storage shades, throughput volume trends, inventory velocity, and operational alerts.
+              Real-time capacity tracking across 6 Storage Sheds, throughput volume trends, inventory velocity, and operational alerts.
             </p>
           </div>
         </div>
@@ -721,12 +721,12 @@ export default function Analytics() {
 
       {/* Main Analytics Grid: Capacity Matrix & Dynamic Throughput */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* 6 Dedicated Shades Capacity Matrix (7 Cols) */}
+        {/* 6 Dedicated Sheds Capacity Matrix (7 Cols) */}
         <div className="lg:col-span-7 bg-white rounded-2xl shadow-xs border border-slate-200/80 p-4 sm:p-5 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2 min-w-0">
               <Warehouse className="w-4 h-4 text-indigo-600 shrink-0" />
-              <h3 className="text-sm font-bold text-slate-800 truncate">6 Dedicated Storage Shades Capacity</h3>
+              <h3 className="text-sm font-bold text-slate-800 truncate">6 Dedicated Storage Sheds Capacity</h3>
             </div>
             <span className="text-[11px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg shrink-0 self-start sm:self-auto">
               Live Bin Occupancy
@@ -874,7 +874,7 @@ export default function Analytics() {
             <thead>
               <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
                 <th className="py-2.5 px-3">Product Name &amp; SKU</th>
-                <th className="py-2.5 px-3">Storage Shade</th>
+                <th className="py-2.5 px-3">Storage Shed</th>
                 <th className="py-2.5 px-3 text-center">Velocity Classification</th>
                 <th className="py-2.5 px-3 text-right">Weekly Turnover Rate</th>
                 <th className="py-2.5 px-3 text-right">Demand Trend</th>
@@ -1027,7 +1027,7 @@ export default function Analytics() {
               <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-200/80 text-blue-900">
                 <p className="font-bold">Applied Filter Scope:</p>
                 <p className="text-[11px] mt-0.5 font-mono">{startDate} to {endDate} ({datePreset})</p>
-                <p className="text-[10px] text-blue-700 mt-1">Includes Executive KPIs, 6 Shades Capacity Matrix, and Movement Velocity data.</p>
+                <p className="text-[10px] text-blue-700 mt-1">Includes Executive KPIs, 6 Sheds Capacity Matrix, and Movement Velocity data.</p>
               </div>
 
               <div className="space-y-2">

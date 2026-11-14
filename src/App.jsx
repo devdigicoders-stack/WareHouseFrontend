@@ -171,7 +171,23 @@ export default function App() {
             }
           />
           <Route
+            path="/shed-mgmt"
+            element={
+              <ProtectedRoute>
+                <ShadeManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/shade-management"
+            element={
+              <ProtectedRoute>
+                <ShadeManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/shed-management"
             element={
               <ProtectedRoute>
                 <ShadeManagement />

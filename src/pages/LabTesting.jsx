@@ -186,7 +186,7 @@ export default function LabTesting() {
               sku: firstMat.sku,
               batchNo: firstMat.batchNo || 'BT-2026-001',
               sampleQty: `1 ${firstMat.packagingUnit || 'Bag'} (Random Sample)`,
-              storageZone: targetGrn.shade || 'Shade 1',
+              storageZone: targetGrn.shade || 'Shed 1',
               vendor: targetGrn.supplier || 'Inward Consignment',
             }))
           }
@@ -240,7 +240,7 @@ export default function LabTesting() {
         sku: mat.sku,
         batchNo: mat.batchNo || 'BT-2026-001',
         sampleQty: `1 ${mat.packagingUnit || 'Bag'} (Random Sample)`,
-        storageZone: grn.shade || 'Shade 1',
+        storageZone: grn.shade || 'Shed 1',
         vendor: grn.supplier || 'Inward Consignment',
       }))
       triggerToast(`Loaded GRN ${grn.grnNo} with ${grn.materials.length} received items!`)

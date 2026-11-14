@@ -444,7 +444,7 @@ export default function CheckoutQR() {
     setScannedItem({
       title,
       sku,
-      category: item?.category || 'Shade 1: Grains & Bulk Pulses',
+      category: item?.category || 'Shed 1: Grains & Bulk Pulses',
       batchNo: `BT-2026-${sku.slice(-4)}`,
       expiryDate: new Date(Date.now() + 180 * 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       isExpired: false,
@@ -476,7 +476,7 @@ export default function CheckoutQR() {
     setScannedItem({
       title: 'Rice (Ration Grade / Basmati Special)',
       sku: 'PRD-RAT-RICE-02',
-      category: 'Shade 1: Grains & Bulk Pulses',
+      category: 'Shed 1: Grains & Bulk Pulses',
       batchNo: 'BT-2026-RICE-FAIL (FAILED QC)',
       expiryDate: '10 Aug 2027',
       isExpired: false,
@@ -507,7 +507,7 @@ export default function CheckoutQR() {
     setScannedItem({
       title: 'Refined Mustard Oil (15L Tin)',
       sku: 'PRD-RAT-RMOIL-05',
-      category: 'Shade 2: Edible Oils & Liquids',
+      category: 'Shed 2: Edible Oils & Liquids',
       batchNo: 'BT-2025-RMOIL-88',
       expiryDate: '01 Jan 2026',
       isExpired: true,

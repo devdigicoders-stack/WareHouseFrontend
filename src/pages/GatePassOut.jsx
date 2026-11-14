@@ -99,14 +99,14 @@ function CustomSelect({ value, onChange, options, placeholder = 'Select option..
   )
 }
 
-// 6 Dedicated Warehouse Storage Shades
-const SHADES = [
-  { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses', baseUnit: 'Kg', packUnit: 'Bags (50kg)', unitsPerPack: 50 },
-  { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids', baseUnit: 'Ltr', packUnit: 'Tins (15L)', unitsPerPack: 15 },
-  { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG', baseUnit: 'Pieces', packUnit: 'Gatta (Cartons)', unitsPerPack: 6 },
-  { id: 'SH04', name: 'Shade 4: Packaging Materials & Cartons', baseUnit: 'Cartons', packUnit: 'Bundles', unitsPerPack: 25 },
-  { id: 'SH05', name: 'Shade 5: Chemicals & Hygiene', baseUnit: 'Ltr', packUnit: 'Carboys (20L)', unitsPerPack: 20 },
-  { id: 'SH06', name: 'Shade 6: Spares & General Goods', baseUnit: 'Nos', packUnit: 'Crates', unitsPerPack: 10 },
+// 6 Dedicated Warehouse Storage Sheds
+const shadeS = [
+  { id: 'SH01', name: 'Shed 1: Grains & Bulk Pulses', baseUnit: 'Kg', packUnit: 'Bags (50kg)', unitsPerPack: 50 },
+  { id: 'SH02', name: 'Shed 2: Edible Oils & Liquids', baseUnit: 'Ltr', packUnit: 'Tins (15L)', unitsPerPack: 15 },
+  { id: 'SH03', name: 'Shed 3: Packaged Food & FMCG', baseUnit: 'Pieces', packUnit: 'Gatta (Cartons)', unitsPerPack: 6 },
+  { id: 'SH04', name: 'Shed 4: Packaging Materials & Cartons', baseUnit: 'Cartons', packUnit: 'Bundles', unitsPerPack: 25 },
+  { id: 'SH05', name: 'Shed 5: Chemicals & Hygiene', baseUnit: 'Ltr', packUnit: 'Carboys (20L)', unitsPerPack: 20 },
+  { id: 'SH06', name: 'Shed 6: Spares & General Goods', baseUnit: 'Nos', packUnit: 'Crates', unitsPerPack: 10 },
 ]
 
 export default function GatePassOut() {
@@ -119,7 +119,7 @@ export default function GatePassOut() {
 
   // Filter toolbar state
   const [filterType, setFilterType] = useState('ALL')
-  const [filterShade, setFilterShade] = useState('ALL')
+  const [filtershade, setFiltershade] = useState('ALL')
   const [filterDestination, setFilterDestination] = useState('ALL')
   const [filterStatus, setFilterStatus] = useState('ALL')
   const [searchQuery, setSearchQuery] = useState('')
@@ -151,7 +151,7 @@ export default function GatePassOut() {
       `Driver Name  : ${showVoucherModal.driverName || 'N/A'}`,
       `License/Cont : ${showVoucherModal.licenseNo || 'VERIFIED'}`,
       `Destination  : ${showVoucherModal.destination || 'N/A'}`,
-      `Origin Shade : ${showVoucherModal.shadeId || 'SH01'} (${showVoucherModal.location || 'N/A'})`,
+      `Origin Shed : ${showVoucherModal.shadeId || 'SH01'} (${showVoucherModal.location || 'N/A'})`,
       `------------------------------------------`,
       `Cargo Item   : ${showVoucherModal.productName || 'N/A'}`,
       `Total Weight : ${showVoucherModal.baseQty} ${showVoucherModal.baseUnit}`,
@@ -345,7 +345,7 @@ export default function GatePassOut() {
   const filteredPasses = useMemo(() => {
     return gatePasses.filter((item) => {
       if (filterType !== 'ALL' && item.dispatchType !== filterType) return false
-      if (filterShade !== 'ALL' && item.shadeId !== filterShade) return false
+      if (filtershade !== 'ALL' && item.shadeId !== filtershade) return false
       if (filterDestination !== 'ALL' && item.destination !== filterDestination) return false
       if (filterStatus !== 'ALL' && item.status !== filterStatus) return false
 
@@ -362,7 +362,7 @@ export default function GatePassOut() {
       }
       return true
     })
-  }, [gatePasses, filterType, filterShade, filterDestination, filterStatus, searchQuery])
+  }, [gatePasses, filterType, filtershade, filterDestination, filterStatus, searchQuery])
 
   // Paginated Results
   const totalPages = Math.max(1, Math.ceil(filteredPasses.length / perPage))
@@ -528,7 +528,7 @@ export default function GatePassOut() {
       'Driver Name',
       'License No',
       'Destination Hub',
-      'Origin Shade',
+      'Origin Shed',
       'Product Name',
       'Base Qty',
       'Base Unit',
@@ -578,8 +578,8 @@ export default function GatePassOut() {
   ]
 
   const shadeOptions = [
-    { value: 'ALL', label: 'All 6 Dedicated Shades' },
-    ...SHADES.map((s) => ({ value: s.id, label: s.name })),
+    { value: 'ALL', label: 'All 6 Dedicated Sheds' },
+    ...shadeS.map((s) => ({ value: s.id, label: s.name })),
   ]
 
   const destinationOptions = [
@@ -737,12 +737,12 @@ export default function GatePassOut() {
               <span className="text-xs bg-emerald-50 text-emerald-700 font-bold px-3 py-1 rounded-full border border-emerald-200/60">
                 {filteredPasses.length} Passes Found
               </span>
-              {(searchQuery || filterType !== 'ALL' || filterShade !== 'ALL' || filterDestination !== 'ALL' || filterStatus !== 'ALL') && (
+              {(searchQuery || filterType !== 'ALL' || filtershade !== 'ALL' || filterDestination !== 'ALL' || filterStatus !== 'ALL') && (
                 <button
                   type="button"
                   onClick={() => {
                     setFilterType('ALL')
-                    setFilterShade('ALL')
+                    setFiltershade('ALL')
                     setFilterDestination('ALL')
                     setFilterStatus('ALL')
                     setSearchQuery('')
@@ -801,16 +801,16 @@ export default function GatePassOut() {
 
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
-                Origin Shade
+                Origin Shed
               </label>
               <CustomSelect
-                value={filterShade}
+                value={filtershade}
                 onChange={(val) => {
-                  setFilterShade(val)
+                  setFiltershade(val)
                   setCurrentPage(1)
                 }}
                 options={shadeOptions}
-                placeholder="All 6 Dedicated Shades"
+                placeholder="All 6 Dedicated Sheds"
               />
             </div>
 
@@ -1230,12 +1230,12 @@ export default function GatePassOut() {
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
-                    Origin Warehouse Shade *
+                    Origin Warehouse Shed *
                   </label>
                   <CustomSelect
                     value={newPass.shadeId}
                     onChange={(val) => {
-                      const sh = SHADES.find((s) => s.id === val)
+                      const sh = shadeS.find((s) => s.id === val)
                       setNewPass({
                         ...newPass,
                         shadeId: val,
@@ -1244,7 +1244,7 @@ export default function GatePassOut() {
                         unitsPerPack: sh ? sh.unitsPerPack : 6,
                       })
                     }}
-                    options={SHADES.map((s) => ({ value: s.id, label: s.name }))}
+                    options={shadeS.map((s) => ({ value: s.id, label: s.name }))}
                   />
                 </div>
 

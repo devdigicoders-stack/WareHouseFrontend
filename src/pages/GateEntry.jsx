@@ -112,31 +112,31 @@ export default function GateEntry() {
   const [challanNo, setChallanNo] = useState('')
   const [poNumber, setPoNumber] = useState('')
   const [purpose, setPurpose] = useState('Goods Delivery (GRN Inward)')
-  const [assignedBay, setAssignedBay] = useState('Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)')
+  const [assignedBay, setAssignedBay] = useState('Bay 1 (Shed 1: Grains & Bulk Pulses - SH-01)')
   const [officerRemark, setOfficerRemark] = useState('')
   const [materialItems, setMaterialItems] = useState([EMPTY_ITEM()])
-  const [backendShades, setBackendShades] = useState([])
+  const [backendshades, setBackendshades] = useState([])
 
   const bayOptions = useMemo(() => {
-    if (backendShades.length > 0) {
-      return backendShades.map((s, idx) => `Bay ${idx + 1} (${s.name} - ${s.code})`)
+    if (backendshades.length > 0) {
+      return backendshades.map((s, idx) => `Bay ${idx + 1} (${s.name} - ${s.code})`)
     }
     return [
-      'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)',
-      'Bay 2 (Shade 2: Edible Oils & Liquids - SH-02)',
-      'Bay 3 (Shade 3: FMCG & Packaged Foods - SH-03)',
-      'Bay 4 (Shade 4: Packaging & Materials - SH-04)',
-      'Bay 5 (Shade 5: Chemicals & Hygiene - SH-05)',
-      'Bay 6 (Shade 6: Spares & General Hardware - SH-06)',
+      'Bay 1 (Shed 1: Grains & Bulk Pulses - SH-01)',
+      'Bay 2 (Shed 2: Edible Oils & Liquids - SH-02)',
+      'Bay 3 (Shed 3: FMCG & Packaged Foods - SH-03)',
+      'Bay 4 (Shed 4: Packaging & Materials - SH-04)',
+      'Bay 5 (Shed 5: Chemicals & Hygiene - SH-05)',
+      'Bay 6 (Shed 6: Spares & General Hardware - SH-06)',
     ]
-  }, [backendShades])
+  }, [backendshades])
 
   // Auto-filter products matching the assigned bay's shade
   const filteredProductsForBay = useMemo(() => {
     if (!assignedBay || products.length === 0) return products
 
     const shadeCodeMatch = assignedBay.match(/SH-0[1-6]/i)
-    const bayNumMatch = assignedBay.match(/(?:Bay|Shade)\s*([1-6])/i)
+    const bayNumMatch = assignedBay.match(/(?:Bay|shade)\s*([1-6])/i)
 
     const filtered = products.filter((p) => {
       if (!p.storageZone) return false
@@ -171,7 +171,7 @@ export default function GateEntry() {
       if (geRes.status === 'fulfilled' && Array.isArray(geRes.value)) setAllEntries(geRes.value)
       if (grnRes.status === 'fulfilled' && Array.isArray(grnRes.value)) setGrns(grnRes.value)
       if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) setProducts(prodRes.value)
-      if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value) && shadeRes.value.length > 0) setBackendShades(shadeRes.value)
+      if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value) && shadeRes.value.length > 0) setBackendshades(shadeRes.value)
     }).catch(() => {
       triggerToast('Failed to load gate entries', 'error')
     }).finally(() => {
@@ -452,7 +452,7 @@ export default function GateEntry() {
     setChallanNo('')
     setPoNumber('')
     setPurpose('Goods Delivery (GRN Inward)')
-    setAssignedBay(bayOptions[0] || 'Bay 1 (Shade 1: Grains & Bulk Pulses - SH-01)')
+    setAssignedBay(bayOptions[0] || 'Bay 1 (Shed 1: Grains & Bulk Pulses - SH-01)')
     setOfficerRemark('')
     setMaterialItems([EMPTY_ITEM()])
   }

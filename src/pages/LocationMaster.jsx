@@ -76,14 +76,14 @@ export default function LocationMaster() {
   }
 
   // Live Database State
-  const [shades, setShades] = useState([])
+  const [shades, setshades] = useState([])
   const [racks, setRacks] = useState([])
   const [grns, setGrns] = useState([])
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // Active Selected Shade Code (e.g. SH-01)
-  const [activeShadeCode, setActiveShadeCode] = useState('')
+  // Active Selected Shed Code (e.g. SH-01)
+  const [activeshadeCode, setActiveshadeCode] = useState('')
 
   // Filter & Search
   const [searchQuery, setSearchQuery] = useState('')
@@ -107,7 +107,7 @@ export default function LocationMaster() {
     currentStock: 0,
   })
 
-  // Fetch real Shade, Rack, GRN, & Product data from Mongo Backend API
+  // Fetch real shade, Rack, GRN, & Product data from Mongo Backend API
   const fetchMasterData = async () => {
     try {
       setLoading(true)
@@ -123,17 +123,17 @@ export default function LocationMaster() {
       const grnsData = grnsRes.status === 'fulfilled' && Array.isArray(grnsRes.value) ? grnsRes.value : []
       const prodsData = prodsRes.status === 'fulfilled' && Array.isArray(prodsRes.value) ? prodsRes.value : []
 
-      setShades(shadesData)
+      setshades(shadesData)
       setRacks(racksData)
       setGrns(grnsData)
       setProducts(prodsData)
 
-      if (shadesData.length > 0 && !activeShadeCode) {
-        setActiveShadeCode(shadesData[0].code)
+      if (shadesData.length > 0 && !activeshadeCode) {
+        setActiveshadeCode(shadesData[0].code)
       }
     } catch (err) {
       console.error('Failed to fetch location master data:', err)
-      triggerToast('Failed to load shades and racks from server', 'error')
+      triggerToast('Failed to load sheds and racks from server', 'error')
     } finally {
       setLoading(false)
     }
@@ -232,23 +232,23 @@ export default function LocationMaster() {
     const full = allLiveCells.filter((c) => c.status === 'Full').length
     const empty = allLiveCells.filter((c) => c.status === 'Empty' && (!c.currentStock || c.currentStock === 0)).length
     const blocked = allLiveCells.filter((c) => c.status === 'Blocked').length
-    const totalShadesCount = shades.length
+    const totalshadesCount = shades.length
     const totalRacksCount = racks.length
-    return { totalBins, occupied, full, empty, blocked, totalShadesCount, totalRacksCount }
+    return { totalBins, occupied, full, empty, blocked, totalshadesCount, totalRacksCount }
   }, [allLiveCells, shades, racks])
 
-  // Current Active Shade Object
-  const currentActiveShade = useMemo(() => {
-    return shades.find((s) => s.code === activeShadeCode) || shades[0]
-  }, [shades, activeShadeCode])
+  // Current Active shade Object
+  const currentActiveshade = useMemo(() => {
+    return shades.find((s) => s.code === activeshadeCode) || shades[0]
+  }, [shades, activeshadeCode])
 
-  // Racks belonging to Active Shade
-  const activeShadeRacks = useMemo(() => {
-    if (!activeShadeCode) return []
+  // Racks belonging to Active shade
+  const activeshadeRacks = useMemo(() => {
+    if (!activeshadeCode) return []
     return racks.filter(
-      (r) => r.shadeCode === activeShadeCode || (currentActiveShade && r.shadeId === currentActiveShade._id)
+      (r) => r.shadeCode === activeshadeCode || (currentActiveshade && r.shadeId === currentActiveshade._id)
     )
-  }, [racks, activeShadeCode, currentActiveShade])
+  }, [racks, activeshadeCode, currentActiveshade])
 
   // Filtered cells list for table view & search
   const filteredCells = useMemo(() => {
@@ -339,7 +339,7 @@ export default function LocationMaster() {
 
   // Export CSV of real Mongo cells
   const handleExportCSV = () => {
-    const headers = ['#', 'Cell Code', 'Shade', 'Rack', 'Row', 'Column', 'Product Name', 'Batch No', 'Current Stock', 'Status']
+    const headers = ['#', 'Cell Code', 'shade', 'Rack', 'Row', 'Column', 'Product Name', 'Batch No', 'Current Stock', 'Status']
     const rows = filteredCells.map((c, idx) => [
       idx + 1,
       `"${c.code}"`,
@@ -404,7 +404,7 @@ export default function LocationMaster() {
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
           >
             <Warehouse className="w-3.5 h-3.5 text-slate-500" />
-            <span>Shade Master</span>
+            <span>Shed Master</span>
           </Link>
           <Link
             to="/rack-mgmt"
@@ -433,7 +433,7 @@ export default function LocationMaster() {
           <div>
             <div className="text-slate-400 text-xs font-medium">Total Live Cells</div>
             <h3 className="text-xl font-bold text-slate-800 tracking-tight">{stats.totalBins} Bins</h3>
-            <p className="text-[11px] text-indigo-600 font-medium">Across {stats.totalRacksCount} racks in {stats.totalShadesCount} shades</p>
+            <p className="text-[11px] text-indigo-600 font-medium">Across {stats.totalRacksCount} racks in {stats.totalshadesCount} sheds</p>
           </div>
         </div>
 
@@ -471,14 +471,14 @@ export default function LocationMaster() {
         </div>
       </div>
 
-      {/* Dynamic Shade Switcher Tabs */}
+      {/* Dynamic shade Switcher Tabs */}
       <div className="bg-white rounded-2xl p-3 shadow-xs border border-slate-200/80">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           {shades.length === 0 ? (
-            <div className="text-xs text-slate-400 p-2">Loading shades from MongoDB...</div>
+            <div className="text-xs text-slate-400 p-2">Loading sheds from MongoDB...</div>
           ) : (
             shades.map((s) => {
-              const isActive = activeShadeCode === s.code
+              const isActive = activeshadeCode === s.code
               const shadeCells = allLiveCells.filter((c) => c.shadeCode === s.code || c.shadeId === s._id)
               const occupiedCount = shadeCells.filter((c) => c.status === 'Occupied' || c.status === 'Full' || c.currentStock > 0).length
               const utilPercent = shadeCells.length > 0 ? Math.round((occupiedCount / shadeCells.length) * 100) : 0
@@ -488,7 +488,7 @@ export default function LocationMaster() {
                   key={s._id || s.code}
                   type="button"
                   onClick={() => {
-                    setActiveShadeCode(s.code)
+                    setActiveshadeCode(s.code)
                     triggerToast(`Switched view to ${s.name}`)
                   }}
                   className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2.5 whitespace-nowrap cursor-pointer shrink-0 ${
@@ -514,16 +514,16 @@ export default function LocationMaster() {
         </div>
       </div>
 
-      {/* Main Visual Matrix for Selected Shade */}
+      {/* Main Visual Matrix for Selected shade */}
       <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-xs border border-slate-200/80 space-y-6">
-        {/* Header of Selected Shade */}
+        {/* Header of Selected shade */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
           <div>
             <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-              {currentActiveShade ? `${currentActiveShade.code}: ${currentActiveShade.name}` : 'Shade Matrix'}
+              {currentActiveshade ? `${currentActiveshade.code}: ${currentActiveshade.name}` : 'Shed Matrix'}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5 font-medium">
-              {currentActiveShade ? currentActiveShade.description : ''} • {activeShadeRacks.length} Racks Configured
+              {currentActiveshade ? currentActiveshade.description : ''} • {activeshadeRacks.length} Racks Configured
             </p>
           </div>
 
@@ -547,27 +547,27 @@ export default function LocationMaster() {
           </div>
         </div>
 
-        {/* Render Racks inside Selected Shade */}
+        {/* Render Racks inside Selected shade */}
         {loading ? (
           <DataLoader
-            text="Loading Warehouse Shade & Rack Grid..."
+            text="Loading Warehouse Shed & Rack Grid..."
             subtext="Calculating real-time bin capacities and slot allocations..."
             size="md"
           />
-        ) : activeShadeRacks.length === 0 ? (
+        ) : activeshadeRacks.length === 0 ? (
           <div className="py-16 text-center text-slate-400 text-sm space-y-3">
-            <p>No Racks configured for this Shade in MongoDB yet.</p>
+            <p>No Racks configured for this shed in MongoDB yet.</p>
             <Link
               to="/rack-mgmt"
               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Racks to {activeShadeCode}</span>
+              <span>Add Racks to {activeshadeCode}</span>
             </Link>
           </div>
         ) : (
           <div className="space-y-6">
-            {activeShadeRacks.map((rack) => {
+            {activeshadeRacks.map((rack) => {
               const rackCells = allLiveCells.filter(
                 (c) =>
                   String(c.rackId) === String(rack._id) ||
@@ -730,7 +730,7 @@ export default function LocationMaster() {
                 <tr>
                   <th className="py-3.5 px-4 w-12 text-center">#</th>
                   <th className="py-3.5 px-4 min-w-[140px]">Cell Code</th>
-                  <th className="py-3.5 px-4 min-w-[100px]">Shade</th>
+                  <th className="py-3.5 px-4 min-w-[100px]">Shed</th>
                   <th className="py-3.5 px-4 min-w-[100px]">Rack</th>
                   <th className="py-3.5 px-4 text-center min-w-[90px]">Row • Col</th>
                   <th className="py-3.5 px-4 min-w-[180px]">Mapped Product</th>
@@ -844,7 +844,7 @@ export default function LocationMaster() {
               {/* Facility & Grid Info */}
               <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200/80">
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Facility / Shade</span>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Facility / Shed</span>
                   <strong className="text-slate-800 text-[11px] truncate block">{selectedCell.shadeName || selectedCell.shadeCode}</strong>
                 </div>
                 <div>
@@ -953,7 +953,7 @@ export default function LocationMaster() {
               </div>
 
               <div className="text-[11px] font-mono text-slate-700 space-y-0.5">
-                <div><strong>Shade:</strong> {qrCellTarget.shadeCode} | <strong>Rack:</strong> {qrCellTarget.rackNumber}</div>
+                <div><strong>shade:</strong> {qrCellTarget.shadeCode} | <strong>Rack:</strong> {qrCellTarget.rackNumber}</div>
                 <div><strong>Bin:</strong> Row {qrCellTarget.row} • Col {qrCellTarget.col}</div>
                 <div className="text-indigo-700 font-bold truncate"><strong>Item:</strong> {qrCellTarget.productName || 'Empty'}</div>
               </div>

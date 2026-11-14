@@ -102,7 +102,7 @@ export default function PutAwayCheckIn() {
   const [currentPage, setCurrentPage] = useState(1)
   const perPage = 6
 
-  const [shadesList, setShadesList] = useState([])
+  const [shadesList, setshadesList] = useState([])
   const [racksList, setRacksList] = useState([])
   const [queueItems, setQueueItems] = useState([])
   const [modalQrUrl, setModalQrUrl] = useState('')
@@ -115,7 +115,7 @@ export default function PutAwayCheckIn() {
   const [formBaseUnit, setFormBaseUnit] = useState('Kg')
   const [formUnitsPerPack, setFormUnitsPerPack] = useState(25)
   const [formPacksCount, setFormPacksCount] = useState(100)
-  const [formSelectedShade, setFormSelectedShade] = useState('SH01')
+  const [formSelectedshade, setFormSelectedshade] = useState('SH01')
   const [formSelectedRow, setFormSelectedRow] = useState('R1')
   const [formSelectedCol, setFormSelectedCol] = useState('C1')
   const [formRemarks, setFormRemarks] = useState('Checked in from unloading dock in pristine sealed condition.')
@@ -137,8 +137,8 @@ export default function PutAwayCheckIn() {
       if (qcRes.status === 'fulfilled' && Array.isArray(qcRes.value)) qcs = qcRes.value
 
       if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value)) {
-        setShadesList(shadeRes.value)
-        if (shadeRes.value.length > 0) setFormSelectedShade(shadeRes.value[0].code)
+        setshadesList(shadeRes.value)
+        if (shadeRes.value.length > 0) setFormSelectedshade(shadeRes.value[0].code)
       }
       if (rackRes.status === 'fulfilled' && Array.isArray(rackRes.value)) {
         setRacksList(rackRes.value)
@@ -203,8 +203,8 @@ export default function PutAwayCheckIn() {
     })
   }, [])
 
-  // 6 Dedicated Shades Reference
-  const SHADES = useMemo(() => {
+  // 6 Dedicated Sheds Reference
+  const shadeS = useMemo(() => {
     if (shadesList.length > 0) {
       return shadesList.map((s) => ({
         id: s.code,
@@ -216,9 +216,9 @@ export default function PutAwayCheckIn() {
       }))
     }
     return [
-      { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses', category: 'Grains & Pulses', defaultPack: 'Bags (50kg)', baseUnit: 'Kg', ratio: 50 },
-      { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids', category: 'Edible Oils', defaultPack: 'Tins (15L)', baseUnit: 'Ltr', ratio: 15 },
-      { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG', category: 'Packaged FMCG', defaultPack: 'Gatta / Carton', baseUnit: 'Pieces', ratio: 6 },
+      { id: 'SH01', name: 'Shed 1: Grains & Bulk Pulses', category: 'Grains & Pulses', defaultPack: 'Bags (50kg)', baseUnit: 'Kg', ratio: 50 },
+      { id: 'SH02', name: 'Shed 2: Edible Oils & Liquids', category: 'Edible Oils', defaultPack: 'Tins (15L)', baseUnit: 'Ltr', ratio: 15 },
+      { id: 'SH03', name: 'Shed 3: Packaged Food & FMCG', category: 'Packaged FMCG', defaultPack: 'Gatta / Carton', baseUnit: 'Pieces', ratio: 6 },
     ]
   }, [shadesList])
 
@@ -274,16 +274,16 @@ export default function PutAwayCheckIn() {
 
   // Helper to find the next available empty bin in any shade
   const findNextAvailableBin = (shadeCode) => {
-    const cleanShade = shadeCode ? shadeCode.split(' ')[0] : 'SH-01'
-    const sMatch = cleanShade.match(/SH[-_]?0?(\d+)/i)
+    const cleanshade = shadeCode ? shadeCode.split(' ')[0] : 'SH-01'
+    const sMatch = cleanshade.match(/SH[-_]?0?(\d+)/i)
     const sNum = sMatch ? parseInt(sMatch[1]) : 1
 
     const matchingRacks = racksList.filter((r) => {
       const rSMatch = (r.shadeCode || '').match(/SH[-_]?0?(\d+)/i)
       return (
         (rSMatch && parseInt(rSMatch[1]) === sNum) ||
-        r.shadeCode === cleanShade ||
-        r.shadeId === cleanShade
+        r.shadeCode === cleanshade ||
+        r.shadeId === cleanshade
       )
     })
 
@@ -292,7 +292,7 @@ export default function PutAwayCheckIn() {
         if (rack.cells && Array.isArray(rack.cells)) {
           for (const cell of rack.cells) {
             const cellCode = cell.code || `${rack.shadeCode}-${rack.rackNumber}-R${cell.row}-C${cell.col}`
-            const legacyCode = `${cleanShade}-${cell.row < 10 ? `R0${cell.row}` : `R${cell.row}`}-${cell.col < 10 ? `C0${cell.col}` : `C${cell.col}`}`
+            const legacyCode = `${cleanshade}-${cell.row < 10 ? `R0${cell.row}` : `R${cell.row}`}-${cell.col < 10 ? `C0${cell.col}` : `C${cell.col}`}`
             if (
               cell.status === 'Empty' &&
               !occupiedLocationCodes.has(cellCode) &&
@@ -300,7 +300,7 @@ export default function PutAwayCheckIn() {
               (!cell.currentStock || Number(cell.currentStock) === 0)
             ) {
               return {
-                shade: rack.shadeCode || cleanShade,
+                shade: rack.shadeCode || cleanshade,
                 rackNumber: rack.rackNumber,
                 row: cell.row < 10 ? `R0${cell.row}` : `R${cell.row}`,
                 col: cell.col < 10 ? `C0${cell.col}` : `C${cell.col}`,
@@ -318,10 +318,10 @@ export default function PutAwayCheckIn() {
       for (let c = 1; c <= 6; c++) {
         const rowStr = `R0${r}`
         const colStr = `C0${c}`
-        const testCode = `${cleanShade}-${rowStr}-${colStr}`
+        const testCode = `${cleanshade}-${rowStr}-${colStr}`
         if (!occupiedLocationCodes.has(testCode)) {
           return {
-            shade: cleanShade,
+            shade: cleanshade,
             row: rowStr,
             col: colStr,
             code: testCode,
@@ -333,7 +333,7 @@ export default function PutAwayCheckIn() {
 
     // No free bin available in this shade!
     return {
-      shade: cleanShade,
+      shade: cleanshade,
       row: '',
       col: '',
       code: '',
@@ -343,8 +343,8 @@ export default function PutAwayCheckIn() {
 
   // Current auto-allocated bin status for active shade
   const currentAvailableBin = useMemo(() => {
-    return findNextAvailableBin(formSelectedShade)
-  }, [formSelectedShade, occupiedLocationCodes, racksList])
+    return findNextAvailableBin(formSelectedshade)
+  }, [formSelectedshade, occupiedLocationCodes, racksList])
 
   // Auto-fill row & col when shade changes or on mount
   useEffect(() => {
@@ -352,11 +352,11 @@ export default function PutAwayCheckIn() {
       if (currentAvailableBin.row) setFormSelectedRow(currentAvailableBin.row)
       if (currentAvailableBin.col) setFormSelectedCol(currentAvailableBin.col)
     }
-  }, [formSelectedShade, occupiedLocationCodes])
+  }, [formSelectedshade, occupiedLocationCodes])
 
   const formLocationCode = currentAvailableBin.found && formSelectedRow && formSelectedCol
-    ? `${formSelectedShade}-${formSelectedRow}-${formSelectedCol}`
-    : `${formSelectedShade}-NO-SPACE`
+    ? `${formSelectedshade}-${formSelectedRow}-${formSelectedCol}`
+    : `${formSelectedshade}-NO-SPACE`
   const baseQuantityComputed = (Number(formPacksCount) || 0) * (Number(formUnitsPerPack) || 0)
 
   const handleCreateRack = async (e) => {
@@ -438,16 +438,16 @@ export default function PutAwayCheckIn() {
     setFormUnitsPerPack(item.unitsPerPack)
     setFormPacksCount(item.packsCount)
 
-    const targetShade = item.shadeId ? item.shadeId.split(' ')[0] : formSelectedShade
-    setFormSelectedShade(targetShade)
+    const targetshade = item.shadeId ? item.shadeId.split(' ')[0] : formSelectedshade
+    setFormSelectedshade(targetshade)
 
-    const autoBin = findNextAvailableBin(targetShade)
+    const autoBin = findNextAvailableBin(targetshade)
     if (autoBin.found) {
       setFormSelectedRow(autoBin.row)
       setFormSelectedCol(autoBin.col)
       triggerToast(`Loaded into form with bin: ${autoBin.code}`)
     } else {
-      triggerToast(`⚠️ Storage Full in ${targetShade}! Kripya doosra shade select karein.`, 'error')
+      triggerToast(`⚠️ Storage Full in ${targetshade}! Kripya doosra shed select karein.`, 'error')
     }
 
     // Smooth scroll to top form so user sees it loaded
@@ -456,12 +456,12 @@ export default function PutAwayCheckIn() {
 
   // 1-Click Direct Allocate from Table Row
   const handleDirectAllocateItem = async (item) => {
-    const targetShade = item.shadeId ? item.shadeId.split(' ')[0] : formSelectedShade
-    const autoBin = findNextAvailableBin(targetShade)
+    const targetshade = item.shadeId ? item.shadeId.split(' ')[0] : formSelectedshade
+    const autoBin = findNextAvailableBin(targetshade)
 
     if (!autoBin.found) {
       handleLoadQueueItem(item)
-      triggerToast(`⚠️ Shade ${targetShade} me Space nahi hai! Kripya doosra Shade select karein.`, 'error')
+      triggerToast(`⚠️ Shed ${targetshade} me Space nahi hai! Kripya doosra shed select karein.`, 'error')
       return
     }
 
@@ -473,7 +473,7 @@ export default function PutAwayCheckIn() {
     setFormBaseUnit(item.uom)
     setFormUnitsPerPack(item.unitsPerPack)
     setFormPacksCount(item.packsCount)
-    setFormSelectedShade(autoBin.shade)
+    setFormSelectedshade(autoBin.shade)
     setFormSelectedRow(autoBin.row)
     setFormSelectedCol(autoBin.col)
 
@@ -559,7 +559,7 @@ export default function PutAwayCheckIn() {
       packUnit: item.packUnit,
       unitsPerPack: item.unitsPerPack,
       locationCode: autoBin.code,
-      shadeName: SHADES.find((s) => s.id === autoBin.shade)?.name || autoBin.shade,
+      shadeName: shadeS.find((s) => s.id === autoBin.shade)?.name || autoBin.shade,
       row: autoBin.row,
       col: autoBin.col,
       labStatus: item.labStatus || 'Pending QC',
@@ -590,7 +590,7 @@ export default function PutAwayCheckIn() {
       packUnit: row.packUnit,
       unitsPerPack: row.unitsPerPack,
       locationCode: row.recommendedLocation,
-      shadeName: SHADES.find((s) => s.id === row.shade)?.name || row.shade || 'Warehouse',
+      shadeName: shadeS.find((s) => s.id === row.shade)?.name || row.shade || 'Warehouse',
       row: row.recommendedLocation?.match(/R0?(\d+)/i)?.[1] || '1',
       col: row.recommendedLocation?.match(/C0?(\d+)/i)?.[1] || '1',
       labStatus: row.labStatus || 'Pending QC',
@@ -616,7 +616,7 @@ export default function PutAwayCheckIn() {
     }
 
     // Safety Alert: Food in Chemical rack check
-    if (isFoodItem(formProduct) && isChemicalZone(formSelectedShade) && !showHazmatModal) {
+    if (isFoodItem(formProduct) && isChemicalZone(formSelectedshade) && !showHazmatModal) {
       setShowHazmatModal(true)
       return
     }
@@ -631,7 +631,7 @@ export default function PutAwayCheckIn() {
             grnNo: formGRN,
             batchNo: formBatch,
             cellCode: formLocationCode,
-            shade: formSelectedShade,
+            shade: formSelectedshade,
             row: formSelectedRow,
             col: formSelectedCol,
             productName: formProduct,
@@ -698,7 +698,7 @@ export default function PutAwayCheckIn() {
       packUnit: formPackUnit,
       unitsPerPack: formUnitsPerPack,
       locationCode: formLocationCode,
-      shadeName: SHADES.find((s) => s.id === formSelectedShade)?.name || formSelectedShade,
+      shadeName: shadeS.find((s) => s.id === formSelectedshade)?.name || formSelectedshade,
       row: formSelectedRow,
       col: formSelectedCol,
       labStatus: currentItem?.labStatus || 'Pending QC',
@@ -718,7 +718,7 @@ export default function PutAwayCheckIn() {
   }
 
   // Dropdown Options
-  const shadeOptions = SHADES.map((s) => ({
+  const shadeOptions = shadeS.map((s) => ({
     value: s.id,
     label: `${s.id}: ${s.name}`,
     sublabel: `${s.category} • Ratio: ${s.defaultPack}`,
@@ -756,7 +756,7 @@ export default function PutAwayCheckIn() {
           <div>
             <h1 className="text-xl font-bold text-slate-800 tracking-tight">Put-Away / Check-In</h1>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Allocate received gate items into Shade ➔ Row ➔ Column bins with base product unit auto-calculation.
+              Allocate received gate items into shade ➔ Row ➔ Column bins with base product unit auto-calculation.
             </p>
           </div>
         </div>
@@ -958,14 +958,14 @@ export default function PutAwayCheckIn() {
                 </button>
               </div>
 
-              {/* Warning Alert if No Space in Selected Shade */}
+              {/* Warning Alert if No Space in Selected shade */}
               {!currentAvailableBin.found && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-800">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold">⚠️ Abhi is Shade me Space nahi hai (Storage Full)</p>
+                    <p className="font-bold">⚠️ Abhi is shed me Space nahi hai (Storage Full)</p>
                     <p className="text-[11px] text-rose-700 mt-0.5">
-                      Shade <strong>{formSelectedShade}</strong> ke sabhi storage bins currently occupied hain. Kripya neeche se doosra Shade select karein ya naya rack add karein.
+                      Shed <strong>{formSelectedshade}</strong> ke sabhi storage bins currently occupied hain. Kripya neeche se doosra shed select karein ya naya rack add karein.
                     </p>
                   </div>
                 </div>
@@ -973,11 +973,11 @@ export default function PutAwayCheckIn() {
 
               <div className="grid grid-cols-3 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Storage Shade</label>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Storage Shed</label>
                   <CustomSelect
-                    value={formSelectedShade}
+                    value={formSelectedshade}
                     onChange={(val) => {
-                      setFormSelectedShade(val)
+                      setFormSelectedshade(val)
                       const next = findNextAvailableBin(val)
                       if (next.found) {
                         setFormSelectedRow(next.row)
@@ -1030,7 +1030,7 @@ export default function PutAwayCheckIn() {
                 }`}
               >
                 <Check className="w-4 h-4" />
-                <span>{currentAvailableBin.found ? 'Confirm Put-Away & Print QR' : 'Cannot Check-In (No Space in this Shade)'}</span>
+                <span>{currentAvailableBin.found ? 'Confirm Put-Away & Print QR' : 'Cannot Check-In (No Space in this shed)'}</span>
               </button>
             </div>
           </form>
@@ -1075,7 +1075,7 @@ export default function PutAwayCheckIn() {
                 {formLocationCode}
               </div>
               <p className="text-[10px] text-slate-600 font-semibold">
-                {SHADES.find((s) => s.id === formSelectedShade)?.name || formSelectedShade}
+                {shadeS.find((s) => s.id === formSelectedshade)?.name || formSelectedshade}
               </p>
             </div>
 
@@ -1202,7 +1202,7 @@ export default function PutAwayCheckIn() {
                   <td colSpan="11" className="py-8">
                     <DataLoader
                       text="Loading Put-Away Tasks & Dock Inventory..."
-                      subtext="Matching pending GRN items with shade and rack slots..."
+                      subtext="Matching pending GRN items with shed and rack slots..."
                       size="md"
                     />
                   </td>
@@ -1447,7 +1447,7 @@ export default function PutAwayCheckIn() {
                 Cross-Contamination Risk Detected!
               </p>
               <p className="text-[11px] text-rose-800 leading-relaxed">
-                You are attempting to store an edible/food item (<strong className="text-rose-950">{formProduct}</strong>) in a <strong className="text-rose-950">Chemical / Hazardous Zone ({formSelectedShade})</strong>.
+                You are attempting to store an edible/food item (<strong className="text-rose-950">{formProduct}</strong>) in a <strong className="text-rose-950">Chemical / Hazardous Zone ({formSelectedshade})</strong>.
                 FSSAI, ISO 22000, and Warehouse Safety Regulations strictly prohibit storing food products in chemical bays.
               </p>
             </div>
@@ -1457,12 +1457,12 @@ export default function PutAwayCheckIn() {
                 type="button"
                 onClick={() => {
                   setShowHazmatModal(false)
-                  setFormSelectedShade('SH01')
-                  triggerToast('Re-routed safely to Shade 1 (Grains & Pulses)')
+                  setFormSelectedshade('SH01')
+                  triggerToast('Re-routed safely to Shed 1 (Grains & Pulses)')
                 }}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
               >
-                Cancel &amp; Change to Food Shade
+                Cancel &amp; Change to Food Shed
               </button>
               <button
                 type="button"
@@ -1506,18 +1506,18 @@ export default function PutAwayCheckIn() {
 
             <form onSubmit={handleCreateRack} className="space-y-3 text-xs">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Select Facility / Shade *</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Select Facility / Shed *</label>
                 <select
                   value={newRackData.shadeId}
                   onChange={(e) => setNewRackData({ ...newRackData, shadeId: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800"
                 >
-                  <option value="SH01">SH01 - Shade 1: Grains &amp; Bulk Pulses</option>
-                  <option value="SH02">SH02 - Shade 2: Edible Oils &amp; Liquids</option>
-                  <option value="SH03">SH03 - Shade 3: Packaged Food &amp; FMCG</option>
-                  <option value="SH04">SH04 - Shade 4: Packaging Materials</option>
-                  <option value="SH05">SH05 - Shade 5: Chemicals &amp; Hygiene</option>
-                  <option value="SH06">SH06 - Shade 6: Spares &amp; General Goods</option>
+                  <option value="SH01">SH01 - Shed 1: Grains &amp; Bulk Pulses</option>
+                  <option value="SH02">SH02 - Shed 2: Edible Oils &amp; Liquids</option>
+                  <option value="SH03">SH03 - Shed 3: Packaged Food &amp; FMCG</option>
+                  <option value="SH04">SH04 - Shed 4: Packaging Materials</option>
+                  <option value="SH05">SH05 - Shed 5: Chemicals &amp; Hygiene</option>
+                  <option value="SH06">SH06 - Shed 6: Spares &amp; General Goods</option>
                 </select>
               </div>
 

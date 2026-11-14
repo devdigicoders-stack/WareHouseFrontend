@@ -107,7 +107,7 @@ export default function LabelGeneration() {
   // Data from backend
   const [products, setProducts] = useState([])
   const [grnList, setGrnList] = useState([])
-  const [shades, setShades] = useState([])
+  const [shades, setshades] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Label Form Configuration
@@ -122,7 +122,7 @@ export default function LabelGeneration() {
   const [labelFormat, setLabelFormat] = useState('Product + Batch Barcode')
   const [labelSize, setLabelSize] = useState('4" x 4" (100mm x 100mm)')
   const [quantity, setQuantity] = useState('10')
-  const [storageLocation, setStorageLocation] = useState('Shade 1 (General Stores)')
+  const [storageLocation, setStorageLocation] = useState('Shed 1 (General Stores)')
   const [mfgDate, setMfgDate] = useState(() => new Date().toISOString().split('T')[0])
   const [expDate, setExpDate] = useState(() => {
     const d = new Date()
@@ -132,7 +132,7 @@ export default function LabelGeneration() {
   const [additionalInfo, setAdditionalInfo] = useState('Handle With Care • Store in Cool Dry Place')
 
   // Location-specific form state
-  const [selectedZone, setSelectedZone] = useState('Shade 1 (General Stores)')
+  const [selectedZone, setSelectedZone] = useState('Shed 1 (General Stores)')
   const [rackBinCode, setRackBinCode] = useState('SH01-RK01-R1-C1')
 
   // Visual toggles on sticker
@@ -191,7 +191,7 @@ export default function LabelGeneration() {
           }
         }
         if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value)) {
-          setShades(shadeRes.value)
+          setshades(shadeRes.value)
         }
       } catch {
         triggerToast('Error loading catalog data')
@@ -216,7 +216,7 @@ export default function LabelGeneration() {
           baseUnit: grnMat.baseUnit || found?.baseUnit || 'Kg',
           outerPackaging: grnMat.packagingUnit || grnMat.outerPackaging || found?.outerPackaging || 'Bag',
           packSize: grnMat.packSize || found?.packSize || 1,
-          storageZone: selectedGrnObject.shade || found?.storageZone || 'Shade 1',
+          storageZone: selectedGrnObject.shade || found?.storageZone || 'Shed 1',
         }
       }
     }
@@ -376,7 +376,7 @@ export default function LabelGeneration() {
     setSelectedItemIndex(0)
     if (products.length > 0) {
       setSelectedProductSku(products[0].sku)
-      setStorageLocation(products[0].storageZone || 'Shade 1')
+      setStorageLocation(products[0].storageZone || 'Shed 1')
     }
     setLabelFormat('Product + Batch Barcode')
     setLabelSize('4" x 4" (100mm x 100mm)')
@@ -421,7 +421,7 @@ export default function LabelGeneration() {
       mfgDate: mfgDate,
       expiryDate: expDate,
       packQty: quantity,
-      storageZone: storageLocation || activeProduct?.storageZone || 'Shade 1',
+      storageZone: storageLocation || activeProduct?.storageZone || 'Shed 1',
       notes: additionalInfo,
       qrUrl: qrCodeDataUrl,
       barcodeUrl: barcodeDataUrl,
@@ -564,10 +564,10 @@ export default function LabelGeneration() {
       }))
     }
     return [
-      { value: 'Shade 1 (General Stores)', label: 'Shade 1 (General Stores & Packaging)' },
-      { value: 'Shade 2 (Food & Grains)', label: 'Shade 2 (Food & Grains Ambient Zone)' },
-      { value: 'Shade 3 (Industrial Supplies)', label: 'Shade 3 (Industrial Supplies & Heavy Pallets)' },
-      { value: 'Shade 4 (Chemical & Hazardous)', label: 'Shade 4 (Chemical & Hazardous Safety Bay)' },
+      { value: 'Shed 1 (General Stores)', label: 'Shed 1 (General Stores & Packaging)' },
+      { value: 'Shed 2 (Food & Grains)', label: 'Shed 2 (Food & Grains Ambient Zone)' },
+      { value: 'Shed 3 (Industrial Supplies)', label: 'Shed 3 (Industrial Supplies & Heavy Pallets)' },
+      { value: 'Shed 4 (Chemical & Hazardous)', label: 'Shed 4 (Chemical & Hazardous Safety Bay)' },
     ]
   }, [shades])
 
@@ -890,7 +890,7 @@ export default function LabelGeneration() {
                       }
                       const found = products.find((p) => p.sku === val)
                       if (found) {
-                        setStorageLocation(selectedGrnObject?.shade || found.storageZone || 'Shade 1')
+                        setStorageLocation(selectedGrnObject?.shade || found.storageZone || 'Shed 1')
                       }
                     }}
                     options={productOptions}
@@ -941,12 +941,12 @@ export default function LabelGeneration() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Storage Shade / Zone</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Storage Shed / Zone</label>
                     <input
                       type="text"
                       value={storageLocation}
                       onChange={(e) => setStorageLocation(e.target.value)}
-                      placeholder="Shade 1 (General)"
+                      placeholder="Shed 1 (General)"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
                     />
                   </div>

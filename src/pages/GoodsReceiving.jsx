@@ -113,7 +113,7 @@ export default function GoodsReceiving() {
   // Real-time Commercial Warehouse Inward GRN Registry
   const [grnList, setGrnList] = useState([])
   const [products, setProducts] = useState([])
-  const [shades, setShades] = useState([])
+  const [shades, setshades] = useState([])
   const [gateEntries, setGateEntries] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -140,7 +140,7 @@ export default function GoodsReceiving() {
         setProducts(prodRes.value)
       }
       if (shadeRes.status === 'fulfilled' && Array.isArray(shadeRes.value)) {
-        setShades(shadeRes.value)
+        setshades(shadeRes.value)
       }
       if (gateRes.status === 'fulfilled' && Array.isArray(gateRes.value)) {
         setGateEntries(gateRes.value)
@@ -156,7 +156,7 @@ export default function GoodsReceiving() {
     loadData()
   }, [])
 
-  // Dynamic Shades options
+  // Dynamic shades options
   const shadeOptions = useMemo(() => {
     if (shades && shades.length > 0) {
       return shades.map((s) => ({
@@ -165,12 +165,12 @@ export default function GoodsReceiving() {
       }))
     }
     return [
-      { value: 'SH-01 (Shade 1: Grains & Bulk Pulses)', label: 'SH-01 - Shade 1: Grains & Bulk Pulses' },
-      { value: 'SH-02 (Shade 2: Edible Oils & Liquids)', label: 'SH-02 - Shade 2: Edible Oils & Liquids' },
-      { value: 'SH-03 (Shade 3: FMCG & Packaged Foods)', label: 'SH-03 - Shade 3: FMCG & Packaged Foods' },
-      { value: 'SH-04 (Shade 4: Packaging & Materials)', label: 'SH-04 - Shade 4: Packaging & Materials' },
-      { value: 'SH-05 (Shade 5: Chemicals & Hygiene)', label: 'SH-05 - Shade 5: Chemicals & Hygiene' },
-      { value: 'SH-06 (Shade 6: Spares & General Hardware)', label: 'SH-06 - Shade 6: Spares & General Hardware' },
+      { value: 'SH-01 (Shed 1: Grains & Bulk Pulses)', label: 'SH-01 - Shed 1: Grains & Bulk Pulses' },
+      { value: 'SH-02 (Shed 2: Edible Oils & Liquids)', label: 'SH-02 - Shed 2: Edible Oils & Liquids' },
+      { value: 'SH-03 (Shed 3: FMCG & Packaged Foods)', label: 'SH-03 - Shed 3: FMCG & Packaged Foods' },
+      { value: 'SH-04 (Shed 4: Packaging & Materials)', label: 'SH-04 - Shed 4: Packaging & Materials' },
+      { value: 'SH-05 (Shed 5: Chemicals & Hygiene)', label: 'SH-05 - Shed 5: Chemicals & Hygiene' },
+      { value: 'SH-06 (Shed 6: Spares & General Hardware)', label: 'SH-06 - Shed 6: Spares & General Hardware' },
     ]
   }, [shades])
 
@@ -198,7 +198,7 @@ export default function GoodsReceiving() {
     poNo: '',
     supplier: '',
     vehicleNo: '',
-    shade: shadeOptions[0]?.value || 'SH-01 (Shade 1: Grains & Bulk Pulses)',
+    shade: shadeOptions[0]?.value || 'SH-01 (Shed 1: Grains & Bulk Pulses)',
     status: 'Completed',
     receivedBy: 'Warehouse Manager',
     remarks: 'Received and verified at Inward Receiving Terminal',
@@ -366,16 +366,16 @@ export default function GoodsReceiving() {
       }
 
       // Match shade from entry.assignedBay
-      let matchedShade = newGrn.shade
+      let matchedshade = newGrn.shade
       if (entry.assignedBay) {
-        const foundShade = shadeOptions.find((s) => {
+        const foundshade = shadeOptions.find((s) => {
           const shadeCodeMatch = entry.assignedBay.match(/SH-0[1-6]/i)
           if (shadeCodeMatch && s.value.toLowerCase().includes(shadeCodeMatch[0].toLowerCase())) return true
-          const bayNum = entry.assignedBay.match(/(?:Bay|Shade)\s*([1-6])/i)
+          const bayNum = entry.assignedBay.match(/(?:Bay|shade)\s*([1-6])/i)
           if (bayNum && s.value.includes(`SH-0${bayNum[1]}`)) return true
           return false
         })
-        if (foundShade) matchedShade = foundShade.value
+        if (foundshade) matchedshade = foundshade.value
       }
 
       setNewGrn((prev) => ({
@@ -385,7 +385,7 @@ export default function GoodsReceiving() {
         vehicleNo: entry.vehicleNumber || prev.vehicleNo,
         supplier: entry.supplier || prev.supplier,
         poNo: entry.poNumber || entry.challanNo || prev.poNo,
-        shade: matchedShade,
+        shade: matchedshade,
         materials: populatedMaterials,
       }))
       triggerToast(`Successfully loaded all ${populatedMaterials.length} items from Gate Pass ${entry.passNumber}!`)
@@ -529,7 +529,7 @@ export default function GoodsReceiving() {
       'PO Number',
       'Supplier / Party',
       'Vehicle No',
-      'Assigned Shade',
+      'Assigned Shed',
       'Total Quantity',
       'Status',
       'Received By',
@@ -602,7 +602,7 @@ export default function GoodsReceiving() {
               Goods Receiving Note (GRN) Master
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 leading-relaxed">
-              Record, inspect, and verify incoming vendor consignments with automatic stock update into physical warehouse shades
+              Record, inspect, and verify incoming vendor consignments with automatic stock update into physical warehouse sheds
             </p>
           </div>
         </div>
@@ -756,7 +756,7 @@ export default function GoodsReceiving() {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search GRN, PO, supplier, vehicle, shade..."
+            placeholder="Search GRN, PO, supplier, vehicle, shed..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
@@ -794,7 +794,7 @@ export default function GoodsReceiving() {
                 <th className="py-3.5 px-4 min-w-[140px]">PO Reference</th>
                 <th className="py-3.5 px-4 min-w-[190px]">Supplier / Vendor</th>
                 <th className="py-3.5 px-4 min-w-[140px]">Vehicle Reg.</th>
-                <th className="py-3.5 px-4 min-w-[180px]">Assigned Shade</th>
+                <th className="py-3.5 px-4 min-w-[180px]">Assigned Shed</th>
                 <th className="py-3.5 px-4 w-36">Quantity Received</th>
                 <th className="py-3.5 px-4 text-center w-28">Status</th>
                 <th className="py-3.5 px-5 text-right w-44">Actions</th>
@@ -1192,7 +1192,7 @@ export default function GoodsReceiving() {
               </div>
 
               <CustomSelect
-                label="Assigned Storage Shade / Building"
+                label="Assigned Storage Shed / Building"
                 value={newGrn.shade}
                 onChange={(val) => setNewGrn({ ...newGrn, shade: val })}
                 options={shadeOptions}
@@ -1298,7 +1298,7 @@ export default function GoodsReceiving() {
                 <span className="font-mono font-bold text-slate-800">{grnSuccessModal.vehicleNo}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Storage Shade:</span>
+                <span className="text-slate-500">Storage Shed:</span>
                 <span className="text-indigo-700 font-bold">{grnSuccessModal.shade}</span>
               </div>
             </div>
@@ -1391,7 +1391,7 @@ export default function GoodsReceiving() {
                   <span className="font-semibold text-slate-800">{selectedGrn.supplier}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block">Receiving Shade:</span>
+                  <span className="text-slate-500 block">Receiving Shed:</span>
                   <span className="font-semibold text-indigo-700">{selectedGrn.shade}</span>
                 </div>
                 <div>

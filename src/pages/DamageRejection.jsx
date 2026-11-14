@@ -99,7 +99,7 @@ export default function DamageRejection() {
   const [activeTab, setActiveTab] = useState('ALL')
 
   // Filter toolbar state
-  const [filterShade, setFilterShade] = useState('ALL')
+  const [filtershade, setFiltershade] = useState('ALL')
   const [filterStatus, setFilterStatus] = useState('ALL')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -111,14 +111,14 @@ export default function DamageRejection() {
   const [showReportModal, setShowReportModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(null)
 
-  // 6 Dedicated Shades
-  const SHADES = [
-    { id: 'SH01', name: 'Shade 1: Grains & Bulk Pulses' },
-    { id: 'SH02', name: 'Shade 2: Edible Oils & Liquids' },
-    { id: 'SH03', name: 'Shade 3: Packaged Food & FMCG' },
-    { id: 'SH04', name: 'Shade 4: Packaging Materials & Cartons' },
-    { id: 'SH05', name: 'Shade 5: Chemicals & Hygiene' },
-    { id: 'SH06', name: 'Shade 6: Spares & General Goods' },
+  // 6 Dedicated Sheds
+  const shadeS = [
+    { id: 'SH01', name: 'Shed 1: Grains & Bulk Pulses' },
+    { id: 'SH02', name: 'Shed 2: Edible Oils & Liquids' },
+    { id: 'SH03', name: 'Shed 3: Packaged Food & FMCG' },
+    { id: 'SH04', name: 'Shed 4: Packaging Materials & Cartons' },
+    { id: 'SH05', name: 'Shed 5: Chemicals & Hygiene' },
+    { id: 'SH06', name: 'Shed 6: Spares & General Goods' },
   ]
 
   // Default Fallback Demo Cases if MongoDB collection is fresh/empty
@@ -309,7 +309,7 @@ export default function DamageRejection() {
       if (activeTab === 'LEAK' && !item.damageType.includes('Leakage') && !item.damageType.includes('Liquid')) return false
 
       // Dropdown filters
-      if (filterShade !== 'ALL' && item.shadeId !== filterShade) return false
+      if (filtershade !== 'ALL' && item.shadeId !== filtershade) return false
       if (filterStatus !== 'ALL' && item.status !== filterStatus) return false
 
       if (searchQuery.trim() !== '') {
@@ -325,7 +325,7 @@ export default function DamageRejection() {
       }
       return true
     })
-  }, [damageCases, activeTab, filterShade, filterStatus, searchQuery])
+  }, [damageCases, activeTab, filtershade, filterStatus, searchQuery])
 
   // Paginated Results
   const totalPages = Math.max(1, Math.ceil(filteredCases.length / perPage))
@@ -492,8 +492,8 @@ export default function DamageRejection() {
 
   // Dropdown Options
   const shadeOptions = [
-    { value: 'ALL', label: 'All 6 Dedicated Shades' },
-    ...SHADES.map((s) => ({ value: s.id, label: s.name })),
+    { value: 'ALL', label: 'All 6 Dedicated Sheds' },
+    ...shadeS.map((s) => ({ value: s.id, label: s.name })),
   ]
 
   const statusOptions = [
@@ -528,7 +528,7 @@ export default function DamageRejection() {
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium mt-1 max-w-2xl">
-              Log damaged cartons, failed quality test rejections, and quarantine compromised commodities across 6 shades.
+              Log damaged cartons, failed quality test rejections, and quarantine compromised commodities across 6 sheds.
             </p>
           </div>
         </div>
@@ -594,7 +594,7 @@ export default function DamageRejection() {
               <Package className="w-4.5 h-4.5" />
             </div>
             <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 truncate">
-              All Shades
+              All Sheds
             </span>
           </div>
           <div>
@@ -608,7 +608,7 @@ export default function DamageRejection() {
               Total Cases Logged
             </div>
             <div className="text-[11px] text-slate-500 font-medium mt-0.5 truncate">
-              Across all 6 facility shades
+              Across all 6 facility sheds
             </div>
           </div>
         </button>
@@ -780,12 +780,12 @@ export default function DamageRejection() {
               <span className="text-xs bg-rose-50 text-rose-700 font-bold px-3 py-1 rounded-full border border-rose-200/60">
                 {filteredCases.length} Incidents Found
               </span>
-              {(searchQuery || filterShade !== 'ALL' || filterStatus !== 'ALL' || activeTab !== 'ALL') && (
+              {(searchQuery || filtershade !== 'ALL' || filterStatus !== 'ALL' || activeTab !== 'ALL') && (
                 <button
                   type="button"
                   onClick={() => {
                     setActiveTab('ALL')
-                    setFilterShade('ALL')
+                    setFiltershade('ALL')
                     setFilterStatus('ALL')
                     setSearchQuery('')
                     setCurrentPage(1)
@@ -828,16 +828,16 @@ export default function DamageRejection() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
-                Storage Shade Zone
+                Storage Shed Zone
               </label>
               <CustomSelect
-                value={filterShade}
+                value={filtershade}
                 onChange={(val) => {
-                  setFilterShade(val)
+                  setFiltershade(val)
                   setCurrentPage(1)
                 }}
                 options={shadeOptions}
-                placeholder="All 6 Dedicated Shades"
+                placeholder="All 6 Dedicated Sheds"
               />
             </div>
 
@@ -1128,11 +1128,11 @@ export default function DamageRejection() {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Storage Shade</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Storage Shed</label>
                   <CustomSelect
                     value={newCase.shadeId}
                     onChange={(val) => setNewCase({ ...newCase, shadeId: val })}
-                    options={SHADES.map((s) => ({ value: s.id, label: s.name }))}
+                    options={shadeS.map((s) => ({ value: s.id, label: s.name }))}
                   />
                 </div>
                 <div>
