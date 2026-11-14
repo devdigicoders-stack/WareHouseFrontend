@@ -753,7 +753,7 @@ export default function LabelGeneration() {
 
           {/* Category Tabs */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-xl text-xs font-semibold text-center">
-            {['Product Label', 'Batch Label', 'Location Label', 'Pallet Master'].map((tab) => (
+            {['Product Label', 'Batch Label', 'Location Label'].map((tab) => (
               <button
                 key={tab}
                 type="button"
