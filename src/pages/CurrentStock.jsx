@@ -347,7 +347,7 @@ export default function CurrentStock() {
       outerPackaging: newStock.packUnit.trim(),
       packSize: Number(newStock.unitsPerPack) || 1,
       currentStock: computedBase,
-      storageZone: matchedshade?.name || `shade ${newStock.shadeId}`,
+      storageZone: matchedshade?.name || `Shed ${newStock.shadeId}`,
       shadeId: newStock.shadeId,
       row: newStock.row.trim().toUpperCase(),
       col: newStock.col.trim().toUpperCase(),

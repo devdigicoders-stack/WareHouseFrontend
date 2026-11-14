@@ -145,7 +145,7 @@ export default function GateEntry() {
       }
       if (bayNumMatch) {
         const num = bayNumMatch[1]
-        return p.storageZone.includes(`SH-0${num}`) || p.storageZone.toLowerCase().includes(`shade ${num}`)
+        return p.storageZone.includes(`SH-0${num}`) || p.storageZone.toLowerCase().includes(`shed ${num}`) || p.storageZone.toLowerCase().includes(`shade ${num}`)
       }
       return false
     })

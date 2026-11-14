@@ -1,5 +1,26 @@
 import { API_BASE_URL } from '../utils/constants'
 
+const cleanShedRecursively = (val) => {
+  if (typeof val === 'string') {
+    return val.replace(/\bshade\b/gi, (m) => (m === 'shade' ? 'shed' : m === 'SHADE' ? 'SHED' : 'Shed'))
+  }
+  if (Array.isArray(val)) {
+    return val.map(cleanShedRecursively)
+  }
+  if (val && typeof val === 'object') {
+    const res = {}
+    for (const key of Object.keys(val)) {
+      if (key === '_id' || key === 'shadeId' || key === 'shadeCode') {
+        res[key] = val[key]
+      } else {
+        res[key] = cleanShedRecursively(val[key])
+      }
+    }
+    return res
+  }
+  return val
+}
+
 export const apiRequest = async (endpoint, options = {}) => {
   try {
     const token = localStorage.getItem('wms_auth_token')
@@ -13,7 +34,7 @@ export const apiRequest = async (endpoint, options = {}) => {
     })
     const data = await response.json()
     if (!response.ok) throw new Error(data.message || 'Request failed')
-    return data
+    return cleanShedRecursively(data)
   } catch (error) {
     console.error(`API Error on ${endpoint}:`, error)
     throw error

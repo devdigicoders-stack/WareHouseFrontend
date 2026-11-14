@@ -339,7 +339,7 @@ export default function LocationMaster() {
 
   // Export CSV of real Mongo cells
   const handleExportCSV = () => {
-    const headers = ['#', 'Cell Code', 'shade', 'Rack', 'Row', 'Column', 'Product Name', 'Batch No', 'Current Stock', 'Status']
+    const headers = ['#', 'Cell Code', 'Shed', 'Rack', 'Row', 'Column', 'Product Name', 'Batch No', 'Current Stock', 'Status']
     const rows = filteredCells.map((c, idx) => [
       idx + 1,
       `"${c.code}"`,
@@ -953,7 +953,7 @@ export default function LocationMaster() {
               </div>
 
               <div className="text-[11px] font-mono text-slate-700 space-y-0.5">
-                <div><strong>shade:</strong> {qrCellTarget.shadeCode} | <strong>Rack:</strong> {qrCellTarget.rackNumber}</div>
+                <div><strong>Shed:</strong> {qrCellTarget.shadeCode} | <strong>Rack:</strong> {qrCellTarget.rackNumber}</div>
                 <div><strong>Bin:</strong> Row {qrCellTarget.row} • Col {qrCellTarget.col}</div>
                 <div className="text-indigo-700 font-bold truncate"><strong>Item:</strong> {qrCellTarget.productName || 'Empty'}</div>
               </div>

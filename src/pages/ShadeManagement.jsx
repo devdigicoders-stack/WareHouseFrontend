@@ -249,7 +249,7 @@ export default function ShadeManagement() {
           <div className="flex items-center gap-2.5">
             <Layers className="w-4 h-4 text-indigo-600" />
             <h2 className="text-sm font-bold text-slate-800">Shed Register</h2>
-            <span className="text-xs bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full border border-slate-200">{filteredshades.length} shades</span>
+            <span className="text-xs bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full border border-slate-200">{filteredshades.length} sheds</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-center text-xs">
             <div className="relative">

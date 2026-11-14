@@ -590,7 +590,7 @@ export default function PutAwayCheckIn() {
       packUnit: row.packUnit,
       unitsPerPack: row.unitsPerPack,
       locationCode: row.recommendedLocation,
-      shadeName: shadeS.find((s) => s.id === row.shade)?.name || row.shade || 'Warehouse',
+      shadeName: (shadeS.find((s) => s.id === row.shade)?.name || row.shade || 'Warehouse').replace(/\bshade\b/gi, 'Shed'),
       row: row.recommendedLocation?.match(/R0?(\d+)/i)?.[1] || '1',
       col: row.recommendedLocation?.match(/C0?(\d+)/i)?.[1] || '1',
       labStatus: row.labStatus || 'Pending QC',
