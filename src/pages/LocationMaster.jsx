@@ -411,7 +411,7 @@ export default function LocationMaster() {
         }),
       })
       await fetchMasterData()
-      triggerToast(`Cell ${selectedCell.code} has been cleared (Khali).`)
+      triggerToast(`Cell ${selectedCell.code} has been cleared to empty.`)
       setShowEditCellModal(false)
     } catch (err) {
       triggerToast(err.message || 'Failed to clear cell', 'error')
@@ -496,7 +496,7 @@ export default function LocationMaster() {
             </span>
           ) : (
             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 uppercase whitespace-nowrap">
-              Khali
+              Empty
             </span>
           )}
         </div>
@@ -779,14 +779,14 @@ export default function LocationMaster() {
           <div className="flex items-center gap-2">
             <Warehouse className="w-4 h-4 text-indigo-600" />
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Select Warehouse Shed / Godown
+              Select Warehouse Shed
             </h3>
             <span className="text-[11px] font-semibold text-slate-500">
               ({shades.length} Sheds Online)
             </span>
           </div>
           <span className="text-[11px] text-indigo-600 font-medium hidden sm:inline">
-            Click any Shed box below to switch active godown layout
+            Click any Shed box below to switch active shed layout
           </span>
         </div>
 
@@ -885,7 +885,7 @@ export default function LocationMaster() {
                         {isActive ? '● Active Blueprint' : 'Click to Inspect'}
                       </span>
                       <span className="text-slate-400 font-mono">
-                        {Math.max(0, shedCells.length - occupiedCount)} Khali
+                        {Math.max(0, shedCells.length - occupiedCount)} Empty
                       </span>
                     </div>
                   </div>
@@ -896,7 +896,7 @@ export default function LocationMaster() {
         </div>
       </div>
 
-      {/* Main Visual Matrix for Selected Shed - BookMyShow & Bus Booking App (RedBus) Layout */}
+      {/* Main Visual Matrix for Selected Shed - Visual Slot & Deck Layout */}
       <div className="bg-white rounded-3xl p-4 sm:p-6 shadow-xs border border-slate-200/80 space-y-5">
         {/* Header of Selected Shed */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
@@ -906,7 +906,7 @@ export default function LocationMaster() {
                 {currentActiveshade ? currentActiveshade.code : 'SHED'}
               </span>
               <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                {currentActiveshade ? `${currentActiveshade.code}: ${(currentActiveshade.name || '').replace(/shade/gi, 'Shed')}` : 'Warehouse Godown Layout'}
+                {currentActiveshade ? `${currentActiveshade.code}: ${(currentActiveshade.name || '').replace(/shade/gi, 'Shed')}` : 'Warehouse Shed Layout'}
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-1 font-medium">
@@ -1008,7 +1008,7 @@ export default function LocationMaster() {
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>Bhare Hue ({deckStats.totalOccupied})</span>
+              <span>Occupied ({deckStats.totalOccupied})</span>
             </button>
             <button
               type="button"
@@ -1018,7 +1018,7 @@ export default function LocationMaster() {
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-slate-400" />
-              <span>Khali Bins ({deckStats.totalEmpty})</span>
+              <span>Empty Bins ({deckStats.totalEmpty})</span>
             </button>
           </div>
 
@@ -1026,11 +1026,11 @@ export default function LocationMaster() {
           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
               <span className="w-2.5 h-2.5 rounded bg-emerald-600" />
-              <span>Occupied (Bhara Hua)</span>
+              <span>Occupied</span>
             </span>
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white text-slate-700 border-2 border-dashed border-slate-300 shadow-2xs">
               <span className="w-2.5 h-2.5 rounded border border-dashed border-slate-400 bg-white" />
-              <span>Available (Khali Bins)</span>
+              <span>Available (Empty Bins)</span>
             </span>
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
               <span className="w-2.5 h-2.5 rounded bg-rose-500" />
@@ -1046,8 +1046,8 @@ export default function LocationMaster() {
         {/* Render Racks inside Selected Shed */}
         {loading ? (
           <DataLoader
-            text="Loading Warehouse Shed & Rack Blueprint..."
-            subtext="Syncing BookMyShow Godown Layout & Upper/Lower Decks..."
+            text="Loading Warehouse Shed &amp; Rack Blueprint..."
+            subtext="Syncing Warehouse Layout &amp; Upper/Lower Decks..."
             size="md"
           />
         ) : activeshadeRacks.length === 0 ? (
@@ -1073,7 +1073,7 @@ export default function LocationMaster() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-black text-white tracking-tight">
-                      {currentActiveshade ? (currentActiveshade.name || '').replace(/shade/gi, 'Shed') : 'Warehouse Godown Hall'}
+                      {currentActiveshade ? (currentActiveshade.name || '').replace(/shade/gi, 'Shed') : 'Warehouse Storage Hall'}
                     </h3>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                       LIVE FLOOR MAP
@@ -1124,7 +1124,7 @@ export default function LocationMaster() {
                 <span className="font-bold text-slate-200">
                   {selectedDeck === 'LOWER' ? 'Viewing LOWER DECK (Tier 1 • Ground Level / Heavy Pallets - Rows 1 & 2)' :
                    selectedDeck === 'UPPER' ? 'Viewing UPPER DECK (Tier 2 • Top Elevation / Buffer Pallets - Rows 3 & 4)' :
-                   'Viewing BOTH DECKS (Complete Multi-Tier Godown Floor Plan)'}
+                   'Viewing BOTH DECKS (Complete Multi-Tier Floor Plan)'}
                 </span>
               </div>
               <div className="flex items-center gap-3 text-[11px] font-mono text-slate-300">
@@ -1433,7 +1433,7 @@ export default function LocationMaster() {
                     <div className="flex items-center justify-between">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-xs">
                         <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                        Occupied (Bhara Hua)
+                        Occupied
                       </span>
                       <span className="text-xs font-mono font-black text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-emerald-200 shadow-2xs">
                         Stock: {selectedCell.currentStock || 0} Units
@@ -1468,17 +1468,17 @@ export default function LocationMaster() {
                         disabled={savingCell}
                         className="text-[10px] font-bold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer"
                       >
-                        Vacate Slot (खाली करें)
+                        Vacate Slot
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div className="p-5 bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl text-center space-y-2">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-200 text-slate-700">
-                      Empty Slot (Khali Bin)
+                      Empty Slot (Available)
                     </span>
                     <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                      Yeh slot abhi poori tarah khali hai. Aap Put-in Check-in ya direct allocation ke zariye yahan samaan rakh sakte hain.
+                      This slot is currently empty. You can allocate inventory here via Put-in Check-in or direct allocation.
                     </p>
                     <button
                       type="button"
@@ -1590,7 +1590,7 @@ export default function LocationMaster() {
                     value={cellFormData.status}
                     onChange={(val) => setCellFormData({ ...cellFormData, status: val })}
                     options={[
-                      { value: 'Empty', label: 'Empty (Khali)', sublabel: 'Available for fresh check-in' },
+                      { value: 'Empty', label: 'Empty (Available)', sublabel: 'Available for fresh check-in' },
                       { value: 'Occupied', label: 'Occupied (Stock Present)', sublabel: 'Contains inventory batch' },
                       { value: 'Full', label: 'Full (100% Capacity)', sublabel: 'Max capacity reached' },
                       { value: 'Blocked', label: 'Blocked / Maintenance', sublabel: 'Unavailable for allocation' },

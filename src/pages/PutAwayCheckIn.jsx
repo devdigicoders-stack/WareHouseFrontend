@@ -429,7 +429,7 @@ export default function PutAwayCheckIn() {
       setFormSelectedCol(autoBin.col)
       triggerToast(`Loaded into form with bin: ${autoBin.code}`)
     } else {
-      triggerToast(`⚠️ Storage Full in ${targetshade}! Kripya doosra shed select karein.`, 'error')
+      triggerToast(`⚠️ Storage Full in ${targetshade}! Please select another shed.`, 'error')
     }
 
     // Smooth scroll to top form so user sees it loaded
@@ -443,7 +443,7 @@ export default function PutAwayCheckIn() {
 
     if (!autoBin.found) {
       handleLoadQueueItem(item)
-      triggerToast(`⚠️ Shed ${targetshade} me Space nahi hai! Kripya doosra shed select karein.`, 'error')
+      triggerToast(`⚠️ No space available in Shed ${targetshade}! Please select another shed.`, 'error')
       return
     }
 
@@ -769,10 +769,10 @@ export default function PutAwayCheckIn() {
           </div>
           <div>
             <h4 className="text-xs sm:text-sm font-bold text-slate-900">
-              ✨ Naya Unified Flow: GRN aur Put-in ek hi jagah jud chuke hain!
+              ✨ Unified Workflow: GRN &amp; Put-in Check-in are now combined!
             </h4>
             <p className="text-[11px] text-slate-600 mt-0.5">
-              Confusion aur duplicate entry se bachne ke liye ab aap direct GRN page par "Pending Put-in" aur "Completed Put-in" tabs se samaan ko rack mein rakh sakte hain aur slip nikal sakte hain.
+              To eliminate confusion and prevent duplicate entries, you can now allocate racks directly from the &quot;Pending Put-in&quot; and &quot;Completed Put-in&quot; tabs on the GRN page and generate check-in slips instantly.
             </p>
           </div>
         </div>
@@ -976,9 +976,9 @@ export default function PutAwayCheckIn() {
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-800">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold">⚠️ Abhi is shed me Space nahi hai (Storage Full)</p>
+                    <p className="font-bold">⚠️ No Space Available in this Shed (Storage Full)</p>
                     <p className="text-[11px] text-rose-700 mt-0.5">
-                      Shed <strong>{formSelectedshade}</strong> ke sabhi storage bins currently occupied hain. Kripya neeche se doosra shed select karein ya naya rack add karein.
+                      All storage bins in Shed <strong>{formSelectedshade}</strong> are currently occupied. Please select another storage shed or create a new rack.
                     </p>
                   </div>
                 </div>

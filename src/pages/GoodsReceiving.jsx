@@ -887,7 +887,7 @@ export default function GoodsReceiving() {
       setSelectedGrn(created)
       setShowAddModal(false)
       setGrnSuccessModal(created)
-      triggerToast(`GRN ${created.grnNo} registered! Samaan ab Pending Put-in mein ready hai.`)
+      triggerToast(`GRN ${created.grnNo} registered! Material is ready in Pending Put-in.`)
       setNewGrn(initialNewGrn)
     } catch (err) {
       triggerToast(err.message || 'Failed to create GRN', 'error')
@@ -1007,7 +1007,7 @@ export default function GoodsReceiving() {
       setPutInCol(freeBin.col || 'C1')
       triggerToast(`✨ Auto-assigned empty bin: ${freeBin.code}`)
     } else {
-      triggerToast(`⚠️ Shed ${putInShade} is completely full! Kripya doosra shed select karein.`, 'error')
+      triggerToast(`⚠️ Shed ${putInShade} is completely full! Please select another shed.`, 'error')
     }
   }
 
@@ -1020,7 +1020,7 @@ export default function GoodsReceiving() {
     // Food safety check
     if (isFoodItem(activePutInLot.productName) && isChemicalZone(putInShade)) {
       const confirmHazard = window.confirm(
-        `⚠️ FOOD SAFETY WARNING:\n\nAap "${activePutInLot.productName}" ko Chemical / Hygiene Shed (${putInShade}) mein rakh rahe hain.\n\nKya aap pakka sure hain?`
+        `⚠️ FOOD SAFETY WARNING:\n\nYou are attempting to place "${activePutInLot.productName}" into a Chemical / Hazardous Shed (${putInShade}).\n\nAre you sure you want to proceed with this allocation?`
       )
       if (!confirmHazard) return
     }
@@ -1148,7 +1148,7 @@ export default function GoodsReceiving() {
       setPutInSlipQrUrl(qrUrl)
       setPutInSlipData(slipData)
 
-      triggerToast(`✅ Put-in Completed! Samaan ab ${allocatedLocation} mein surakshit save ho gaya.`)
+      triggerToast(`✅ Put-in Completed! Material is safely stored in ${allocatedLocation}.`)
       setShowPutInModal(false)
       setShowPutInSlipModal(true)
     } catch (err) {
@@ -1262,7 +1262,7 @@ export default function GoodsReceiving() {
               Goods Receiving Note (GRN) &amp; Put-in Check-in Hub
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 leading-relaxed">
-              Samaan aane (GRN) se lekar rack mein rakhne (Put-in) tak ka poora inward workflow ek hi jagah. Instant location allocation aur single check-in slip.
+              Complete inward workflow from material arrival (GRN) to rack storage (Put-in). Instant location allocation and single check-in slip.
             </p>
           </div>
         </div>
@@ -1284,7 +1284,7 @@ export default function GoodsReceiving() {
             className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer shadow-xs"
           >
             <Plus className="w-4 h-4 shrink-0" />
-            <span>Create New GRN (नया जीआरएन)</span>
+            <span>Create New GRN</span>
           </button>
         </div>
       </div>
@@ -1392,7 +1392,7 @@ export default function GoodsReceiving() {
             }`}
           >
             <Clock className="w-4 h-4 shrink-0" />
-            <span>Pending Put-in (रैक आवंटन बाकी)</span>
+            <span>Pending Put-in</span>
             <span
               className={`px-2 py-0.5 rounded-full text-xs font-mono font-bold ${
                 workflowTab === 'PENDING_PUT_IN'
@@ -1418,7 +1418,7 @@ export default function GoodsReceiving() {
             }`}
           >
             <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>Completed Put-in (रैक में रखा गया)</span>
+            <span>Completed Put-in</span>
             <span
               className={`px-2 py-0.5 rounded-full text-xs font-mono font-bold ${
                 workflowTab === 'COMPLETED_PUT_IN'
@@ -1444,7 +1444,7 @@ export default function GoodsReceiving() {
             }`}
           >
             <Package className="w-4 h-4 shrink-0" />
-            <span>All GRN Receipts (सभी जीआरएन)</span>
+            <span>All GRN Receipts</span>
             <span
               className={`px-2 py-0.5 rounded-full text-xs font-mono font-bold ${
                 workflowTab === 'ALL_GRN'
@@ -1626,7 +1626,7 @@ export default function GoodsReceiving() {
       </div>
 
       {/* ========================================================================= */}
-      {/* SECTION 5A: PENDING PUT-IN TABLE (Samaan jiska Put-in hona bacha hai)     */}
+      {/* SECTION 5A: PENDING PUT-IN TABLE (Awaiting Rack Allocation)               */}
       {/* ========================================================================= */}
       {workflowTab === 'PENDING_PUT_IN' && (
         <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-sm space-y-4">
@@ -1634,13 +1634,13 @@ export default function GoodsReceiving() {
             <div>
               <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                <span>Pending Put-in Queue (रैक आवंटन पेंडिंग)</span>
+                <span>Pending Put-in Queue</span>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
                   {filteredLots.length} Lots Awaiting Racking
                 </span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Ye samaan warehouse mein receive ho chuka hai (GRN generate ho gaya hai), par abhi tak rack/cell mein nahi rakha gaya hai. "Put-in" daba kar turant rack allocate karein.
+                These goods have been received at the warehouse (GRN generated) but are awaiting rack/bin assignment. Click &quot;Put-in&quot; to allocate location.
               </p>
             </div>
           </div>
@@ -1676,9 +1676,9 @@ export default function GoodsReceiving() {
                     <td colSpan="9" className="py-12 text-center text-slate-400 text-sm">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <CheckCircle2 className="w-8 h-8 text-emerald-500/60" />
-                        <p className="font-semibold text-slate-700">Koi bhi material pending nahi hai!</p>
+                        <p className="font-semibold text-slate-700">No pending items!</p>
                         <p className="text-xs text-slate-400 max-w-sm">
-                          Sabhi inwarded items safely racks mein check-in ho chuke hain. Aap "Completed Put-in" tab mein unki location dekh sakte hain.
+                          All inward goods have been safely checked into racks. View their locations under the &quot;Completed Put-in&quot; tab.
                         </p>
                       </div>
                     </td>
@@ -1740,7 +1740,7 @@ export default function GoodsReceiving() {
                           className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 ml-auto cursor-pointer"
                         >
                           <Truck className="w-3.5 h-3.5" />
-                          <span>Put-in (रैक में रखें)</span>
+                          <span>Put-in (Allocate Rack)</span>
                         </button>
                       </td>
                     </tr>
@@ -1753,7 +1753,7 @@ export default function GoodsReceiving() {
       )}
 
       {/* ========================================================================= */}
-      {/* SECTION 5B: COMPLETED PUT-IN TABLE (Samaan jo Racks mein rakha ja chuka hai) */}
+      {/* SECTION 5B: COMPLETED PUT-IN TABLE (Material Stored in Racks)             */}
       {/* ========================================================================= */}
       {workflowTab === 'COMPLETED_PUT_IN' && (
         <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-sm space-y-4">
@@ -1761,13 +1761,13 @@ export default function GoodsReceiving() {
             <div>
               <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                <span>Completed Put-in Archive (रैक में सुरक्षित रखा गया माल)</span>
+                <span>Completed Put-in Archive</span>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                   {filteredLots.length} Shelved Lots
                 </span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Ye samaan safaltapoorvak racks aur cells mein allot ho chuka hai. Yahan duplicate put-in ka koi chance nahi hai. Aap kisi bhi item ki slip dubara print kar sakte hain.
+                These goods have been successfully allocated to racks and bins. No risk of duplicate entry. You can reprint check-in slips anytime.
               </p>
             </div>
           </div>
@@ -1801,7 +1801,7 @@ export default function GoodsReceiving() {
                 ) : filteredLots.length === 0 ? (
                   <tr>
                     <td colSpan="9" className="py-12 text-center text-slate-400 text-sm">
-                      Abhi tak koi put-in complete nahi hua hai ya selected filter se match nahi ho raha.
+                      No completed put-ins recorded yet or no records match the selected filter.
                     </td>
                   </tr>
                 ) : (
@@ -2109,7 +2109,7 @@ export default function GoodsReceiving() {
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900">
-                    Put-in &amp; Rack Allocation (समान को रैक में रखें)
+                    Put-in &amp; Rack Allocation
                   </h3>
                   <p className="text-xs text-slate-500 font-medium">
                     GRN: <span className="font-mono text-indigo-700 font-bold">{activePutInLot.grnNo}</span> • Lot: <span className="font-mono text-slate-800 font-bold">{activePutInLot.batchNo}</span>
@@ -2175,7 +2175,7 @@ export default function GoodsReceiving() {
                     className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition border border-indigo-200 cursor-pointer shadow-2xs"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Auto-Suggest Free Bin (खाली रैक ढूंढें)</span>
+                    <span>Auto-Suggest Free Bin</span>
                   </button>
                 </div>
                 <CustomSelect
@@ -2247,7 +2247,7 @@ export default function GoodsReceiving() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Rack Row (पंक्ति) <span className="text-rose-500">*</span>
+                    Rack Row <span className="text-rose-500">*</span>
                   </label>
                   <CustomSelect
                     value={putInRow}
@@ -2260,7 +2260,7 @@ export default function GoodsReceiving() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Shelf Column / Slot (खांचा) <span className="text-rose-500">*</span>
+                    Shelf Column / Slot <span className="text-rose-500">*</span>
                   </label>
                   <CustomSelect
                     value={putInCol}
@@ -2309,7 +2309,7 @@ export default function GoodsReceiving() {
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <div>
                     <strong className="block font-bold">CROSS-CONTAMINATION HAZARD ALERT:</strong>
-                    Aap ek Food/Edible item ko Chemical zone ({putInShade}) mein rakh rahe hain. Kripya safe food shed choose karein.
+                    You are attempting to store an edible/food product in a Chemical/Hazardous zone ({putInShade}). Please select a designated food storage shed.
                   </div>
                 </div>
               )}
@@ -2351,7 +2351,7 @@ export default function GoodsReceiving() {
                   ) : (
                     <>
                       <Check className="w-4 h-4" />
-                      <span>Save &amp; Generate Put-in Slip (रैक में सेव करें)</span>
+                      <span>Save &amp; Generate Put-in Slip</span>
                     </>
                   )}
                 </button>
@@ -2413,7 +2413,7 @@ export default function GoodsReceiving() {
               {/* Big High-Contrast Location Banner */}
               <div className="p-3.5 bg-slate-900 text-white rounded-xl space-y-1">
                 <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider block">
-                  PHYSICAL STORAGE LOCATION (भौतिक भंडारण स्थल)
+                  PHYSICAL STORAGE LOCATION
                 </span>
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-lg font-extrabold tracking-wide text-emerald-300">
@@ -2503,7 +2503,7 @@ export default function GoodsReceiving() {
                 className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>Print Official Put-in Slip (रसीद निकालें)</span>
+                <span>Print Official Put-in Slip</span>
               </button>
             </div>
           </div>
@@ -2730,7 +2730,7 @@ export default function GoodsReceiving() {
                           </p>
                         </div>
 
-                        {/* Loose Quantity (Khulla Samaan) */}
+                        {/* Loose Quantity */}
                         <div className="sm:col-span-6 md:col-span-2">
                           <label className="block text-[11px] font-bold text-slate-700 mb-1 truncate">
                             Loose ({m.baseUnit || 'Packet'}s)
@@ -2744,7 +2744,7 @@ export default function GoodsReceiving() {
                             className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           />
                           <p className="text-[10px] text-slate-500 mt-0.5">
-                            Khulla Pieces
+                            Loose Pieces
                           </p>
                         </div>
 
@@ -2889,7 +2889,7 @@ export default function GoodsReceiving() {
             <div>
               <h3 className="text-lg font-extrabold text-slate-900">GRN Generated Successfully!</h3>
               <p className="text-xs text-slate-500 mt-1">
-                Inward consignment record ban chuka hai. Ab aap ise seedhe rack mein Put-in kar sakte hain!
+                The inward consignment has been recorded. You can now allocate it to warehouse racks via Put-in!
               </p>
             </div>
             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-left text-xs space-y-1.5 font-medium">
@@ -2955,7 +2955,7 @@ export default function GoodsReceiving() {
                 className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition"
               >
                 <Truck className="w-4 h-4" />
-                <span>🚚 Put-in Now (तुरंत रैक में रखें और स्लिप निकालें)</span>
+                <span>🚚 Put-in Now (Allocate Rack &amp; Print Slip)</span>
               </button>
 
               <div className="flex gap-2">

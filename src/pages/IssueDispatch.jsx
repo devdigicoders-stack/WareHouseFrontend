@@ -559,7 +559,7 @@ export default function IssueDispatch() {
         const blockCheck = getBatchBlockStatus(batchNo, it.productName, it.sku, it.productId)
 
         if (blockCheck.isBlocked) {
-          triggerToast(`⛔ ROK: Batch ${batchNo} Quality Hold ya Lab Fail par hai! Ise load nahi kiya ja sakta.`)
+          triggerToast(`⛔ BLOCKED: Batch ${batchNo} is on Quality Hold or Lab Test Failed! It cannot be loaded.`)
         } else {
           triggerToast(`✓ Batch ${batchNo} selected (QC Passed • Exp: ${selectedB?.expiryDate || 'Valid'})`)
         }
@@ -800,7 +800,7 @@ export default function IssueDispatch() {
         const blockCheck = getBatchBlockStatus(batchNo, it.productName, it.sku, it.productId)
 
         if (blockCheck.isBlocked) {
-          triggerToast(`⛔ ROK: Batch ${batchNo} Quality Hold ya Lab Fail par hai! Ise load nahi kiya ja sakta.`)
+          triggerToast(`⛔ BLOCKED: Batch ${batchNo} is on Quality Hold or Lab Test Failed! It cannot be loaded.`)
         } else {
           triggerToast(`✓ Batch ${batchNo} selected (QC Passed • Exp: ${selectedB?.expiryDate || 'Valid'})`)
         }
@@ -827,7 +827,7 @@ export default function IssueDispatch() {
       ...prev,
       newItems: [...(prev.newItems || []), newItem],
     }))
-    triggerToast('New item row added to Gaadi manifest.')
+    triggerToast('New item row added to vehicle cargo manifest.')
   }
 
   // Remove item row in Load Items Modal
@@ -843,7 +843,7 @@ export default function IssueDispatch() {
     if (!loadVehicleData) return
     const hasBlocked = (loadVehicleData.newItems || []).some((it) => it.isBlocked)
     if (hasBlocked) {
-      triggerToast('⛔ ROK: Gaadi me Quality Hold ya Lab Failed samaan hai! Ise load nahi kiya ja sakta.')
+      triggerToast('⛔ BLOCKED: Vehicle cargo contains items under Quality Hold or Lab Failed status! They cannot be loaded.')
       return
     }
 
@@ -921,10 +921,10 @@ export default function IssueDispatch() {
         })
       )
 
-      triggerToast(`Gaadi ${loadVehicleData.vehicleNo} me ${loadVehicleData.newItems.length} naye items safaltapoorvak load ho gaye!`)
+      triggerToast(`Vehicle ${loadVehicleData.vehicleNo}: ${loadVehicleData.newItems.length} new items loaded successfully!`)
       setShowLoadItemsModal(false)
     } catch (err) {
-      console.error('Error updating gaadi cargo:', err)
+      console.error('Error updating vehicle cargo:', err)
       // Fallback local update
       setDispatches((prev) =>
         prev.map((d) => {
@@ -954,7 +954,7 @@ export default function IssueDispatch() {
           }
         })
       )
-      triggerToast(`Gaadi ${loadVehicleData.vehicleNo} me items locally load ho gaye!`)
+      triggerToast(`Vehicle ${loadVehicleData.vehicleNo}: items loaded locally!`)
       setShowLoadItemsModal(false)
     } finally {
       setIsUpdatingGaadiCargo(false)
@@ -991,19 +991,19 @@ export default function IssueDispatch() {
     const qrPayload = [
       '=== OFFICIAL VEHICLE OUTWARD GATE PASS ===',
       `Gate Pass No : ${showGatePassModal.dispatchNo ? 'GP-OUT-' + showGatePassModal.dispatchNo : 'GP-OUT-PASS'}`,
-      `Vehicle (Gaadi): ${showGatePassModal.vehicleNo || 'N/A'}`,
-      `Driver Name  : ${showGatePassModal.driverName || 'N/A'} (Ph: ${showGatePassModal.driverContact || showGatePassModal.contactNo || 'N/A'})`,
-      `Origin Godown: Central Warehouse - ${showGatePassModal.shadeId || 'Shed 1: Grains & Pulses'} (Outward Gate 2)`,
-      `Destination  : ${showGatePassModal.customerUnit || 'N/A'}`,
-      `Dispatch Date: ${showGatePassModal.date || 'Today'}`,
-      `Dispatch Time: ${showGatePassModal.dispatchTime || '02:55 PM IST'}`,
-      `Order/PO Ref : ${showGatePassModal.poIndentNo || 'N/A'}`,
+      `Vehicle No    : ${showGatePassModal.vehicleNo || 'N/A'}`,
+      `Driver Name   : ${showGatePassModal.driverName || 'N/A'} (Ph: ${showGatePassModal.driverContact || showGatePassModal.contactNo || 'N/A'})`,
+      `Origin Origin : Central Warehouse - ${showGatePassModal.shadeId || 'Shed 1: Grains & Pulses'} (Outward Gate 2)`,
+      `Destination   : ${showGatePassModal.customerUnit || 'N/A'}`,
+      `Dispatch Date : ${showGatePassModal.date || 'Today'}`,
+      `Dispatch Time : ${showGatePassModal.dispatchTime || '02:55 PM IST'}`,
+      `Order/PO Ref  : ${showGatePassModal.poIndentNo || 'N/A'}`,
       `------------------------------------`,
-      `Consignment  : ${items.length} Product(s) Loaded`,
+      `Consignment   : ${items.length} Product(s) Loaded`,
       ...itemLines,
       `------------------------------------`,
-      `Total Cargo  : ${showGatePassModal.packCount || 0} Packages = ${Number(showGatePassModal.totalQty || 0).toLocaleString()} ${showGatePassModal.baseUnit || 'Units'}`,
-      `Gate Purpose : 1) GODOWN EXIT CLEARANCE  2) DESTINATION RECEIVING SLIP`,
+      `Total Cargo   : ${showGatePassModal.packCount || 0} Packages = ${Number(showGatePassModal.totalQty || 0).toLocaleString()} ${showGatePassModal.baseUnit || 'Units'}`,
+      `Gate Purpose  : 1) WAREHOUSE EXIT CLEARANCE  2) DESTINATION RECEIVING SLIP`,
       `QA Clearance : 100% PHYSICAL COUNT & QC PASSED`,
       '===================================='
     ].join('\n')
@@ -1164,13 +1164,13 @@ export default function IssueDispatch() {
     e.preventDefault()
     const items = newDispatch.items || []
     if (items.length === 0) {
-      triggerToast('Kripya kam se kam 1 item issue consignment me add karein!')
+      triggerToast('Please add at least 1 item to the issue consignment!')
       return
     }
 
     const hasBlocked = items.some((it) => it.isBlocked)
     if (hasBlocked) {
-      triggerToast('⛔ ROK: Consignment me Quality Hold ya Lab Failed samaan hai! Sirf QC Passed items load ho sakte hain.')
+      triggerToast('⛔ BLOCKED: Consignment contains items on Quality Hold or Lab Failed status! Only QC Passed items can be dispatched.')
       return
     }
 
@@ -1294,7 +1294,7 @@ export default function IssueDispatch() {
       }
 
       setDispatches(prev => [newRecord, ...prev])
-      triggerToast(`🚚 Gaadi ${newRecord.vehicleNo} dispatched! Single Gate Pass generate ho gaya hai.`)
+      triggerToast(`🚚 Vehicle ${newRecord.vehicleNo} dispatched! Single Gate Pass generated.`)
       setShowNewDispatchModal(false)
       setShowGatePassModal(newRecord)
     } catch (err) {
@@ -1348,7 +1348,7 @@ export default function IssueDispatch() {
         })),
       }
       setDispatches(prev => [newRecord, ...prev])
-      triggerToast(`🚚 Gaadi ${newRecord.vehicleNo} dispatched! Single Gate Pass generate ho gaya hai.`)
+      triggerToast(`🚚 Vehicle ${newRecord.vehicleNo} dispatched! Single Gate Pass generated.`)
       setShowNewDispatchModal(false)
       setShowGatePassModal(newRecord)
     } finally {
@@ -2006,12 +2006,12 @@ export default function IssueDispatch() {
 
                       <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
-                          {/* Load Samaan Action Button */}
+                          {/* Load Cargo Action Button */}
                           <button
                             type="button"
                             onClick={() => handleOpenLoadItemsModal(row)}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold transition cursor-pointer shadow-2xs"
-                            title="Gaadi me samaan load karein (Add items to this truck)"
+                            title="Load cargo into vehicle (Add items to this truck)"
                           >
                             <Truck className="w-3.5 h-3.5 text-indigo-600" />
                             <span>Load</span>
@@ -2131,7 +2131,7 @@ export default function IssueDispatch() {
                     Outward Issue &amp; Vehicle Gate Pass (Multi-Item Consignment)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    1 Truck = 1 Destination • Ek hi gaadi mein multiple items (chawal, aata, daal) load karein
+                    1 Truck = 1 Destination • Load multiple products (Rice, Flour, Pulses) into a single vehicle
                   </p>
                 </div>
               </div>
@@ -2158,18 +2158,18 @@ export default function IssueDispatch() {
                 <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold">
                   1
                 </span>
-                <span>Step 1: Gaadi &amp; Destination Setup</span>
+                <span>Step 1: Vehicle &amp; Destination Setup</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => {
                   if (!newDispatch.vehicleNo?.trim()) {
-                    triggerToast('Pehle Gaadi Number bharein!')
+                    triggerToast('Please enter Vehicle Number first!')
                     return
                   }
                   if (!newDispatch.customerUnit?.trim()) {
-                    triggerToast('Pehle Destination Hub select karein!')
+                    triggerToast('Please select Destination Hub first!')
                     return
                   }
                   setActiveIssueStep(2)
@@ -2183,13 +2183,13 @@ export default function IssueDispatch() {
                 <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold">
                   2
                 </span>
-                <span>Step 2: Samaan Loading ({newDispatch.items?.length || 1} Items)</span>
+                <span>Step 2: Cargo Loading ({newDispatch.items?.length || 1} Items)</span>
               </button>
             </div>
 
             <form onSubmit={handleCreateDispatch} className="mt-4 space-y-5 text-xs">
               {/* ========================================================= */}
-              {/* STEP 1: ISSUE AUR VEHICLE (GAADI) CREATE KARNA            */}
+              {/* STEP 1: ISSUE AND VEHICLE SETUP                           */}
               {/* ========================================================= */}
               {activeIssueStep === 1 && (
                 <div className="space-y-4">
@@ -2201,13 +2201,13 @@ export default function IssueDispatch() {
                         </span>
                         <div>
                           <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                            <span>Step 1: Issue &amp; Vehicle (Gaadi) Setup</span>
+                            <span>Step 1: Issue &amp; Vehicle Setup</span>
                             <span className="text-[10px] normal-case font-semibold text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-800/60">
-                              Gaadi Level Details (Sirf Ek Baar)
+                              Vehicle-Level Details (Single Setup)
                             </span>
                           </h4>
                           <p className="text-[11px] text-slate-400 mt-0.5">
-                            Gaadi Number, Driver aur Destination ek baar set hongi — poora truck ek hi jagah jayega
+                            Vehicle Number, Driver, and Destination are configured once — the full truck delivers to a single destination
                           </p>
                         </div>
                       </div>
@@ -2220,7 +2220,7 @@ export default function IssueDispatch() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                          1. Vehicle / Truck Number (Gaadi No.) *
+                          1. Vehicle / Truck Number *
                         </label>
                         <div className="flex rounded-xl overflow-hidden border border-slate-700 focus-within:border-indigo-400 bg-slate-800 shadow-2xs">
                           <span className="inline-flex items-center px-2.5 bg-slate-700 text-[10px] font-black text-amber-400 select-none">
@@ -2294,7 +2294,7 @@ export default function IssueDispatch() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
                       <div className="sm:col-span-1">
                         <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center justify-between">
-                          <span>4. Destination (Kahan Ja Rahi Hai) *</span>
+                          <span>4. Destination Hub *</span>
                           <span className="text-[9px] text-amber-400 font-semibold">Truck Level</span>
                         </label>
                         {customers.length > 0 ? (
@@ -2368,7 +2368,7 @@ export default function IssueDispatch() {
                     </div>
                   </div>
 
-                  {/* Step 1 Footer Action Bar: Proceed to Step 2 (Samaan Load Karein) */}
+                  {/* Step 1 Footer Action Bar: Proceed to Step 2 (Load Cargo) */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
                     <button
                       type="button"
@@ -2382,19 +2382,19 @@ export default function IssueDispatch() {
                       type="button"
                       onClick={() => {
                         if (!newDispatch.vehicleNo?.trim()) {
-                          triggerToast('Gaadi Number bharna zaroori hai!')
+                          triggerToast('Vehicle Number is required!')
                           return
                         }
                         if (!newDispatch.customerUnit?.trim()) {
-                          triggerToast('Destination Hub select karein!')
+                          triggerToast('Please select a Destination Hub!')
                           return
                         }
                         setActiveIssueStep(2)
-                        triggerToast(`Gaadi ${newDispatch.vehicleNo} confirm! Ab samaan load karein.`)
+                        triggerToast(`Vehicle ${newDispatch.vehicleNo} confirmed! Proceeding to load cargo.`)
                       }}
                       className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition cursor-pointer"
                     >
-                      <span>🚚 Samaan Load Karein (Step 2: Proceed to Load Items ➔)</span>
+                      <span>🚚 Load Cargo (Step 2: Proceed to Load Items ➔)</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -2402,7 +2402,7 @@ export default function IssueDispatch() {
               )}
 
               {/* ========================================================= */}
-              {/* STEP 2: GAADI MEIN SAMAAN LOADING (CARGO MANIFEST)        */}
+              {/* STEP 2: VEHICLE CARGO MANIFEST LOADING                    */}
               {/* ========================================================= */}
               {activeIssueStep === 2 && (
                 <div className="space-y-4">
@@ -2432,7 +2432,7 @@ export default function IssueDispatch() {
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition border border-slate-700 self-start sm:self-auto cursor-pointer"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
-                      <span>Edit Gaadi Details</span>
+                      <span>Edit Vehicle Details</span>
                     </button>
                   </div>
 
@@ -2445,10 +2445,10 @@ export default function IssueDispatch() {
                         </span>
                         <div>
                           <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                            <span>Step 2: Samaan Ki Loading (Truck Consignment Manifest)</span>
+                            <span>Step 2: Cargo Loading (Truck Consignment Manifest)</span>
                           </h4>
                           <p className="text-[11px] text-slate-500 mt-0.5">
-                            Is gaadi ({newDispatch.vehicleNo || 'Truck'}) mein 5-10 alag-alag samaan (chawal, aata, daal, tel) add karein
+                            Add multiple products (Rice, Flour, Pulses, Oil) to this vehicle ({newDispatch.vehicleNo || 'Truck'})
                           </p>
                         </div>
                       </div>
@@ -2519,9 +2519,9 @@ export default function IssueDispatch() {
                               <div className="bg-rose-100 border border-rose-300 text-rose-900 rounded-xl p-3 flex items-start gap-2.5">
                                 <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                                 <div>
-                                  <p className="font-bold text-xs">⛔ ROK (BLOCKED): Yeh Samaan Gaadi Mein Load Nahi Ho Sakta!</p>
+                                  <p className="font-bold text-xs">⛔ BLOCKED: This item cannot be loaded into the vehicle!</p>
                                   <p className="text-[11px] text-rose-700 mt-0.5">
-                                    Karan: <strong>{item.blockReason || 'Quality Hold ya Lab Test Fail'}</strong>. Warehouse Quality Compliance ke tahat jo samaan Hold par hai ya QC test qualify nahi hua hai, use gaadi me load karne ki sakht manahi hai.
+                                    Reason: <strong>{item.blockReason || 'Quality Hold or Lab Test Failed'}</strong>. Per warehouse quality compliance policy, materials on Hold or failing QC certification cannot be loaded or dispatched.
                                   </p>
                                 </div>
                               </div>
@@ -2632,7 +2632,7 @@ export default function IssueDispatch() {
                               <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                                   <Package className="w-3.5 h-3.5 text-indigo-600" />
-                                  <span>Dual Outward Quantities (Full Cartons + Khulla Loose)</span>
+                                  <span>Dual Outward Quantities (Full Packs + Loose Units)</span>
                                 </span>
                                 {item.availableStock > 0 && (
                                   <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
@@ -2665,7 +2665,7 @@ export default function IssueDispatch() {
                                 {/* Loose Min Units */}
                                 <div>
                                   <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                                    2. Loose {item.minUnit}s (Khulla)
+                                    2. Loose {item.minUnit}s
                                   </label>
                                   <input
                                     type="number"
@@ -2737,7 +2737,7 @@ export default function IssueDispatch() {
                       className="w-full py-3.5 rounded-2xl border-2 border-dashed border-indigo-300 hover:border-indigo-500 bg-indigo-50/50 hover:bg-indigo-50 text-indigo-700 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs"
                     >
                       <Plus className="w-4 h-4" />
-                      <span>+ Add Another Product to this Truck / Gaadi (Aur Samaan Load Karein)</span>
+                      <span>+ Add Another Product to this Vehicle (Load More Cargo)</span>
                     </button>
                   </div>
 
@@ -2751,7 +2751,7 @@ export default function IssueDispatch() {
                           <span className="w-5 h-5 rounded-md bg-indigo-600 text-white font-mono text-[10px] flex items-center justify-center font-bold">
                             3
                           </span>
-                          <span>Gaadi Ka Poora Cargo Summary &amp; Gate Pass</span>
+                          <span>Vehicle Cargo Summary &amp; Single Gate Pass</span>
                         </h4>
                         <p className="text-sm text-indigo-950 font-black mt-1">
                           Truck: <span className="font-mono text-indigo-700">{newDispatch.vehicleNo || 'DL-XX'}</span>{' '}
@@ -2804,7 +2804,7 @@ export default function IssueDispatch() {
                       onClick={() => setActiveIssueStep(1)}
                       className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition cursor-pointer"
                     >
-                      ← Back to Gaadi Setup
+                      ← Back to Vehicle Setup
                     </button>
 
                     <div className="flex items-center gap-3">
@@ -2822,12 +2822,12 @@ export default function IssueDispatch() {
                         className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition cursor-pointer flex items-center gap-2"
                         title={
                           consignmentSummary.hasBlockedItems
-                            ? 'Quality Hold ya Lab Failed item hone ke karan gate pass generate nahi ho sakta'
-                            : 'Dispatch Gaadi & Generate Gate Pass'
+                            ? 'Gate Pass cannot be generated because consignment contains items on Quality Hold or Lab Fail status'
+                            : 'Dispatch Vehicle & Generate Gate Pass'
                         }
                       >
                         {submitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                        <span>🚀 Dispatch &amp; Generate Single Gate Pass (गाड़ी रवाना करें और गेट पास निकालें)</span>
+                        <span>🚀 Dispatch &amp; Generate Single Gate Pass</span>
                       </button>
                     </div>
                   </div>
@@ -3001,15 +3001,15 @@ export default function IssueDispatch() {
                     GATE PASS NO: GP-OUT-{showGatePassModal.dispatchNo}
                   </span>
                   <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    ✓ VALID FOR GODOWN EXIT &amp; RECEIVING
+                    ✓ VALID FOR WAREHOUSE EXIT &amp; RECEIVING
                   </span>
                 </div>
               </div>
 
-              {/* Route Banner: Kahan Se Kahan Ja Rahi Hai */}
+              {/* Route Banner */}
               <div className="bg-slate-100 p-3 rounded-xl border border-slate-300 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
                 <div>
-                  <span className="text-[9px] text-slate-500 uppercase font-bold block">1. Origin Godown / Shed (Kahan Se)</span>
+                  <span className="text-[9px] text-slate-500 uppercase font-bold block">1. Origin Facility / Shed</span>
                   <strong className="text-slate-900 font-bold block mt-0.5 text-xs">
                     Central Warehouse • {showGatePassModal.shadeId || 'Shed 1: Grains & Pulses'}
                   </strong>
@@ -3019,7 +3019,7 @@ export default function IssueDispatch() {
                 </div>
 
                 <div className="sm:border-l sm:border-slate-300 sm:pl-3 border-t sm:border-t-0 pt-2 sm:pt-0">
-                  <span className="text-[9px] text-indigo-700 uppercase font-bold block">2. Destination Hub (Kahan Ja Rahi Hai)</span>
+                  <span className="text-[9px] text-indigo-700 uppercase font-bold block">2. Destination Hub</span>
                   <strong className="text-indigo-950 font-black block mt-0.5 text-xs">
                     {showGatePassModal.customerUnit || 'Consignee Delivery Depot'}
                   </strong>
@@ -3032,7 +3032,7 @@ export default function IssueDispatch() {
               {/* Vehicle & Dispatch Date / Time Details */}
               <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
                 <div>
-                  <span className="text-slate-400 block font-sans">Vehicle (Gaadi No.)</span>
+                  <span className="text-slate-400 block font-sans">Vehicle Registration No.</span>
                   <div className="inline-flex items-center gap-1 mt-0.5 bg-slate-900 text-amber-300 font-mono font-black text-xs px-2 py-0.5 rounded shadow-2xs">
                     <span className="text-[8px] bg-slate-700 text-amber-400 px-1 rounded select-none">IND</span>
                     <span>{showGatePassModal.vehicleNo}</span>
@@ -3063,7 +3063,7 @@ export default function IssueDispatch() {
               {/* Itemized Consignment Table */}
               <div className="border-t border-slate-200 pt-2.5">
                 <div className="flex items-center justify-between mb-1.5 text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  <span>Gaadi Mein Load Hue Saare Items ({showGatePassModal.itemsList?.length || 1} Products)</span>
+                  <span>Loaded Consignment Items ({showGatePassModal.itemsList?.length || 1} Products)</span>
                   <span className="text-indigo-600 font-bold">Consignment Material Manifest</span>
                 </div>
                 <div className="border border-slate-300 rounded-lg overflow-hidden">
@@ -3130,10 +3130,10 @@ export default function IssueDispatch() {
 
               {/* Dual Gate Clearance Sign-off (Godown Exit Gate & Destination Receiving Gate) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                {/* Gate 1: Godown Exit Gate Clearance */}
+                {/* Gate 1: Warehouse Exit Gate Clearance */}
                 <div className="border border-slate-300 rounded-lg p-2.5 bg-slate-50/70">
                   <div className="flex items-center justify-between pb-1 border-b border-slate-200">
-                    <span className="font-bold text-[10px] text-slate-800 uppercase">1. Godown Exit Gate Clearance</span>
+                    <span className="font-bold text-[10px] text-slate-800 uppercase">1. Warehouse Exit Gate Clearance</span>
                     <span className="text-[8px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">PASSED &amp; CLEARED</span>
                   </div>
                   <p className="text-[9px] text-slate-500 mt-1">Physical cargo count &amp; vehicle registration verified at warehouse exit gate.</p>
@@ -3177,7 +3177,7 @@ export default function IssueDispatch() {
                         src={gatePassQrUrl}
                         alt="Dispatch Gate Pass QR"
                         className="w-full h-full object-contain"
-                        title="Scan at Godown Gate or Receiving Hub to verify dispatch manifest"
+                        title="Scan at Warehouse Gate or Receiving Hub to verify dispatch manifest"
                       />
                     ) : (
                       <QrCode className="w-10 h-10 text-slate-800" />
@@ -3212,14 +3212,14 @@ export default function IssueDispatch() {
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
-                <span>🖨️ Print Single Gate Pass (प्रिंट करें)</span>
+                <span>🖨️ Print Single Gate Pass</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL 5: LOAD ITEMS INTO EXISTING GAADI (DEDICATED CARGO LOADING MODAL) */}
+      {/* MODAL 5: LOAD ITEMS INTO EXISTING VEHICLE (DEDICATED CARGO LOADING MODAL) */}
       {showLoadItemsModal && loadVehicleData && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full p-4 sm:p-6 max-h-[92dvh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95">
@@ -3231,7 +3231,7 @@ export default function IssueDispatch() {
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-slate-800">
-                    Gaadi Mein Samaan Load Karein (Truck Loading Manifest)
+                    Load Cargo into Vehicle (Truck Loading Manifest)
                   </h3>
                   <p className="text-xs text-slate-500">
                     Truck: <span className="font-mono font-bold text-indigo-700">{loadVehicleData.vehicleNo}</span> • Driver: {loadVehicleData.driverName} • Destination: {loadVehicleData.customerUnit}
@@ -3317,7 +3317,7 @@ export default function IssueDispatch() {
                   <span className="w-5 h-5 rounded-md bg-indigo-600 text-white font-mono text-[10px] flex items-center justify-center font-bold">
                     +
                   </span>
-                  <span>New Samaan to Load into Gaadi ({loadVehicleData.newItems?.length || 0} Items):</span>
+                  <span>New Items to Load into Vehicle ({loadVehicleData.newItems?.length || 0} Items):</span>
                 </h4>
                 <button
                   type="button"
@@ -3383,9 +3383,9 @@ export default function IssueDispatch() {
                       <div className="bg-rose-100 border border-rose-300 text-rose-900 rounded-xl p-2.5 flex items-start gap-2">
                         <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                         <div>
-                          <p className="font-bold text-xs">⛔ ROK (BLOCKED): Yeh Samaan Gaadi Mein Load Nahi Ho Sakta!</p>
+                          <p className="font-bold text-xs">⛔ BLOCKED: This item cannot be loaded into the vehicle!</p>
                           <p className="text-[11px] text-rose-700 mt-0.5">
-                            Karan: <strong>{item.blockReason}</strong>. Jo samaan Hold par hai ya Lab Test fail hua hai, use dispatch nahi kiya ja sakta.
+                            Reason: <strong>{item.blockReason}</strong>. Materials on Quality Hold or failing QC certification cannot be dispatched.
                           </p>
                         </div>
                       </div>
@@ -3447,7 +3447,7 @@ export default function IssueDispatch() {
                           onChange={(val) => handleSelectBatchInLoadModal(item.id, val)}
                           options={productBatches.map((b) => ({
                             value: b.batchNo,
-                            label: b.isBlocked ? `⛔ ${b.batchNo} (ROK - HOLD / LAB FAILED)` : b.batchNo,
+                            label: b.isBlocked ? `⛔ ${b.batchNo} (HOLD / LAB FAILED - BLOCKED)` : b.batchNo,
                             sublabel: b.isBlocked
                               ? `⛔ ${b.blockReason.toUpperCase()} (Cannot Select) | Exp: ${b.expiryDate}`
                               : `Exp: ${b.expiryDate} (${b.eslText}) | Stock: ${b.qty} | QC: Passed`,
@@ -3491,7 +3491,7 @@ export default function IssueDispatch() {
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                            2. Loose {item.minUnit}s (Khulla)
+                            2. Loose {item.minUnit}s
                           </label>
                           <input
                             type="number"
@@ -3546,7 +3546,7 @@ export default function IssueDispatch() {
                 className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition cursor-pointer flex items-center gap-2"
               >
                 {isUpdatingGaadiCargo && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                <span>Confirm &amp; Load into Gaadi (Manifest Update Karein)</span>
+                <span>Confirm &amp; Load into Vehicle</span>
               </button>
             </div>
           </div>

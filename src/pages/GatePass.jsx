@@ -314,7 +314,7 @@ export default function GatePass() {
     // STRICT VALIDATION FOR OUTWARD PASSES:
     if (isOutward) {
       if (!referenceNo.trim()) {
-        triggerToast('Validation Error: Material Outward ke liye Dispatch Order Slip zaroori hai!')
+        triggerToast('Validation Error: Material Outward requires a valid Dispatch Order Slip!')
         return
       }
 
@@ -323,7 +323,7 @@ export default function GatePass() {
       )
 
       if (!matchedDispatch && availableDispatches.length > 0) {
-        triggerToast('Validation Error: Chuna gaya Dispatch Slip system me exist nahi karta. Kripya authorized dispatch slip select karein!')
+        triggerToast('Validation Error: The selected Dispatch Slip does not exist. Please choose an authorized dispatch slip!')
         return
       }
     }
@@ -649,16 +649,16 @@ export default function GatePass() {
                           <AlertTriangle className="w-4 h-4" />
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-bold text-amber-900 text-sm">Valid Dispatch Order Slip Zaroori Hai</h4>
+                          <h4 className="font-bold text-amber-900 text-sm">Valid Dispatch Order Slip Required</h4>
                           <p className="text-amber-700 mt-1 leading-relaxed">
-                            Material Outward Gate Pass issue karne ke liye pehle warehouse se product dispatch hona chahiye aur uski official <strong>Dispatch Order Slip</strong> generate honi chahiye. Abhi system me koi pending dispatch nahi mila.
+                            To issue an Outward Gate Pass, materials must first be dispatched from the warehouse with an official <strong>Dispatch Order Slip</strong>. No pending dispatches were found in the system.
                           </p>
                           <div className="mt-3 flex items-center gap-2">
                             <Link
                               to="/issue-dispatch"
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold transition shadow-xs"
                             >
-                              <span>Pehle Outward Issue / Dispatch Karein</span>
+                              <span>Proceed to Outward Issue / Dispatch</span>
                               <ArrowRight className="w-3.5 h-3.5" />
                             </Link>
                             <button
@@ -1034,7 +1034,7 @@ export default function GatePass() {
                       <span>Saving to Database...</span>
                     </>
                   ) : passType === 'Material Outward' && !referenceNo.trim() ? (
-                    <span>Pehle Dispatch Slip Chuniye</span>
+                    <span>Select Dispatch Slip First</span>
                   ) : (
                     <>
                       <Printer className="w-4 h-4 shrink-0" />

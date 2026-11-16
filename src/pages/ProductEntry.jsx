@@ -716,7 +716,7 @@ export default function ProductEntry() {
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-500 mt-1 font-medium">
-                      Kitne pieces aate hain 1 pack mein
+                      Number of units contained in 1 pack
                     </p>
                   </div>
 

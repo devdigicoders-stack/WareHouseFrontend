@@ -4,12 +4,12 @@
  */
 
 export const DATE_PRESET_OPTIONS = [
-  { value: 'ALL', label: 'All Dates (Sabhi Dates)' },
-  { value: 'TODAY', label: '📅 Today (आज)' },
-  { value: 'YESTERDAY', label: '⏪ Yesterday (कल)' },
-  { value: 'LAST_7_DAYS', label: '⏱️ Last 7 Days (पिछले 7 दिन)' },
-  { value: 'THIS_MONTH', label: '🗓️ This Month (इस महीने)' },
-  { value: 'CUSTOM', label: '📆 Custom Specific Date...' },
+  { value: 'ALL', label: 'All Dates' },
+  { value: 'TODAY', label: '📅 Today' },
+  { value: 'YESTERDAY', label: '⏪ Yesterday' },
+  { value: 'LAST_7_DAYS', label: '⏱️ Last 7 Days' },
+  { value: 'THIS_MONTH', label: '🗓️ This Month' },
+  { value: 'CUSTOM', label: '📆 Custom Date...' },
 ]
 
 export function isDateMatching(dateValue, preset = 'ALL', customDate = '') {

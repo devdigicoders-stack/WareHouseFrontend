@@ -870,7 +870,7 @@ export default function GateEntry() {
                     <th className="py-3 px-3 w-8 text-center">#</th>
                     <th className="py-3 px-3">Product Description</th>
                     <th className="py-3 px-3 w-28">Packs (Max Unit)</th>
-                    <th className="py-3 px-3 w-24">Loose (Khulla)</th>
+                    <th className="py-3 px-3 w-24">Loose Units</th>
                     <th className="py-3 px-3 w-44">Packaging Unit</th>
                     <th className="py-3 px-3 w-36">Expiry / ESL</th>
                     <th className="py-3 px-3 w-40">Base Estimate</th>

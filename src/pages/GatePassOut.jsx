@@ -321,7 +321,7 @@ export default function GatePassOut() {
 
     // 1. STRICT VALIDATION: Dispatch Order Slip MUST exist and be selected!
     if (!newPass.dispatchNo?.trim()) {
-      triggerToast('Validation Error: Gate Pass issue karne ke liye valid Dispatch Order Slip chuniye!')
+      triggerToast('Validation Error: Please select a valid Dispatch Order Slip to issue a Gate Pass!')
       return
     }
 
@@ -330,12 +330,12 @@ export default function GatePassOut() {
     )
 
     if (!matchedDispatch && availableDispatches.length > 0) {
-      triggerToast('Validation Error: Chuni gayi Dispatch Slip system me registered nahi hai!')
+      triggerToast('Validation Error: The selected Dispatch Slip is not registered in the system!')
       return
     }
 
     if (!newPass.vehicleNo?.trim() || !newPass.driverName?.trim()) {
-      triggerToast('Vehicle Registration Number aur Driver Name required hain!')
+      triggerToast('Vehicle Registration Number and Driver Name are required!')
       return
     }
 
@@ -1024,12 +1024,12 @@ export default function GatePassOut() {
                     <AlertTriangle className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-amber-900 text-sm">Pehle Product Dispatch Hona Zaroori Hai</h4>
+                    <h4 className="font-bold text-amber-900 text-sm">Product Dispatch Required First</h4>
                     <p className="text-amber-700 mt-1 leading-relaxed">
-                      Warehouse standard protocol ke mutabiq, exit gate par <strong>Outward Gate Pass</strong> tabhi issue hota hai jab warehouse se product dispatch ho chuka ho aur uski <strong>Dispatch Order Slip</strong> generate ho chuki ho.
+                      Per warehouse standard protocol, an <strong>Outward Gate Pass</strong> is issued only after products have been dispatched with an authorized <strong>Dispatch Order Slip</strong>.
                     </p>
                     <p className="text-amber-800 font-semibold mt-1">
-                      Abhi system me koi pending ya active Dispatch Order Slip nahi mili.
+                      No pending or active Dispatch Order Slips were found in the system.
                     </p>
                   </div>
                 </div>
@@ -1039,7 +1039,7 @@ export default function GatePassOut() {
                     to="/issue-dispatch"
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold transition shadow-xs cursor-pointer"
                   >
-                    <span>Pehle Product Dispatch Karein (Issue / Dispatch)</span>
+                    <span>Proceed to Issue / Dispatch Material</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
                   <button
@@ -1093,7 +1093,7 @@ export default function GatePassOut() {
                 ) : (
                   <p className="text-[11px] text-amber-700 flex items-center gap-1 mt-1 font-medium">
                     <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
-                    <span>Kripya upar list me se Dispatch Order Slip select karein jiska Gate Pass banana hai.</span>
+                    <span>Please select a Dispatch Order Slip from the list above to generate the Gate Pass.</span>
                   </p>
                 )}
               </div>
@@ -1282,7 +1282,7 @@ export default function GatePassOut() {
                       <span>Saving in Database...</span>
                     </>
                   ) : !newPass.dispatchNo ? (
-                    <span>Pehle Dispatch Slip Chuniye</span>
+                    <span>Select Dispatch Slip First</span>
                   ) : (
                     <span>Authorize Outward Gate Pass</span>
                   )}
